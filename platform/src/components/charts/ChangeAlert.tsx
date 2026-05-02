@@ -1,6 +1,7 @@
-import type { ChangeDetection } from "@/types/temporal";
-import { cn } from "@/lib/utils";
 import { AlertTriangle, TrendingDown, Info } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+import type { ChangeDetection } from "@/types/temporal";
 
 interface ChangeAlertProps {
   changes: ChangeDetection[];
@@ -41,7 +42,7 @@ export function ChangeAlert({ changes }: ChangeAlertProps) {
             className={cn(
               "flex items-start gap-2 rounded-md border p-3",
               config.bg,
-              config.border
+              config.border,
             )}
           >
             <Icon className={cn("mt-0.5 size-4 shrink-0", config.text)} />

@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useRef, useState } from "react";
+
+import Link from "next/link";
 
 import { motion, useInView } from "motion/react";
 import {
@@ -19,9 +20,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useBrowserTranslation } from "@/hooks/useBrowserTranslation";
-import { cn } from "@/lib/utils";
 import { sampleReport } from "@/lib/sample-report-data";
 import type { Language } from "@/lib/translations";
+import { cn } from "@/lib/utils";
 
 type Bilingual = { en: string; pt: string };
 const B = (en: string, pt: string): Bilingual => ({ en, pt });
@@ -131,10 +132,7 @@ function Hero({ lang }: { lang: Language }) {
     {
       label: B("Single-pass PRs", "PRs de primeira"),
       value: fmtPct(s.pr.singlePassRate),
-      hint: B(
-        `${s.pr.merged} PRs merged`,
-        `${s.pr.merged} PRs merged`,
-      ),
+      hint: B(`${s.pr.merged} PRs merged`, `${s.pr.merged} PRs merged`),
       tone: "success",
     },
     {
@@ -241,10 +239,7 @@ function KeyInsight({ lang }: { lang: Language }) {
           className="rounded-lg border-2 border-signal-yellow/40 bg-signal-yellow/5 p-6 sm:p-8"
         >
           <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-signal-yellow">
-            {pick(
-              B("Headline finding", "Achado principal"),
-              lang,
-            )}
+            {pick(B("Headline finding", "Achado principal"), lang)}
           </div>
           <h2 className="mt-3 text-2xl font-bold tracking-tight sm:text-3xl">
             {pick(
@@ -284,10 +279,7 @@ function DeliveryTimeline({ lang }: { lang: Language }) {
       lang={lang}
       className="bg-card/30"
       eyebrow={B("Delivery timeline", "Linha do tempo da entrega")}
-      title={B(
-        "Every week tells a story",
-        "Cada semana conta uma história",
-      )}
+      title={B("Every week tells a story", "Cada semana conta uma história")}
     >
       <Card className="border-border/50 bg-card/40">
         <CardContent className="p-4 sm:p-6">
@@ -351,10 +343,7 @@ function DeliveryTimeline({ lang }: { lang: Language }) {
                   yAxisId="stab"
                   type="monotone"
                   dataKey="stab"
-                  name={pick(
-                    B("Stabilization %", "Estabilização %"),
-                    lang,
-                  )}
+                  name={pick(B("Stabilization %", "Estabilização %"), lang)}
                   stroke="var(--color-signal-yellow)"
                   strokeWidth={2}
                   dot={{ r: 3, fill: "var(--color-signal-yellow)" }}
@@ -392,7 +381,10 @@ function IntentAndPR({ lang }: { lang: Language }) {
     {
       label: B("Median PR size", "Tamanho mediano de PR"),
       value: pick(
-        B(`${s.pr.medianSizeFiles} files · ${fmtInt(s.pr.medianSizeLines)} lines`, `${s.pr.medianSizeFiles} arquivos · ${fmtInt(s.pr.medianSizeLines)} linhas`),
+        B(
+          `${s.pr.medianSizeFiles} files · ${fmtInt(s.pr.medianSizeLines)} lines`,
+          `${s.pr.medianSizeFiles} arquivos · ${fmtInt(s.pr.medianSizeLines)} linhas`,
+        ),
         lang,
       ),
     },
@@ -410,10 +402,7 @@ function IntentAndPR({ lang }: { lang: Language }) {
     <Section
       lang={lang}
       eyebrow={B("What and how it shipped", "O que e como foi entregue")}
-      title={B(
-        "Composition of the work",
-        "Composição do trabalho",
-      )}
+      title={B("Composition of the work", "Composição do trabalho")}
     >
       <div className="grid gap-4 lg:grid-cols-5">
         {/* Intent distribution bar */}
@@ -470,7 +459,8 @@ function IntentAndPR({ lang }: { lang: Language }) {
                       {pct.toFixed(0)}%
                     </span>
                     <span className="hidden sm:inline text-muted-foreground text-xs">
-                      · {pick(
+                      ·{" "}
+                      {pick(
                         B(
                           `${fmtPct(row.stabilization)} stabilized`,
                           `${fmtPct(row.stabilization)} estabilizado`,
@@ -523,7 +513,7 @@ function IntentAndPR({ lang }: { lang: Language }) {
 
 function StabilityMap({ lang }: { lang: Language }) {
   const volatile = sampleReport.stabilityMap
-    .filter((d) => d.ratio < 0.50)
+    .filter((d) => d.ratio < 0.5)
     .sort((a, b) => a.ratio - b.ratio)
     .slice(0, 6);
   const stable = sampleReport.stabilityMap
@@ -536,10 +526,7 @@ function StabilityMap({ lang }: { lang: Language }) {
       lang={lang}
       className="bg-card/30"
       eyebrow={B("Stability map", "Mapa de estabilidade")}
-      title={B(
-        "Your repo has zones",
-        "Seu repo tem zonas",
-      )}
+      title={B("Your repo has zones", "Seu repo tem zonas")}
     >
       <div className="grid gap-4 md:grid-cols-2">
         <DirList
@@ -575,7 +562,7 @@ function DirList({
   lang,
 }: {
   heading: Bilingual;
-  rows: typeof sampleReport.stabilityMap[number][];
+  rows: (typeof sampleReport.stabilityMap)[number][];
   tone: "success" | "warning";
   lang: Language;
 }) {
@@ -614,7 +601,9 @@ function DirList({
                   <div
                     className={cn(
                       "h-full rounded-full",
-                      tone === "success" ? "bg-signal-purple" : "bg-signal-yellow",
+                      tone === "success"
+                        ? "bg-signal-purple"
+                        : "bg-signal-yellow",
                     )}
                     style={{ width: `${pct}%` }}
                   />
@@ -655,7 +644,10 @@ function DurabilityAndCascade({ lang }: { lang: Language }) {
         <Card className="border-border/50 bg-card/40">
           <CardContent className="p-5 sm:p-6">
             <div className="font-mono text-[10px] uppercase tracking-widest text-signal-purple">
-              {pick(B("Line survival rate", "Taxa de sobrevivência de linhas"), lang)}
+              {pick(
+                B("Line survival rate", "Taxa de sobrevivência de linhas"),
+                lang,
+              )}
             </div>
             <div className="mt-2 flex items-baseline gap-3">
               <span className="text-4xl font-bold text-signal-purple text-glow tabular-nums">
@@ -693,7 +685,10 @@ function DurabilityAndCascade({ lang }: { lang: Language }) {
         <Card className="border-border/50 bg-card/40">
           <CardContent className="p-5 sm:p-6">
             <div className="font-mono text-[10px] uppercase tracking-widest text-signal-yellow">
-              {pick(B("Correction cascade rate", "Taxa de cascata de correção"), lang)}
+              {pick(
+                B("Correction cascade rate", "Taxa de cascata de correção"),
+                lang,
+              )}
             </div>
             <div className="mt-2 flex items-baseline gap-3">
               <span className="text-4xl font-bold text-signal-yellow tabular-nums">
@@ -785,7 +780,9 @@ function TopChurn({ lang }: { lang: Language }) {
                   <td
                     className={cn(
                       "px-5 py-3 text-right font-mono tabular-nums",
-                      r.fixes > 0 ? "text-signal-yellow" : "text-muted-foreground",
+                      r.fixes > 0
+                        ? "text-signal-yellow"
+                        : "text-muted-foreground",
                     )}
                   >
                     {r.fixes}
@@ -836,10 +833,7 @@ function ClosingCTA({ lang }: { lang: Language }) {
           </div>
           <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl text-glow">
             {pick(
-              B(
-                "See your own numbers",
-                "Veja seus próprios números",
-              ),
+              B("See your own numbers", "Veja seus próprios números"),
               lang,
             )}
           </h2>

@@ -1,22 +1,21 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
-import { Menu } from 'lucide-react';
+import { Menu } from "lucide-react";
 
-import { ApertureMark } from '@/components/brand/ApertureMark';
+import { TenantNavList } from "./TenantNavList";
 
-import { TenantNavList } from './TenantNavList';
-
-import { Button } from '@/components/ui/button';
+import { ApertureMark } from "@/components/brand/ApertureMark";
+import { Button } from "@/components/ui/button";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from '@/components/ui/sheet';
-import { useTranslation } from '@/hooks/useTranslation';
+} from "@/components/ui/sheet";
+import { useTranslation } from "@/hooks/useTranslation";
 
 export function TenantMobileNav() {
   const [open, setOpen] = useState(false);
@@ -29,7 +28,7 @@ export function TenantMobileNav() {
           variant="ghost"
           size="icon"
           className="h-10 w-10 lg:hidden"
-          aria-label={t('navigation.openMenu')}
+          aria-label={t("navigation.openMenu")}
         >
           <Menu className="h-5 w-5" />
         </Button>

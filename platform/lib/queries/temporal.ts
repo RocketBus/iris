@@ -4,6 +4,7 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+
 import type {
   TimeSeriesPoint,
   AIImpactPoint,
@@ -18,12 +19,12 @@ const SPARKLINE_POINTS = 12;
 export async function getRepoTimeSeries(
   supabase: SupabaseClient,
   repositoryId: string,
-  limit = 52
+  limit = 52,
 ): Promise<TimeSeriesPoint[]> {
   const { data } = await supabase
     .from("metrics")
     .select(
-      "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate"
+      "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
     )
     .eq("repository_id", repositoryId)
     .order("created_at", { ascending: true })
@@ -46,7 +47,7 @@ export async function getRepoTimeSeries(
 /** Get the full JSONB payload from the latest run. */
 export async function getRepoLatestPayload(
   supabase: SupabaseClient,
-  repositoryId: string
+  repositoryId: string,
 ): Promise<Record<string, unknown> | null> {
   const { data } = await supabase
     .from("metrics")
@@ -63,7 +64,7 @@ export async function getRepoLatestPayload(
 export async function getRepoAITimeSeries(
   supabase: SupabaseClient,
   repositoryId: string,
-  limit = 52
+  limit = 52,
 ): Promise<AIImpactPoint[]> {
   const { data } = await supabase
     .from("metrics")
@@ -95,7 +96,8 @@ export async function getRepoAITimeSeries(
         date: row.created_at,
         ai_pct: row.ai_detection_coverage_pct ?? null,
         stabilization_human: stabByOrigin?.HUMAN?.stabilization_ratio ?? null,
-        stabilization_ai: stabByOrigin?.AI_ASSISTED?.stabilization_ratio ?? null,
+        stabilization_ai:
+          stabByOrigin?.AI_ASSISTED?.stabilization_ratio ?? null,
         durability_human: durByOrigin?.HUMAN?.survival_rate ?? null,
         durability_ai: durByOrigin?.AI_ASSISTED?.survival_rate ?? null,
         cascade_human: cascByOrigin?.HUMAN?.cascade_rate ?? null,
@@ -115,7 +117,7 @@ export async function getRepoAITimeSeries(
  */
 export async function getOrgReposSummary(
   supabase: SupabaseClient,
-  organizationId: string
+  organizationId: string,
 ): Promise<RepoSummary[]> {
   // Query 1: all repos
   const { data: repos } = await supabase
@@ -130,7 +132,7 @@ export async function getOrgReposSummary(
   const { data: allMetrics } = await supabase
     .from("metrics")
     .select(
-      "repository_id, created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate"
+      "repository_id, created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
     )
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
@@ -191,7 +193,7 @@ export function detectChanges(
   repoName: string,
   repoId: string,
   current: TimeSeriesPoint,
-  previous: TimeSeriesPoint
+  previous: TimeSeriesPoint,
 ): ChangeDetection[] {
   const changes: ChangeDetection[] = [];
 
@@ -201,7 +203,7 @@ export function detectChanges(
     curr: number | null,
     prev: number | null,
     thresholdPp: number,
-    severity: ChangeDetection["severity"]
+    severity: ChangeDetection["severity"],
   ) {
     if (curr === null || prev === null) return;
     const delta = curr - prev;
@@ -230,7 +232,7 @@ export function detectChanges(
       previous.stabilization_ratio !== null &&
       current.stabilization_ratio < previous.stabilization_ratio
       ? "warning"
-      : "info"
+      : "info",
   );
 
   // Revert rate increase > 5pp
@@ -244,17 +246,17 @@ export function detectChanges(
       previous.revert_rate !== null &&
       current.revert_rate > previous.revert_rate
       ? "critical"
-      : "info"
+      : "info",
   );
 
   // AI coverage change > 15pp
   check(
     "ai_detection_coverage_pct",
-    `AI adoption changed by ${Math.abs(((current.ai_detection_coverage_pct ?? 0) - (previous.ai_detection_coverage_pct ?? 0))).toFixed(0)}pp`,
+    `AI adoption changed by ${Math.abs((current.ai_detection_coverage_pct ?? 0) - (previous.ai_detection_coverage_pct ?? 0)).toFixed(0)}pp`,
     current.ai_detection_coverage_pct,
     previous.ai_detection_coverage_pct,
     15,
-    "info"
+    "info",
   );
 
   // Churn events doubling or more
@@ -282,7 +284,7 @@ export function detectChanges(
 /** Detect changes across all repos in an org. */
 export async function getOrgChangeDetections(
   supabase: SupabaseClient,
-  organizationId: string
+  organizationId: string,
 ): Promise<ChangeDetection[]> {
   const { data: repos } = await supabase
     .from("repositories")
@@ -297,7 +299,7 @@ export async function getOrgChangeDetections(
     const { data: runs } = await supabase
       .from("metrics")
       .select(
-        "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate"
+        "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
       )
       .eq("repository_id", repo.id)
       .order("created_at", { ascending: false })
@@ -316,7 +318,7 @@ export async function getOrgChangeDetections(
   allChanges.sort(
     (a, b) =>
       severityOrder[a.severity] - severityOrder[b.severity] ||
-      Math.abs(b.delta) - Math.abs(a.delta)
+      Math.abs(b.delta) - Math.abs(a.delta),
   );
 
   return allChanges.slice(0, 5);

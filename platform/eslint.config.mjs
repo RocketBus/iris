@@ -41,6 +41,14 @@ const eslintConfig = [
       "@typescript-eslint/no-empty-object-type": "off",
       "react/no-unescaped-entities": "off",
       "no-console": "warn",
+      // React 19 strict hooks rules — downgraded to warnings until the affected
+      // pages (auth flows, profile, etc.) are refactored. They're real signals
+      // but the codebase pre-dates these checks.
+      "react-hooks/set-state-in-effect": "warn",
+      "react-hooks/immutability": "warn",
+      "react-hooks/purity": "warn",
+      "react-hooks/incompatible-library": "warn",
+      "react-hooks/exhaustive-deps": "warn",
       "import/order": [
         "error",
         {

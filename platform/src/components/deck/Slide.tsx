@@ -1,12 +1,13 @@
 "use client";
 
-import { motion, useInView } from "motion/react";
 import { useRef } from "react";
 
+import { motion, useInView } from "motion/react";
+
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import type { Bilingual, Slide as SlideType } from "@/lib/deck-content";
 import type { Language } from "@/lib/translations";
+import { cn } from "@/lib/utils";
 
 function pick(b: Bilingual, lang: Language): string {
   return lang === "pt-BR" ? b.pt : b.en;
@@ -151,7 +152,8 @@ export function Slide({
           aria-hidden
           className="mt-10 font-mono text-[10px] tracking-widest text-muted-foreground/60"
         >
-          {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+          {String(index + 1).padStart(2, "0")} /{" "}
+          {String(total).padStart(2, "0")}
         </div>
       </div>
     </section>

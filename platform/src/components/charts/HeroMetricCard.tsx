@@ -1,7 +1,9 @@
-import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
-import { Sparkline } from "./Sparkline";
 import { ArrowUp, ArrowDown } from "lucide-react";
+
+import { Sparkline } from "./Sparkline";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface HeroMetricCardProps {
   label: string;

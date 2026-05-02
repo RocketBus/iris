@@ -1,6 +1,8 @@
 import React from "react";
-import type { Metadata } from "next";
+
 import Script from "next/script";
+
+import type { Metadata } from "next";
 
 import { Background } from "@/components/background";
 import { SaasFAQ } from "@/components/blocks/saas-faq";

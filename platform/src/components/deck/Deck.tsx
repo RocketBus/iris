@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-import { LanguageToggle } from "@/components/LanguageToggle";
 import { Slide } from "@/components/deck/Slide";
-import { slides } from "@/lib/deck-content";
+import { LanguageToggle } from "@/components/LanguageToggle";
 import { useBrowserTranslation } from "@/hooks/useBrowserTranslation";
+import { slides } from "@/lib/deck-content";
 import { cn } from "@/lib/utils";
 
 export function Deck() {
@@ -34,7 +34,8 @@ export function Deck() {
     if (typeof window === "undefined") return;
     const container = containerRef.current;
     if (!container) return;
-    const sections = container.querySelectorAll<HTMLElement>("[data-slide-index]");
+    const sections =
+      container.querySelectorAll<HTMLElement>("[data-slide-index]");
     const io = new IntersectionObserver(
       (entries) => {
         const visible = entries

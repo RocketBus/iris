@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+
 import { pulseData, getColor } from "./pulse-data";
 
 export function DeliveryPulse() {
@@ -14,7 +15,10 @@ export function DeliveryPulse() {
           const color = getColor(week.stabilization);
 
           return (
-            <div key={week.week} className="flex flex-col items-center gap-1.5 flex-1">
+            <div
+              key={week.week}
+              className="flex flex-col items-center gap-1.5 flex-1"
+            >
               <motion.div
                 className="w-full rounded-sm pulse-breathe"
                 style={{ backgroundColor: color }}

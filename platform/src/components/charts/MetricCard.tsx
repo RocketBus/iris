@@ -1,6 +1,7 @@
-import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
 import { ArrowUp, ArrowDown, Minus } from "lucide-react";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 interface MetricCardProps {
   label: string;
@@ -48,7 +49,7 @@ export function MetricCard({
                 "flex items-center gap-0.5 text-xs font-medium",
                 isGood && "text-signal-purple",
                 isBad && "text-signal-red",
-                !isGood && !isBad && "text-muted-foreground"
+                !isGood && !isBad && "text-muted-foreground",
               )}
             >
               {isPositive ? (

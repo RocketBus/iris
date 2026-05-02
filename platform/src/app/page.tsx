@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 
+import { CTASection } from "@/components/home/CTASection";
 import { HeroSection } from "@/components/home/HeroSection";
-import { ProblemSection } from "@/components/home/ProblemSection";
-import { ProvenDataSection } from "@/components/home/ProvenDataSection";
 import { HowItWorksSection } from "@/components/home/HowItWorksSection";
 import { ModulesSection } from "@/components/home/ModulesSection";
 import { PositioningSection } from "@/components/home/PositioningSection";
-import { CTASection } from "@/components/home/CTASection";
+import { ProblemSection } from "@/components/home/ProblemSection";
+import { ProvenDataSection } from "@/components/home/ProvenDataSection";
 
 export const metadata: Metadata = {
   title: "Iris — Engineering Intelligence for the AI Era",

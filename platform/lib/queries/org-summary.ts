@@ -4,7 +4,8 @@
  */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { RepoSummary } from "@/types/temporal";
+
+import type { ReportMetrics } from "@/types/metrics";
 import type {
   OrgPulse,
   DeliveryQuality,
@@ -15,7 +16,7 @@ import type {
   OrgTimelineWeek,
   HyperEngineer,
 } from "@/types/org-summary";
-import type { ReportMetrics } from "@/types/metrics";
+import type { RepoSummary } from "@/types/temporal";
 
 // ---------------------------------------------------------------------------
 // Query: latest JSONB payloads for all repos in an org (one query)
@@ -70,8 +71,7 @@ export async function getOrgActiveContributors(
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (!data || data.length === 0)
-    return { count: 0, userMap: new Map() };
+  if (!data || data.length === 0) return { count: 0, userMap: new Map() };
 
   // Keep only the latest run per repo
   const seen = new Set<string>();
@@ -167,7 +167,8 @@ export function computeOrgPulse(
   );
 
   const withAI = repos.filter(
-    (r) => r.ai_detection_coverage_pct !== null && r.ai_detection_coverage_pct > 0,
+    (r) =>
+      r.ai_detection_coverage_pct !== null && r.ai_detection_coverage_pct > 0,
   );
   const aiAdoptionPct = weightedAvg(
     withAI.map((r) => ({
@@ -188,10 +189,12 @@ export function computeOrgPulse(
         )
       : null;
 
-  const totalCommitsDelta =
-    previousTotals ? totalCommits - previousTotals.commits : null;
-  const prsMergedDelta =
-    previousTotals ? prsMerged - previousTotals.prsMerged : null;
+  const totalCommitsDelta = previousTotals
+    ? totalCommits - previousTotals.commits
+    : null;
+  const prsMergedDelta = previousTotals
+    ? prsMerged - previousTotals.prsMerged
+    : null;
   const aiAdoptionDelta =
     previousTotals?.aiPct !== null && aiAdoptionPct !== null && previousTotals
       ? aiAdoptionPct - previousTotals.aiPct!
@@ -337,16 +340,14 @@ export function computeAIvsHuman(
     }
     if (stabO?.AI_ASSISTED) {
       stabAISum +=
-        stabO.AI_ASSISTED.stabilization_ratio *
-        stabO.AI_ASSISTED.files_touched;
+        stabO.AI_ASSISTED.stabilization_ratio * stabO.AI_ASSISTED.files_touched;
       stabAIWeight += stabO.AI_ASSISTED.files_touched;
     }
 
     // Durability
     const durO = p.durability_by_origin;
     if (durO?.HUMAN) {
-      durHumanSum +=
-        durO.HUMAN.survival_rate * durO.HUMAN.lines_introduced;
+      durHumanSum += durO.HUMAN.survival_rate * durO.HUMAN.lines_introduced;
       durHumanWeight += durO.HUMAN.lines_introduced;
     }
     if (durO?.AI_ASSISTED) {
@@ -471,7 +472,13 @@ export function computeIntentDistribution(
   // Build timeline from activity timelines
   const weekMap = new Map<
     string,
-    { FEATURE: number; FIX: number; REFACTOR: number; CONFIG: number; UNKNOWN: number }
+    {
+      FEATURE: number;
+      FIX: number;
+      REFACTOR: number;
+      CONFIG: number;
+      UNKNOWN: number;
+    }
   >();
   for (const [, p] of payloads) {
     if (!p.activity_timeline) continue;
@@ -675,26 +682,20 @@ export function computeOrgTimeline(
     }
   }
 
-  return [...weekMap.entries()]
-    .sort()
-    .map(([weekStart, w]) => ({
-      weekStart,
-      commits: w.commits,
-      linesChanged: w.linesChanged,
-      stabilization:
-        w.stabWeight > 0 ? w.stabSum / w.stabWeight : null,
-      churnEvents: w.churnEvents,
-      aiPct:
-        w.aiWeight > 0 ? (w.aiSum / w.aiWeight) * 100 : null,
-      featurePct:
-        w.totalIntentCount > 0
-          ? (w.featureCount / w.totalIntentCount) * 100
-          : null,
-      fixPct:
-        w.totalIntentCount > 0
-          ? (w.fixCount / w.totalIntentCount) * 100
-          : null,
-    }));
+  return [...weekMap.entries()].sort().map(([weekStart, w]) => ({
+    weekStart,
+    commits: w.commits,
+    linesChanged: w.linesChanged,
+    stabilization: w.stabWeight > 0 ? w.stabSum / w.stabWeight : null,
+    churnEvents: w.churnEvents,
+    aiPct: w.aiWeight > 0 ? (w.aiSum / w.aiWeight) * 100 : null,
+    featurePct:
+      w.totalIntentCount > 0
+        ? (w.featureCount / w.totalIntentCount) * 100
+        : null,
+    fixPct:
+      w.totalIntentCount > 0 ? (w.fixCount / w.totalIntentCount) * 100 : null,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -739,9 +740,10 @@ export function computePreviousTotals(
   return {
     commits,
     prsMerged,
-    aiPct: aiValues.length > 0
-      ? aiValues.reduce((s, v) => s + v, 0) / aiValues.length
-      : null,
+    aiPct:
+      aiValues.length > 0
+        ? aiValues.reduce((s, v) => s + v, 0) / aiValues.length
+        : null,
   };
 }
 
@@ -756,7 +758,13 @@ export function computeHyperEngineers(
   // Accumulate per-author stats across repos
   const authors = new Map<
     string,
-    { name: string; repos: number; hvWeeks: number; aiPct: number; aiCount: number }
+    {
+      name: string;
+      repos: number;
+      hvWeeks: number;
+      aiPct: number;
+      aiCount: number;
+    }
   >();
 
   for (const [, p] of payloads) {

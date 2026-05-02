@@ -18,6 +18,7 @@ platform/.next/
 platform/.env*.local
 platform/.env.production
 platform/.vercel/
+platform/coverage/
 
 # Claude Code per-machine state (settings.json, commands/, agents/, hooks/ are
 # team-shared and should be committed if/when they exist)

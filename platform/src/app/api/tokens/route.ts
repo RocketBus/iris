@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth/next";
+
 import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generateToken } from "@/lib/tokens";
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   if (!organization_id || !name) {
     return Response.json(
       { error: "organization_id and name are required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -29,7 +30,10 @@ export async function POST(request: Request) {
     .single();
 
   if (!membership || membership.role === "member") {
-    return Response.json({ error: "Insufficient permissions" }, { status: 403 });
+    return Response.json(
+      { error: "Insufficient permissions" },
+      { status: 403 },
+    );
   }
 
   const { raw, hash, prefix } = await generateToken();

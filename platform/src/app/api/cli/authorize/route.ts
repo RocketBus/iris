@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth/next";
+
 import { authOptions } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase";
 import { generateToken } from "@/lib/tokens";
@@ -16,7 +17,7 @@ export async function POST(request: Request) {
   if (!organization_id || !port || !state) {
     return Response.json(
       { error: "organization_id, port, and state are required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -35,7 +36,10 @@ export async function POST(request: Request) {
     .single();
 
   if (!membership) {
-    return Response.json({ error: "Not a member of this organization" }, { status: 403 });
+    return Response.json(
+      { error: "Not a member of this organization" },
+      { status: 403 },
+    );
   }
 
   // Get org slug
@@ -66,7 +70,10 @@ export async function POST(request: Request) {
   }
 
   // Use the public app URL (not the internal request URL which may be 0.0.0.0 in Docker)
-  const serverUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "https://iris.clickbus.com";
+  const serverUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    "https://iris.clickbus.com";
 
   // Build redirect URL back to CLI's local server
   const callbackParams = new URLSearchParams({
