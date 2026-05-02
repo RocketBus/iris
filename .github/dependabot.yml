@@ -10,6 +10,12 @@ updates:
     labels:
       - dependencies
       - platform
+    # Skip major bumps; they're handled manually because they often require
+    # config or code changes (eslint 10, typescript 6, etc.). Security PRs
+    # for majors are still opened automatically (they override ignore).
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       production-deps:
         dependency-type: production
@@ -32,6 +38,9 @@ updates:
     labels:
       - dependencies
       - cli
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   # GitHub Actions workflows
   - package-ecosystem: github-actions
