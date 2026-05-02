@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clickbus-iris"
+version = "1.0.0"
+description = "Engineering intelligence for the AI era — measure signal vs noise in software delivery"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+otel = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp-proto-http>=1.20",
+]
+
+[project.scripts]
+iris = "iris.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["iris*"]
+
+[tool.setuptools.package-data]
+"iris.hooks" = ["*.sh"]

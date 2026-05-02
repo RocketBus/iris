@@ -1,0 +1,1573 @@
+openapi: 3.1.0
+info:
+  title: clickbus-iris
+  version: 1.0.0
+  description: Clickbus Iris platform API — authentication, organization management, microservice tokens, and metrics ingestion.
+  license:
+    name: Apache-2.0
+
+servers:
+  - url: https://iris.clickbus.com
+    description: Production
+  - url: http://localhost:3000
+    description: Local development
+
+tags:
+  - name: health
+    description: Health check endpoints
+  - name: auth
+    description: Authentication and account management
+  - name: organizations
+    description: Organization CRUD and settings
+  - name: tenants
+    description: Tenant-scoped resources (audit logs, etc.)
+  - name: microservices
+    description: Microservice JWT token lifecycle
+  - name: users
+    description: User profile management
+  - name: webhooks
+    description: Third-party webhook receivers
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: next-auth.session-token
+      description: NextAuth.js session cookie set after successful sign-in.
+
+  schemas:
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: Internal server error
+
+    ErrorResponseWithError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          example: Unauthorized
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - uptime
+        - timestamp
+        - checks
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - degraded
+          example: ok
+        uptime:
+          type: integer
+          description: Seconds since process start.
+          example: 12345
+        timestamp:
+          type: string
+          format: date-time
+          example: "2026-03-31T12:00:00.000Z"
+        checks:
+          type: object
+          properties:
+            supabase:
+              type: string
+              enum:
+                - ok
+                - error
+
+    SignupRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          example: Jane Doe
+        email:
+          type: string
+          format: email
+          example: jane@example.com
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+          example: "P@ssw0rd!"
+
+    SignupResponse:
+      type: object
+      required:
+        - message
+        - user
+      properties:
+        message:
+          type: string
+          example: User created successfully. Please check your email to verify your account.
+        user:
+          type: object
+          required:
+            - id
+            - email
+            - name
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+
+    ForgotPasswordRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          example: jane@example.com
+
+    ResetPasswordRequest:
+      type: object
+      required:
+        - token
+        - password
+      properties:
+        token:
+          type: string
+          format: uuid
+        password:
+          type: string
+          format: password
+          minLength: 8
+          description: Must contain at least one uppercase letter, one lowercase letter, one number, and one special character.
+
+    VerifyEmailRequest:
+      type: object
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          format: uuid
+
+    Verify2FARequest:
+      type: object
+      required:
+        - code
+      properties:
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+          description: 6-digit verification code.
+          example: "123456"
+
+    Complete2FARequest:
+      type: object
+      required:
+        - userId
+        - code
+        - method
+      properties:
+        userId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+          description: 6-digit verification code.
+          example: "123456"
+        method:
+          type: string
+          enum:
+            - totp
+            - email
+
+    Complete2FAResponse:
+      type: object
+      required:
+        - success
+        - loginToken
+        - user
+      properties:
+        success:
+          type: boolean
+          example: true
+        loginToken:
+          type: string
+          format: uuid
+          description: Temporary login token valid for 5 minutes.
+        user:
+          type: object
+          required:
+            - id
+            - email
+            - name
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            name:
+              type: string
+            image:
+              type:
+                - string
+                - "null"
+
+    ResendVerificationRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+
+    Resend2FARequest:
+      type: object
+      required:
+        - userId
+      properties:
+        userId:
+          type: string
+          format: uuid
+
+    UserOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        plan:
+          type:
+            - string
+            - "null"
+        logo_url:
+          type:
+            - string
+            - "null"
+        role:
+          type: string
+          enum:
+            - owner
+            - admin
+            - member
+
+    GetUserOrgsResponse:
+      type: object
+      required:
+        - organizations
+      properties:
+        organizations:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserOrganization"
+
+    ProvidersResponse:
+      type: object
+      required:
+        - providers
+      properties:
+        providers:
+          type: object
+          properties:
+            google:
+              type: boolean
+
+    DebugResponse:
+      type: object
+      properties:
+        googleOAuth:
+          type: object
+          properties:
+            configured:
+              type: boolean
+            hasClientId:
+              type: boolean
+            hasClientSecret:
+              type: boolean
+            clientIdLength:
+              type: integer
+            clientSecretLength:
+              type: integer
+            clientIdPrefix:
+              type: string
+        nextAuth:
+          type: object
+          properties:
+            hasUrl:
+              type: boolean
+            hasSecret:
+              type: boolean
+            url:
+              type: string
+            expectedCallbackUrl:
+              type: string
+
+    CreateOrganizationRequest:
+      type: object
+      required:
+        - name
+        - slug
+      properties:
+        name:
+          type: string
+          example: Acme Corp
+        slug:
+          type: string
+          description: URL-friendly identifier.
+          example: acme-corp
+
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        plan:
+          type:
+            - string
+            - "null"
+        created_at:
+          type: string
+          format: date-time
+
+    OrganizationWithRole:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        plan:
+          type:
+            - string
+            - "null"
+        created_at:
+          type: string
+          format: date-time
+        role:
+          type: string
+          enum:
+            - owner
+            - admin
+            - member
+
+    UpdateOrganizationRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 100
+          example: New Org Name
+
+    UpdatedOrganization:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+
+    UpdateOrganizationSettingsRequest:
+      type: object
+      required:
+        - autoAcceptDomainMembers
+      properties:
+        autoAcceptDomainMembers:
+          type: boolean
+          description: Enable or disable automatic membership approval for users with a matching email domain.
+
+    UpdateOrganizationSettingsResponse:
+      type: object
+      required:
+        - settings
+      properties:
+        settings:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            domain:
+              type:
+                - string
+                - "null"
+
+    LogoUploadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Logo uploaded successfully
+        logoUrl:
+          type: string
+          format: uri
+
+    AuditLogActor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type:
+            - string
+            - "null"
+        email:
+          type:
+            - string
+            - "null"
+          format: email
+
+    AuditLogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        actorId:
+          type:
+            - string
+            - "null"
+          format: uuid
+        actor:
+          $ref: "#/components/schemas/AuditLogActor"
+        action:
+          type: string
+          example: organization.create
+        targetType:
+          type:
+            - string
+            - "null"
+        targetId:
+          type:
+            - string
+            - "null"
+        metadata:
+          type: object
+          additionalProperties: true
+        ipAddress:
+          type:
+            - string
+            - "null"
+        userAgent:
+          type:
+            - string
+            - "null"
+        createdAt:
+          type: string
+          format: date-time
+
+    AuditLogListResponse:
+      type: object
+      required:
+        - logs
+        - page
+        - pageSize
+        - total
+        - pageCount
+      properties:
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLogEntry"
+        page:
+          type: integer
+          example: 1
+        pageSize:
+          type: integer
+          example: 25
+        total:
+          type: integer
+          example: 100
+        pageCount:
+          type: integer
+          example: 4
+
+    MicroserviceTokenResponse:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - expiresIn
+        - tokenType
+      properties:
+        accessToken:
+          type: string
+          description: JWT access token for microservice calls.
+        refreshToken:
+          type: string
+          description: Opaque refresh token.
+        expiresIn:
+          type: integer
+          description: Token lifetime in seconds.
+          example: 3600
+        tokenType:
+          type: string
+          example: Bearer
+
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+
+    RefreshedTokenResponse:
+      type: object
+      required:
+        - accessToken
+        - expiresIn
+        - tokenType
+      properties:
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+          example: 3600
+        tokenType:
+          type: string
+          example: Bearer
+
+    RevokeTokenRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          description: Required unless revokeAll is true.
+        revokeAll:
+          type: boolean
+          description: When true, revoke all refresh tokens for the authenticated user.
+
+    AvatarUploadResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Avatar uploaded successfully
+        avatarUrl:
+          type: string
+          format: uri
+
+    AvatarDeleteResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Avatar removed successfully
+
+  responses:
+    BadRequest:
+      description: Bad request - validation error or missing required fields.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Unauthorized:
+      description: Authentication required or session invalid.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Forbidden:
+      description: Insufficient permissions.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    TooManyRequests:
+      description: Rate limit exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+paths:
+  # ──────────────────────────────────────────────
+  # Health
+  # ──────────────────────────────────────────────
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Health check
+      description: |
+        Returns service health status including Supabase connectivity.
+        No rate limiting applied.
+      tags:
+        - health
+      security: []
+      responses:
+        "200":
+          description: Health status (always 200, check `status` field for degraded).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  # ──────────────────────────────────────────────
+  # Auth - NextAuth catch-all
+  # ──────────────────────────────────────────────
+  /api/auth/{nextauthAction}:
+    get:
+      operationId: nextAuthGet
+      summary: NextAuth.js handler (GET)
+      description: |
+        Handles NextAuth.js GET operations such as fetching CSRF tokens, session data, sign-in pages, callback processing, and sign-out.
+        Rate limit tier: authRateLimit.
+      tags:
+        - auth
+      security: []
+      parameters:
+        - name: nextauthAction
+          in: path
+          required: true
+          schema:
+            type: string
+          description: "NextAuth.js sub-path (e.g. session, csrf, signin/google, callback/google, signout)."
+      responses:
+        "200":
+          description: NextAuth response (varies by sub-path).
+        "302":
+          description: Redirect (OAuth callback, sign-in, sign-out).
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+    post:
+      operationId: nextAuthPost
+      summary: NextAuth.js handler (POST)
+      description: |
+        Handles NextAuth.js POST operations such as credential sign-in and sign-out.
+        Rate limit tier: authRateLimit.
+      tags:
+        - auth
+      security: []
+      parameters:
+        - name: nextauthAction
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: NextAuth response (varies by sub-path).
+        "302":
+          description: Redirect.
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  # ──────────────────────────────────────────────
+  # Auth - Signup
+  # ──────────────────────────────────────────────
+  /api/auth/signup:
+    post:
+      operationId: signup
+      summary: Register a new user
+      description: |
+        Creates a new user account with email/password credentials and sends a verification email.
+        Rate limit tier: authRateLimit.
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: User created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignupResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: Email already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Forgot Password
+  # ──────────────────────────────────────────────
+  /api/auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      summary: Request a password reset link
+      description: |
+        Generates a password reset token and sends an email. Always returns 200 to avoid leaking whether the email exists.
+        Rate limit tier: strictAuthRateLimit.
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: Reset link sent (or no-op if email not found).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                message: If an account with that email exists, we have sent a password reset link.
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Reset Password
+  # ──────────────────────────────────────────────
+  /api/auth/reset-password:
+    post:
+      operationId: resetPassword
+      summary: Reset password with token
+      description: |
+        Resets the user password using a previously issued reset token. Validates password strength.
+        Rate limit tier: strictAuthRateLimit.
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                message: Password reset successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Verify Email
+  # ──────────────────────────────────────────────
+  /api/auth/verify-email:
+    post:
+      operationId: verifyEmail
+      summary: Verify email address
+      description: |
+        Confirms a user's email using the verification token sent during signup.
+        Rate limit tier: strictAuthRateLimit.
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+      responses:
+        "200":
+          description: Email verified successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                message: Email verified successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Verify 2FA (session-based)
+  # ──────────────────────────────────────────────
+  /api/auth/verify-2fa:
+    post:
+      operationId: verify2FA
+      summary: Verify a 2FA code (authenticated)
+      description: |
+        Verifies a 6-digit 2FA code for the currently authenticated user session.
+        Rate limit tier: authRateLimit.
+      tags:
+        - auth
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Verify2FARequest"
+      responses:
+        "200":
+          description: 2FA verification successful.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                message: 2FA verification successful
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Complete 2FA (login flow)
+  # ──────────────────────────────────────────────
+  /api/auth/complete-2fa:
+    post:
+      operationId: complete2FA
+      summary: Complete 2FA during login
+      description: |
+        Validates a 2FA code (TOTP or email OTP) during the login flow and returns a temporary login token.
+        Supports TOTP backup codes as a fallback when method is "totp".
+        Locks the account after 5 consecutive failed attempts for 15 minutes.
+        Rate limit tier: authRateLimit.
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Complete2FARequest"
+      responses:
+        "200":
+          description: 2FA completed; temporary login token issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Complete2FAResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "403":
+          description: Account locked due to too many failed attempts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Resend Verification Email
+  # ──────────────────────────────────────────────
+  /api/auth/resend-verification:
+    post:
+      operationId: resendVerification
+      summary: Resend email verification link
+      description: |
+        Generates a new verification token and re-sends the verification email. Fails if the email is already verified.
+        Rate limit tier: strictAuthRateLimit.
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResendVerificationRequest"
+      responses:
+        "200":
+          description: Verification email sent successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                message: Verification email sent successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Resend 2FA Code
+  # ──────────────────────────────────────────────
+  /api/auth/resend-2fa:
+    post:
+      operationId: resend2FA
+      summary: Resend 2FA email OTP code
+      description: |
+        Generates and sends a new 2FA email OTP code to the user.
+        Rate limit tier: strictAuthRateLimit.
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Resend2FARequest"
+      responses:
+        "200":
+          description: Verification code sent successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                message: Verification code sent successfully
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Get User Organizations
+  # ──────────────────────────────────────────────
+  /api/auth/get-user-orgs:
+    get:
+      operationId: getUserOrgs
+      summary: List organizations for the current user
+      description: |
+        Returns all active organizations the authenticated user belongs to, including role and logo.
+        Also triggers auto-accept domain membership checks.
+        Rate limit tier: apiRateLimit.
+      tags:
+        - auth
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: List of user organizations.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GetUserOrgsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Auth - Providers
+  # ──────────────────────────────────────────────
+  /api/auth/available-providers:
+    get:
+      operationId: getProviders
+      summary: List available auth providers
+      description: |
+        Returns which OAuth providers are configured (currently Google).
+        No authentication or rate limiting required.
+      tags:
+        - auth
+      security: []
+      responses:
+        "200":
+          description: Available providers.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProvidersResponse"
+
+  # ──────────────────────────────────────────────
+  # Auth - Debug
+  # ──────────────────────────────────────────────
+  /api/auth/debug:
+    get:
+      operationId: getAuthDebug
+      summary: Debug OAuth configuration
+      description: |
+        Returns diagnostic information about Google OAuth and NextAuth configuration.
+        Intended for development use only. No authentication or rate limiting.
+      tags:
+        - auth
+      security: []
+      responses:
+        "200":
+          description: Debug information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DebugResponse"
+
+  # ──────────────────────────────────────────────
+  # Organizations - List / Create
+  # ──────────────────────────────────────────────
+  /api/organizations:
+    get:
+      operationId: listOrganizations
+      summary: List organizations for the current user
+      description: |
+        Returns organizations the authenticated user is an active member of, with role information.
+        Rate limit tier: apiRateLimit.
+      tags:
+        - organizations
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Array of organizations with roles.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OrganizationWithRole"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    post:
+      operationId: createOrganization
+      summary: Create a new organization
+      description: |
+        Creates a new organization and makes the current user the owner. The slug must be unique and pass tenant slug validation.
+        Rate limit tier: apiRateLimit.
+      tags:
+        - organizations
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrganizationRequest"
+      responses:
+        "201":
+          description: Organization created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Organization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          description: Organization slug already taken.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Organizations - Update (rename)
+  # ──────────────────────────────────────────────
+  /api/organizations/{organizationId}:
+    patch:
+      operationId: updateOrganization
+      summary: Rename an organization
+      description: |
+        Updates the organization name. Requires owner or admin role.
+        Rate limit tier: apiRateLimit.
+      tags:
+        - organizations
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationRequest"
+      responses:
+        "200":
+          description: Organization updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdatedOrganization"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Organizations - Settings
+  # ──────────────────────────────────────────────
+  /api/organizations/{organizationId}/settings:
+    patch:
+      operationId: updateOrganizationSettings
+      summary: Update organization settings
+      description: |
+        Toggles auto-accept domain membership. When enabled, users whose email domain matches the organization domain are automatically approved.
+        Personal email domains (gmail.com, etc.) are rejected. Requires owner or admin role.
+        Rate limit tier: apiRateLimit.
+      tags:
+        - organizations
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrganizationSettingsRequest"
+      responses:
+        "200":
+          description: Settings updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UpdateOrganizationSettingsResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Organizations - Logo Upload
+  # ──────────────────────────────────────────────
+  /api/organizations/{organizationId}/logo:
+    post:
+      operationId: uploadOrganizationLogo
+      summary: Upload organization logo
+      description: |
+        Uploads a new logo image for the organization. Replaces the previous logo if one exists.
+        Requires owner or admin role.
+        Rate limit tier: uploadRateLimit.
+      tags:
+        - organizations
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: organizationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (PNG, JPG, etc.).
+      responses:
+        "200":
+          description: Logo uploaded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoUploadResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Tenants - Audit Logs
+  # ──────────────────────────────────────────────
+  /api/tenants/{tenant}/audit-logs:
+    get:
+      operationId: listAuditLogs
+      summary: List audit logs for a tenant
+      description: |
+        Returns paginated audit logs for the organization identified by the tenant slug.
+        Requires owner or admin role. Returns 404 if the auditLog feature flag is disabled.
+        Rate limit tier: apiRateLimit.
+      tags:
+        - tenants
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: tenant
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Organization slug.
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: pageSize
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Paginated audit log entries.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogListResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  # ──────────────────────────────────────────────
+  # Microservices - Generate Token
+  # ──────────────────────────────────────────────
+  /api/microservices/token:
+    post:
+      operationId: generateMicroserviceToken
+      summary: Generate microservice access and refresh tokens
+      description: |
+        Issues a JWT access token (1 hour) and an opaque refresh token scoped to the user's current tenant organization.
+        The tenant is resolved from the request context (subdomain or header).
+        Rate limit tier: apiRateLimit.
+      tags:
+        - microservices
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Token pair generated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MicroserviceTokenResponse"
+        "400":
+          description: No organization context found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithError"
+        "401":
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          description: Server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithError"
+
+  # ──────────────────────────────────────────────
+  # Microservices - Refresh Token
+  # ──────────────────────────────────────────────
+  /api/microservices/refresh:
+    post:
+      operationId: refreshMicroserviceToken
+      summary: Refresh a microservice access token
+      description: |
+        Exchanges a valid refresh token for a new JWT access token (1 hour).
+        The user must still have an active session and the refresh token must match the session user.
+        Rate limit tier: apiRateLimit.
+      tags:
+        - microservices
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: New access token issued.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshedTokenResponse"
+        "400":
+          description: Missing refresh token or no organization context.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithError"
+        "401":
+          description: Invalid refresh token or session mismatch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  # ──────────────────────────────────────────────
+  # Microservices - Revoke Token
+  # ──────────────────────────────────────────────
+  /api/microservices/revoke:
+    post:
+      operationId: revokeMicroserviceToken
+      summary: Revoke refresh token(s)
+      description: |
+        Revokes a specific refresh token or all refresh tokens for the authenticated user (when `revokeAll` is true).
+        Rate limit tier: apiRateLimit.
+      tags:
+        - microservices
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevokeTokenRequest"
+      responses:
+        "200":
+          description: Token(s) revoked.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Refresh token revoked successfully
+        "400":
+          description: Missing refresh token (when revokeAll is not set).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithError"
+        "401":
+          description: Not authenticated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          description: Server error.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponseWithError"
+
+  # ──────────────────────────────────────────────
+  # Users - Avatar
+  # ──────────────────────────────────────────────
+  /api/users/avatar:
+    post:
+      operationId: uploadAvatar
+      summary: Upload user avatar
+      description: |
+        Uploads a new avatar image for the authenticated user. Replaces the previous avatar if one exists.
+        Rate limit tier: uploadRateLimit.
+      tags:
+        - users
+      security:
+        - sessionCookie: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (PNG, JPG, etc.).
+      responses:
+        "200":
+          description: Avatar uploaded successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvatarUploadResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+    delete:
+      operationId: deleteAvatar
+      summary: Remove user avatar
+      description: |
+        Deletes the authenticated user's avatar image and clears the avatar URL.
+        Rate limit tier: uploadRateLimit.
+      tags:
+        - users
+      security:
+        - sessionCookie: []
+      responses:
+        "200":
+          description: Avatar removed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvatarDeleteResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+

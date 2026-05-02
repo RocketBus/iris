@@ -1,0 +1,42 @@
+name: "Tech debt"
+description: "Código sub-ótimo conhecido, workaround, ou cleanup pendente que precisa ser pago."
+title: "[DEBT] "
+labels: ["type: tech-debt"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Qual é a dívida?
+      description: Descreva o código / ativo / padrão que está sub-ótimo.
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: Por que é dívida?
+      description: Qual o custo hoje (tamanho, perf, latência, manutenção, confusão)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: history
+    attributes:
+      label: Como chegou aqui?
+      description: O workaround / atalho que introduziu a dívida.
+
+  - type: textarea
+    id: plan
+    attributes:
+      label: Plano de migração
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: input
+    id: deadline
+    attributes:
+      label: Deadline / gatilho pra pagar
+      placeholder: "Antes de Stage 3 / antes do público"

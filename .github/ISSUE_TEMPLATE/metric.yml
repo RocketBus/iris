@@ -1,0 +1,78 @@
+name: "Métrica — nova ou alteração"
+description: "Propor uma métrica nova, ou alterar uma existente no engine/platform."
+title: "[METRIC] "
+labels: ["type: metric"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Métricas são o coração do iris. Toda métrica é uma **hipótese**, não verdade
+        (ver docs/PRINCIPLES.md). Use este template antes de implementar pra garantir
+        que a hipótese é válida e que a chain completa vai ser fechada.
+
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Hipótese
+      description: |
+        Complete a frase abaixo. Se não fizer sentido, a métrica não deveria existir.
+      placeholder: "Essa métrica nos ajuda a entender como IA muda software delivery porque…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: definition
+    attributes:
+      label: Definição
+      description: Fórmula / lógica de cálculo. Seja explícito sobre unidades, janelas, edge cases.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: source
+    attributes:
+      label: Fonte do sinal
+      options:
+        - git log (commits, autores, timestamps)
+        - PR body / title
+        - hook trailer (prepare-commit-msg)
+        - co-author
+        - diff (conteúdo do código)
+        - múltiplas fontes
+        - outro
+    validations:
+      required: true
+
+  - type: textarea
+    id: individual_ranking_risk
+    attributes:
+      label: Risco de ranqueamento individual
+      description: |
+        Princípio #2 é absoluto: iris analisa sistemas, nunca ranqueia indivíduos.
+        Essa métrica pode ser usada pra ranquear / pontuar / monitorar devs individuais?
+        Se sim, como vamos prevenir isso (agregação, threshold de amostra, framing)?
+    validations:
+      required: true
+
+  - type: textarea
+    id: chain
+    attributes:
+      label: Chain checklist (releasa completa)
+      description: Métricas só contam como "prontas" quando a chain inteira foi fechada.
+      value: |
+        - [ ] analysis module (iris/analysis/)
+        - [ ] aggregator (iris/metrics/aggregator.py)
+        - [ ] python schema (iris/models/metrics.py)
+        - [ ] report writer (iris/reports/writer.py)
+        - [ ] narrative findings (iris/reports/narrative.py) — se threshold aplicável
+        - [ ] TS types (platform/src/types/metrics.ts)
+        - [ ] platform UI
+        - [ ] docs/METRICS.md atualizado
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notas / prior art
+      description: Referências, papers, métricas similares em outras ferramentas.

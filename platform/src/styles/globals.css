@@ -1,0 +1,311 @@
+@import "tailwindcss";
+
+@import "tw-animate-css";
+@plugin '@tailwindcss/typography';
+
+@variant dark (&:is(.dark *));
+
+/* ============================================
+   Iris — Clickbus Embarque Design System
+   Light theme by default; dark variant via .dark
+   Tokens use HSL space without the wrapping hsl()
+   so they can be composed by Tailwind utilities.
+   ============================================ */
+:root {
+  /* Surfaces */
+  --background: 0 0% 98.4%;
+  --foreground: 0 0% 13.3%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 13.3%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 13.3%;
+
+  /* Brand */
+  --primary: 273 100% 58%;            /* #A528FF */
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondaries */
+  --secondary: 0 0% 96%;
+  --secondary-foreground: 0 0% 13.3%;
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 39%;
+  --accent: 47 100% 50%;              /* #E2D849 amarelo destaque */
+  --accent-foreground: 0 0% 13.3%;
+
+  /* Feedback */
+  --destructive: 7 100% 45%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Borders & focus */
+  --border: 0 0% 89%;
+  --input: 0 0% 89%;
+  --ring: 273 100% 58%;
+
+  /* Charts */
+  --chart-1: 273 100% 58%;            /* primary purple */
+  --chart-2: 47 100% 50%;             /* accent yellow */
+  --chart-3: 142 71% 45%;             /* success green */
+  --chart-4: 0 84% 60%;               /* danger red */
+  --chart-5: 0 0% 39%;                /* muted */
+
+  /* Sidebar */
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 0 0% 13.3%;
+  --sidebar-primary: 273 100% 58%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 96%;
+  --sidebar-accent-foreground: 0 0% 13.3%;
+  --sidebar-border: 0 0% 89%;
+  --sidebar-ring: 273 100% 58%;
+
+  --radius: 0.5rem;
+
+  --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
+  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+
+  --font-sans: var(--font-rubik), "Rubik", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.dark {
+  --background: 240 10% 4%;
+  --foreground: 0 0% 95%;
+  --card: 240 10% 7%;
+  --card-foreground: 0 0% 95%;
+  --popover: 240 10% 7%;
+  --popover-foreground: 0 0% 95%;
+  --primary: 273 100% 65%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 240 6% 14%;
+  --secondary-foreground: 0 0% 95%;
+  --muted: 240 6% 14%;
+  --muted-foreground: 240 5% 65%;
+  --accent: 47 100% 50%;
+  --accent-foreground: 0 0% 13%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 240 6% 18%;
+  --input: 240 6% 18%;
+  --ring: 273 100% 65%;
+  --sidebar: 240 10% 7%;
+  --sidebar-foreground: 0 0% 95%;
+  --sidebar-primary: 273 100% 65%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 240 6% 14%;
+  --sidebar-accent-foreground: 0 0% 95%;
+  --sidebar-border: 240 6% 18%;
+  --sidebar-ring: 273 100% 65%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-chart-1: hsl(var(--chart-1));
+  --color-chart-2: hsl(var(--chart-2));
+  --color-chart-3: hsl(var(--chart-3));
+  --color-chart-4: hsl(var(--chart-4));
+  --color-chart-5: hsl(var(--chart-5));
+
+  --color-sidebar: hsl(var(--sidebar));
+  --color-sidebar-foreground: hsl(var(--sidebar-foreground));
+  --color-sidebar-primary: hsl(var(--sidebar-primary));
+  --color-sidebar-primary-foreground: hsl(var(--sidebar-primary-foreground));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: hsl(var(--sidebar-accent-foreground));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-ring: hsl(var(--sidebar-ring));
+
+  /* Iris signal palette (matches Embarque DS chart colors) */
+  --color-signal-purple: #A528FF;
+  --color-signal-yellow: #E2D849;
+  --color-signal-green: #A528FF;
+  --color-signal-red: #EF4444;
+  --color-signal-gray: #636363;
+  --color-glow-primary: rgba(165, 40, 255, 0.20);
+
+  --radius-xs: calc(var(--radius) - 4px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 2 - 4px);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 3);
+  --radius-4xl: calc(var(--radius) * 4);
+
+  --shadow-2xs: var(--shadow-2xs);
+  --shadow-xs: var(--shadow-xs);
+  --shadow-sm: var(--shadow-sm);
+  --shadow: var(--shadow);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-xl: var(--shadow-xl);
+  --shadow-2xl: var(--shadow-2xl);
+
+  --breakpoint-sm: 640px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 1024px;
+  --breakpoint-xl: 1280px;
+  --breakpoint-2xl: 1400px;
+
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+
+  @keyframes accordion-down {
+    from { height: 0; }
+    to { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to { height: 0; }
+  }
+}
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+  @media (width >= 1400px) {
+    max-width: 1220px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border);
+  }
+}
+
+@layer components {
+  button {
+    cursor: pointer;
+  }
+}
+
+html,
+body {
+  scroll-behavior: smooth;
+}
+body {
+  position: relative;
+}
+
+/* ============================================
+   Iris — Effects & Animations (purple-tuned)
+   ============================================ */
+
+.noise-bg {
+  position: relative;
+}
+.noise-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 64px 64px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.scanlines::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 1px,
+    rgba(0, 0, 0, 0.015) 1px,
+    rgba(0, 0, 0, 0.015) 2px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+.glow-primary {
+  box-shadow: 0 0 60px var(--color-glow-primary);
+}
+.glow-primary-sm {
+  box-shadow: 0 0 20px var(--color-glow-primary);
+}
+.text-glow {
+  text-shadow: 0 0 20px var(--color-glow-primary), 0 0 40px var(--color-glow-primary);
+}
+
+.grid-dots {
+  background-image: radial-gradient(circle, rgba(165, 40, 255, 0.08) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.cursor-blink {
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.03); }
+}
+.pulse-breathe {
+  animation: breathe 3s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 20px var(--color-glow-primary); }
+  50% { box-shadow: 0 0 40px var(--color-glow-primary), 0 0 60px rgba(165, 40, 255, 0.10); }
+}
+.glow-pulse {
+  animation: glow-pulse 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor-blink,
+  .pulse-breathe,
+  .glow-pulse {
+    animation: none;
+  }
+}

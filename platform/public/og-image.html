@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1200">
+<title>Iris — Engineering Intelligence for the AI Era</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1200px;
+    height: 630px;
+    overflow: hidden;
+    background: #FAFAFA;
+    color: #222222;
+    font-family: system-ui, -apple-system, sans-serif;
+    position: relative;
+  }
+
+  .frame {
+    width: 1200px;
+    height: 630px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Grid dot pattern */
+  .grid-dots {
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(circle, rgba(34, 197, 94, 0.07) 1px, transparent 1px);
+    background-size: 32px 32px;
+    z-index: 0;
+  }
+
+  /* Noise/grain texture via SVG filter */
+  .noise {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    opacity: 0.35;
+    pointer-events: none;
+  }
+
+  /* Subtle radial glow behind center content */
+  .glow {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 700px;
+    height: 400px;
+    background: radial-gradient(ellipse, rgba(34, 197, 94, 0.04) 0%, transparent 70%);
+    z-index: 0;
+  }
+
+  /* Top border accent line */
+  .top-accent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent 0%, #A528FF 30%, #A528FF 70%, transparent 100%);
+    opacity: 0.6;
+    z-index: 5;
+  }
+
+  .content {
+    position: relative;
+    z-index: 4;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 52px 64px 48px;
+  }
+
+  /* Brand mark — top left */
+  .brand {
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+    font-size: 28px;
+    font-weight: 700;
+    color: #A528FF;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .brand-cursor {
+    display: inline-block;
+    width: 2px;
+    height: 24px;
+    background: #A528FF;
+    opacity: 0.7;
+    margin-left: 2px;
+  }
+
+  /* Center heading area */
+  .center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    padding-left: 4px;
+  }
+
+  .heading {
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -1.5px;
+    color: #222222;
+    max-width: 780px;
+  }
+
+  .heading em {
+    font-style: normal;
+    color: #A528FF;
+  }
+
+  .subheading {
+    margin-top: 18px;
+    font-size: 22px;
+    font-weight: 400;
+    color: #636363;
+    letter-spacing: -0.2px;
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+  }
+
+  /* Bottom area */
+  .bottom {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+
+  /* Bar chart visualization */
+  .bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    height: 80px;
+  }
+
+  .bar {
+    width: 18px;
+    border-radius: 3px 3px 0 0;
+    position: relative;
+  }
+
+  .bar::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 3px 3px 0 0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
+  }
+
+  .bar-1 { height: 52px; background: #A528FF; opacity: 0.9; }
+  .bar-2 { height: 72px; background: #A528FF; }
+  .bar-3 { height: 38px; background: #eab308; opacity: 0.85; }
+  .bar-4 { height: 80px; background: #A528FF; }
+  .bar-5 { height: 28px; background: #ef4444; opacity: 0.8; }
+  .bar-6 { height: 60px; background: #A528FF; opacity: 0.9; }
+
+  /* Baseline for bars */
+  .bars-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .bars-baseline {
+    width: 100%;
+    height: 1px;
+    background: #E3E3E3;
+  }
+
+  .bars-label {
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+    font-size: 11px;
+    color: #636363;
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+    opacity: 0.7;
+  }
+
+  /* Domain label — bottom right */
+  .domain {
+    font-family: 'SF Mono', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+    font-size: 16px;
+    color: #636363;
+    opacity: 0.7;
+    letter-spacing: 0.3px;
+  }
+
+  /* Decorative corner brackets */
+  .corner {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    z-index: 5;
+    opacity: 0.15;
+  }
+  .corner-tl { top: 20px; left: 20px; border-top: 1px solid #A528FF; border-left: 1px solid #A528FF; }
+  .corner-tr { top: 20px; right: 20px; border-top: 1px solid #A528FF; border-right: 1px solid #A528FF; }
+  .corner-bl { bottom: 20px; left: 20px; border-bottom: 1px solid #A528FF; border-left: 1px solid #A528FF; }
+  .corner-br { bottom: 20px; right: 20px; border-bottom: 1px solid #A528FF; border-right: 1px solid #A528FF; }
+</style>
+</head>
+<body>
+<div class="frame">
+  <!-- Background layers -->
+  <div class="grid-dots"></div>
+  <div class="glow"></div>
+
+  <!-- Noise grain overlay -->
+  <svg class="noise" xmlns="http://www.w3.org/2000/svg">
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/>
+      <feColorMatrix type="saturate" values="0"/>
+    </filter>
+    <rect width="100%" height="100%" filter="url(#grain)"/>
+  </svg>
+
+  <!-- Top accent line -->
+  <div class="top-accent"></div>
+
+  <!-- Corner brackets -->
+  <div class="corner corner-tl"></div>
+  <div class="corner corner-tr"></div>
+  <div class="corner corner-bl"></div>
+  <div class="corner corner-br"></div>
+
+  <!-- Main content -->
+  <div class="content">
+    <div class="brand">
+      <svg viewBox="0 0 256 256" width="40" height="40" fill="#A528FF" style="vertical-align: -8px; margin-right: 12px;" aria-hidden="true">
+        <path d="M201.54,54.46A104,104,0,0,0,54.46,201.54,104,104,0,0,0,201.54,54.46ZM190.23,65.78a88.18,88.18,0,0,1,11,13.48L167.55,119,139.63,40.78A87.34,87.34,0,0,1,190.23,65.78ZM155.59,133l-18.16,21.37-27.59-5L100.41,123l18.16-21.37,27.59,5ZM65.77,65.78a87.34,87.34,0,0,1,56.66-25.59l17.51,49L58.3,74.32A88,88,0,0,1,65.77,65.78ZM46.65,161.54a88.41,88.41,0,0,1,2.53-72.62l51.21,9.35Zm19.12,28.68a88.18,88.18,0,0,1-11-13.48L88.45,137l27.92,78.18A87.34,87.34,0,0,1,65.77,190.22Zm124.46,0a87.34,87.34,0,0,1-56.66,25.59l-17.51-49,81.64,14.91A88,88,0,0,1,190.23,190.22Zm-34.62-32.49,53.74-63.27a88.41,88.41,0,0,1-2.53,72.62Z"/>
+      </svg>Clickbus Iris<span class="brand-cursor"></span>
+    </div>
+
+    <div class="center">
+      <h1 class="heading">Engineering Intelligence<br>for the <em>AI Era</em></h1>
+      <p class="subheading">Measure what survives, not what ships.</p>
+    </div>
+
+    <div class="bottom">
+      <div class="bars-container">
+        <div class="bars">
+          <div class="bar bar-1"></div>
+          <div class="bar bar-2"></div>
+          <div class="bar bar-3"></div>
+          <div class="bar bar-4"></div>
+          <div class="bar bar-5"></div>
+          <div class="bar bar-6"></div>
+        </div>
+        <div class="bars-baseline"></div>
+        <div class="bars-label">DELIVERY PULSE</div>
+      </div>
+
+      <div class="domain">iris.clickbus.com</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

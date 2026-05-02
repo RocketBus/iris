@@ -1,0 +1,85 @@
+# Privacy Policy
+
+**Last updated:** 2026-05-02
+
+This Privacy Policy describes how Clickbus (the "Controller") collects, uses, and protects personal data through **Clickbus Iris** ("the Service") — both the open-source CLI and the hosted platform at `iris.clickbus.com`.
+
+The hosted platform is restricted to Clickbus collaborators. The CLI is open source under Apache 2.0 and runs entirely on your machine; this policy applies only when you connect the CLI to the hosted platform or use the platform directly.
+
+## 1. Data we collect
+
+**The CLI (running locally) does not transmit data to Clickbus by default.** It reads your Git repository's metadata (commits, diffs, PR information via the GitHub CLI) and produces a local report. Nothing leaves your machine unless you opt in to the hosted platform via `iris push` or to your own observability backend via `OTEL_EXPORTER_OTLP_ENDPOINT` (see [`docs/TELEMETRY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/docs/TELEMETRY.md)).
+
+**The hosted platform** collects:
+
+- **Authentication data**: name, email, GitHub login, and avatar URL — provided by GitHub OAuth when you sign in.
+- **Repository metrics**: aggregated, anonymized signals produced by the CLI (stabilization rate, churn, PR lifecycle timings, AI-tool detection counts). **No source code is uploaded.**
+- **Org membership**: the GitHub organizations you have access to, used to provision the workspace mirror in Iris.
+- **Audit log**: timestamps and types of administrative actions inside your workspace (member invitations, role changes, repository links).
+- **Session cookies**: a JWT-based NextAuth session token plus the language preference cookie (`iris_lang`).
+
+We do not collect IP addresses, fine-grained device fingerprints, marketing pixels, or third-party analytics.
+
+## 2. How we use the data
+
+- Authenticate you and authorize access to your workspace.
+- Render dashboards and trend reports across your organization's repositories.
+- Send transactional emails: invitations, ownership transfers, and (when applicable) verification codes — via Resend.
+- Operate the Service, troubleshoot issues, and improve reliability.
+
+We do **not** sell, rent, or share personal data with third parties for advertising or profiling.
+
+## 3. Where data is stored
+
+- **Application data**: Supabase (Postgres) hosted in `us-east`. Row-Level Security policies isolate each organization.
+- **Email delivery**: Resend (US-based transactional email provider).
+- **Hosting**: Vercel (`gru1` region — São Paulo).
+- **Authentication**: GitHub Inc. (subject to GitHub's own privacy policy).
+
+## 4. Retention
+
+Active workspace data is retained while your account is active. Audit log entries are retained for 12 months by default. You can request deletion at any time (see Section 6).
+
+## 5. Sub-processors
+
+| Provider | Purpose | Region |
+|---|---|---|
+| Supabase | Database & file storage | us-east |
+| Vercel | Application hosting | gru1 (São Paulo) |
+| Resend | Transactional email | US |
+| GitHub | Authentication (OAuth) | US |
+
+## 6. Your rights (LGPD / GDPR)
+
+You have the right to:
+
+- **Access** the personal data we hold about you
+- **Rectify** inaccurate data
+- **Delete** your account and personal data (a "right to be forgotten")
+- **Export** your data in a portable format
+- **Withdraw consent** at any time
+- **Object** to specific processing activities
+- **File a complaint** with the Brazilian National Data Protection Authority (ANPD) or your local supervisory authority
+
+To exercise any of these rights, email **`privacy@clickbus.com.br`**. We respond within 15 business days as required by LGPD Article 19.
+
+## 7. Security
+
+- All traffic is encrypted with TLS 1.2+
+- Database access uses Supabase service-role keys, scoped to the server only
+- Strict Content-Security-Policy and HSTS headers (see `platform/next.config.ts`)
+- Vulnerability reports go to **`security@clickbus.com.br`**; see [`SECURITY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/SECURITY.md)
+
+## 8. Changes to this policy
+
+Material changes are announced via the platform UI and a commit to this file in the public repository. The "Last updated" date at the top reflects the most recent revision.
+
+## 9. Contact
+
+Data Protection Officer: **`privacy@clickbus.com.br`**
+General contact: **`security@clickbus.com.br`**
+ClickBus, São Paulo — Brazil
+
+---
+
+*This policy is published as part of the open-source repository at [github.com/RocketBus/clickbus-iris](https://github.com/RocketBus/clickbus-iris). For the canonical version applicable to the hosted Service, see [iris.clickbus.com/privacy](https://iris.clickbus.com/privacy).*

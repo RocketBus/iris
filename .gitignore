@@ -1,0 +1,33 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+!platform/public/dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+out/
+*.json.bak
+.DS_Store
+
+# Platform
+platform/node_modules/
+platform/.next/
+platform/.env*.local
+platform/.env.production
+platform/.vercel/
+
+# Claude Code per-machine state (settings.json, commands/, agents/, hooks/ are
+# team-shared and should be committed if/when they exist)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/memory/
+.claude/projects/
+
+# Husky internal (auto-managed)
+.husky/_/
+
+# Supabase CLI per-machine cache (project refs, pooler URLs, version files)
+supabase/.temp/

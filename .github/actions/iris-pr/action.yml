@@ -1,0 +1,47 @@
+name: Iris PR Insights
+description: Analyze a pull request and post AI-aware engineering insights as a comment
+
+inputs:
+  pr-number:
+    description: PR number (auto-detected from event context by default)
+    required: false
+  churn-days:
+    description: Churn context window in days
+    required: false
+    default: '14'
+  python-version:
+    description: Python version to use
+    required: false
+    default: '3.11'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - run: pip install iris
+      shell: bash
+
+    - name: Run Iris PR analysis
+      run: |
+        PR_NUM="${{ inputs.pr-number || github.event.pull_request.number }}"
+        if [ -z "$PR_NUM" ]; then
+          echo "Error: could not determine PR number" >&2
+          exit 1
+        fi
+
+        # Check if repo has full history (needed for context)
+        if git rev-parse --is-shallow-repository | grep -q true; then
+          echo "Shallow clone detected — running without context" >&2
+          CONTEXT_FLAG="--no-context"
+        else
+          CONTEXT_FLAG=""
+        fi
+
+        COMMENT=$(iris pr "$PR_NUM" --churn-days "${{ inputs.churn-days }}" $CONTEXT_FLAG)
+        gh pr comment "$PR_NUM" --body "$COMMENT"
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}

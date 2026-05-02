@@ -1,0 +1,47 @@
+name: "Feature request"
+description: "Funcionalidade nova."
+title: "[FEAT] "
+labels: ["type: feature"]
+body:
+  - type: textarea
+    id: story
+    attributes:
+      label: User story
+      description: Quem pede isso e por quê?
+      placeholder: "Como <usuário / operador / dev>, eu quero <X> para <Y>."
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ]
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope / non-goals
+      description: O que está dentro, o que está fora.
+
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Se encaixa em qual estágio?
+      description: Veja CLAUDE.md — trabalho deve caber em Stage 2 (refino) ou preparar Stage 3.
+      options:
+        - Stage 2 (refinamento da plataforma atual)
+        - Stage 3 (prep — SSO, RBAC, billing, webhooks)
+        - Fora do escopo atual — justificar
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Implementation notes
+      description: Ponteiros pra pacotes relevantes, prior art, referências.

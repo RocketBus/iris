@@ -1,0 +1,74 @@
+name: "Bug report"
+description: "Algo funciona incorretamente, quebra, ou regrediu."
+title: "[BUG] "
+labels: ["type: bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Descrição em uma frase do bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour
+    validations:
+      required: true
+
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      description: Em qual parte do sistema o bug aparece?
+      options:
+        - Engine / CLI (Python)
+        - Platform / Dashboard (Next.js)
+        - Ingestão (CLI → /api/ingest)
+        - Hooks (prepare-commit-msg)
+        - Docs
+        - Outro
+    validations:
+      required: true
+
+  - type: input
+    id: cli_version
+    attributes:
+      label: Versão do CLI
+      description: Rode `iris --version` (só se o bug for no engine/CLI).
+      placeholder: "v1.6.2"
+
+  - type: input
+    id: repo
+    attributes:
+      label: Repo analisado
+      description: Se o bug aparece ao analisar um repo específico, qual é? (opcional)
+      placeholder: "RocketBus/clickbus-iris"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots / trace-id
+      description: |
+        Cole output do console, logs do servidor, trace-id do OpenTelemetry,
+        ou anexe screenshots.
