@@ -14,19 +14,20 @@
 set -e
 
 VERSION="${IRIS_VERSION:-latest}"
-DIST_BASE="https://iris.clickbus.com/dist"
+RELEASES_API="https://api.github.com/repos/RocketBus/clickbus-iris/releases"
+RELEASES_DOWNLOAD="https://github.com/RocketBus/clickbus-iris/releases/download"
 MIN_PYTHON="3.11"
 INSTALL_DIR="${IRIS_HOME:-$HOME/.iris}"
 LOCAL_BIN="$HOME/.local/bin"
 
-# Resolve "latest" to a concrete version
+# Resolve "latest" via GitHub Releases API
 if [ "$VERSION" = "latest" ]; then
-    VERSION=$(curl -fsSL "$DIST_BASE/latest.txt" | tr -d '[:space:]') || {
-        printf "Failed to resolve latest version from %s/latest.txt\n" "$DIST_BASE" >&2
+    VERSION=$(curl -fsSL "$RELEASES_API/latest" | grep -oE '"tag_name":\s*"v?[^"]+' | sed -E 's/.*"v?//') || {
+        printf "Failed to resolve latest version from GitHub Releases\n" >&2
         exit 1
     }
 fi
-WHEEL_URL="$DIST_BASE/clickbus_iris-${VERSION}-py3-none-any.whl"
+WHEEL_URL="$RELEASES_DOWNLOAD/v${VERSION}/clickbus_iris-${VERSION}-py3-none-any.whl"
 
 # --- Colors (disabled if not a terminal) ---
 if [ -t 1 ]; then

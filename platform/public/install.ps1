@@ -14,19 +14,20 @@
 $ErrorActionPreference = "Stop"
 
 $VERSION = if ($env:IRIS_VERSION) { $env:IRIS_VERSION } else { "latest" }
-$DIST_BASE = "https://iris.clickbus.com/dist"
+$RELEASES_API = "https://api.github.com/repos/RocketBus/clickbus-iris/releases"
+$RELEASES_DOWNLOAD = "https://github.com/RocketBus/clickbus-iris/releases/download"
 $MIN_PYTHON_MAJOR = 3
 $MIN_PYTHON_MINOR = 11
 
 if ($VERSION -eq "latest") {
     try {
-        $VERSION = (Invoke-RestMethod -Uri "$DIST_BASE/latest.txt").Trim()
+        $VERSION = ((Invoke-RestMethod -Uri "$RELEASES_API/latest").tag_name -replace '^v', '')
     } catch {
-        Write-Error "Failed to resolve latest version from $DIST_BASE/latest.txt"
+        Write-Error "Failed to resolve latest version from GitHub Releases"
         exit 1
     }
 }
-$WHEEL_URL = "$DIST_BASE/clickbus_iris-$VERSION-py3-none-any.whl"
+$WHEEL_URL = "$RELEASES_DOWNLOAD/v$VERSION/clickbus_iris-$VERSION-py3-none-any.whl"
 
 function Write-Info($msg)  { Write-Host ">>> " -ForegroundColor Green -NoNewline; Write-Host $msg }
 function Write-Warn($msg)  { Write-Host ">>> " -ForegroundColor Yellow -NoNewline; Write-Host $msg }
