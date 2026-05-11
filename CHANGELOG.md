@@ -4,6 +4,48 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.0.1 — Fork-friendly and operator-agnostic (2026-05-11)
+
+First patch release after the open-source debut. Decouples the CLI and platform
+from Clickbus-specific branding and deployment so any organization can fork or
+self-host without forking text.
+
+### Breaking
+
+- **Package renamed.** The Python distribution is now `iris` (was `clickbus-iris`).
+  Wheels are published as `iris-X.Y.Z-py3-none-any.whl` in GitHub Releases.
+  Re-install via the install script or `pip install iris`.
+- **Synthetic AI co-author email domain.** Switched from `@iris.clickbus.com`
+  to `@iris.invalid` (RFC 6761 reserved TLD, guaranteed never routable).
+  Override with `IRIS_AGENT_EMAIL_DOMAIN` if you want a different domain.
+  Legacy trailers continue to be detected by tool name (Claude / Cursor /
+  Copilot / Windsurf / etc.), so existing history is not lost.
+
+### Changed
+
+- **Server URL is env-driven.** `iris login` and `iris upgrade` now read
+  `IRIS_SERVER_URL` (default `http://localhost:3000`) instead of hard-coding
+  a domain. Install scripts and platform metadata also read `NEXT_PUBLIC_APP_URL`.
+- **Privacy Policy / Terms of Service are operator-parameterized.** Forks and
+  self-hosters declare their legal entity via `NEXT_PUBLIC_OPERATOR_NAME`,
+  `NEXT_PUBLIC_OPERATOR_JURISDICTION`, `NEXT_PUBLIC_OPERATOR_PRIVACY_EMAIL`,
+  and `NEXT_PUBLIC_OPERATOR_DPO_EMAIL`. Empty values render explicit
+  "[not configured]" placeholders.
+- **Security contact.** `SECURITY.md` and the Code of Conduct point at GitHub
+  Security Advisories with optional `SECURITY_CONTACT_EMAIL` override.
+
+### Security
+
+- **Platform deps:** `next` bumped to 16.2.6 (resolves 13 Dependabot advisories
+  including Middleware/Proxy bypasses, WebSocket SSRF, Cache Components DoS,
+  Server Components DoS, RSC cache poisoning, and CSP-nonce XSS).
+  `@opentelemetry/sdk-node` and `@opentelemetry/instrumentation-http` bumped
+  to 0.217.0 (Prometheus exporter crash).
+- **CI:** GitHub Actions bumped to current majors (`actions/checkout@v6`,
+  `actions/setup-python@v6`).
+
+---
+
 ## v1.0.0 — Initial open-source release (2026-05-02)
 
 First public release of Iris under the [Apache License 2.0](LICENSE).
