@@ -45,7 +45,7 @@ jobs:
           TAG="${GITHUB_REF#refs/tags/}"
           gh release create "$TAG" \
             --title "$TAG" \
-            --notes "Install: \`curl -fsSL https://iris.clickbus.com/install.sh | sh\`
+            --notes "Install: \`curl -fsSL <your-iris-deployment>/install.sh | sh\`
 
           See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details." \
             dist/*.whl dist/*.tar.gz

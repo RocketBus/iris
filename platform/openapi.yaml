@@ -1,14 +1,12 @@
 openapi: 3.1.0
 info:
-  title: clickbus-iris
+  title: iris
   version: 1.0.0
-  description: Clickbus Iris platform API — authentication, organization management, microservice tokens, and metrics ingestion.
+  description: Iris platform API — authentication, organization management, microservice tokens, and metrics ingestion.
   license:
     name: Apache-2.0
 
 servers:
-  - url: https://iris.clickbus.com
-    description: Production
   - url: http://localhost:3000
     description: Local development
 
@@ -1570,4 +1568,3 @@ paths:
           $ref: "#/components/responses/TooManyRequests"
         "500":
           $ref: "#/components/responses/InternalServerError"
-

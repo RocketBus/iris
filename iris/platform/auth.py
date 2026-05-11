@@ -1,6 +1,7 @@
 """Browser-based login for Iris CLI."""
 
 import http.server
+import os
 import secrets
 import socket
 import sys
@@ -10,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from iris.platform.config import load_config, save_config
 
-DEFAULT_SERVER = "https://iris.clickbus.com"
+DEFAULT_SERVER = os.environ.get("IRIS_SERVER_URL", "http://localhost:3000")
 TIMEOUT_SECONDS = 120
 
 

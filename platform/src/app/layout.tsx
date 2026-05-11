@@ -28,8 +28,8 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: "Clickbus Iris — Engineering Intelligence for the AI Era",
-    template: "%s | Clickbus Iris",
+    default: "Iris — Engineering Intelligence for the AI Era",
+    template: "%s | Iris",
   },
   description:
     "Measure what survives, not what ships. Engineering intelligence that analyzes code durability, stabilization, and AI impact across your repositories.",
@@ -42,9 +42,9 @@ export const metadata: Metadata = {
     "code durability",
     "Iris",
   ],
-  authors: [{ name: "Clickbus" }],
-  creator: "Clickbus",
-  publisher: "Clickbus",
+  authors: [{ name: "Iris" }],
+  creator: "Iris",
+  publisher: "Iris",
   robots: {
     index: true,
     follow: true,
@@ -60,22 +60,22 @@ export const metadata: Metadata = {
   },
   manifest: "/favicon/site.webmanifest",
   openGraph: {
-    title: "Clickbus Iris — Engineering Intelligence for the AI Era",
+    title: "Iris — Engineering Intelligence for the AI Era",
     description:
       "Measure what survives, not what ships. Engineering intelligence for code durability and AI impact.",
-    siteName: "Clickbus Iris",
+    siteName: "Iris",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Clickbus Iris — Engineering Intelligence for the AI Era",
+        alt: "Iris — Engineering Intelligence for the AI Era",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Clickbus Iris — Engineering Intelligence for the AI Era",
+    title: "Iris — Engineering Intelligence for the AI Era",
     description:
       "Measure what survives, not what ships. Engineering intelligence for code durability and AI impact.",
     images: ["/og-image.png"],

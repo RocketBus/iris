@@ -6,7 +6,15 @@ import { motion, useInView } from "motion/react";
 
 import { useBrowserTranslation } from "@/hooks/useBrowserTranslation";
 
-function TerminalBlock({ command, label, delay }: { command: string; label: string; delay: number }) {
+function TerminalBlock({
+  command,
+  label,
+  delay,
+}: {
+  command: string;
+  label: string;
+  delay: number;
+}) {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-50px" });
 
@@ -34,6 +42,7 @@ export function HowItWorksSection() {
   const { t } = useBrowserTranslation();
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   return (
     <section className="py-20 sm:py-28" ref={ref}>
@@ -50,7 +59,7 @@ export function HowItWorksSection() {
         <div className="mt-12 flex flex-col gap-6">
           <TerminalBlock
             label={t("home.howItWorks.installLabel")}
-            command="curl -fsSL https://iris.clickbus.com/install.sh | sh"
+            command={`curl -fsSL ${appUrl}/install.sh | sh`}
             delay={0.1}
           />
           <TerminalBlock

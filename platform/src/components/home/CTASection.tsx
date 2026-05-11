@@ -13,7 +13,8 @@ export function CTASection() {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const [copied, setCopied] = useState(false);
 
-  const installCmd = "curl -fsSL https://iris.clickbus.com/install.sh | sh";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const installCmd = `curl -fsSL ${appUrl}/install.sh | sh`;
 
   function handleCopy() {
     navigator.clipboard.writeText(installCmd);

@@ -12,7 +12,6 @@
 # - If this hook fails, the commit proceeds without the tag (exit 0)
 #
 # Installed via: iris hook install
-# Docs: https://iris.clickbus.com
 
 # Arguments from git:
 #   $1 = path to the commit message file
@@ -32,25 +31,29 @@ esac
 AGENT_NAME=""
 AGENT_EMAIL=""
 
+# Domain for synthetic Co-Author emails. Override with IRIS_AGENT_EMAIL_DOMAIN.
+# Default is "iris.invalid" (RFC 6761 reserved TLD — guaranteed never routable).
+AGENT_EMAIL_DOMAIN="${IRIS_AGENT_EMAIL_DOMAIN:-iris.invalid}"
+
 # 1. Vercel standard ($AI_AGENT)
 if [ -n "$AI_AGENT" ]; then
     AGENT_NAME="$AI_AGENT"
-    AGENT_EMAIL="$(printf '%s' "$AI_AGENT" | tr '[:upper:] ' '[:lower:]-')@iris.clickbus.com"
+    AGENT_EMAIL="$(printf '%s' "$AI_AGENT" | tr '[:upper:] ' '[:lower:]-')@${AGENT_EMAIL_DOMAIN}"
 
 # 2. Claude Code
 elif [ -n "$CLAUDE_CODE" ]; then
     AGENT_NAME="Claude Code"
-    AGENT_EMAIL="claude-code@iris.clickbus.com"
+    AGENT_EMAIL="claude-code@${AGENT_EMAIL_DOMAIN}"
 
 # 3. Cursor
 elif [ -n "$CURSOR_SESSION" ] || [ -n "$CURSOR_TRACE_ID" ]; then
     AGENT_NAME="Cursor"
-    AGENT_EMAIL="cursor@iris.clickbus.com"
+    AGENT_EMAIL="cursor@${AGENT_EMAIL_DOMAIN}"
 
 # 4. Windsurf
 elif [ -n "$WINDSURF_SESSION" ]; then
     AGENT_NAME="Windsurf"
-    AGENT_EMAIL="windsurf@iris.clickbus.com"
+    AGENT_EMAIL="windsurf@${AGENT_EMAIL_DOMAIN}"
 
 # 5. No agent detected — exit cleanly
 else
@@ -58,12 +61,11 @@ else
 fi
 
 # --- Check if attribution already present in the message ---
-# Read the current message file (may be a template or empty)
+# Read the current message file (may be a template or empty).
+# Match by tool name (local part) so this works regardless of email domain
+# — including legacy trailers from older domains.
 
-if grep -qi "Co-Authored-By:.*@iris.clickbus.com" "$COMMIT_MSG_FILE" 2>/dev/null; then
-    exit 0
-fi
-if grep -qi "Co-Authored-By:.*copilot\|Co-Authored-By:.*anthropic\|Co-Authored-By:.*cursor" "$COMMIT_MSG_FILE" 2>/dev/null; then
+if grep -qi "Co-Authored-By:.*\(claude-code\|cursor\|windsurf\|copilot\|anthropic\|codeium\|tabnine\|amazon-q\|gemini\)" "$COMMIT_MSG_FILE" 2>/dev/null; then
     exit 0
 fi
 

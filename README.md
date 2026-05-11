@@ -31,12 +31,14 @@ Tested on an organization with 58 repositories, 3,497 commits, and 1,211 PRs:
 
 ### One-line install
 
+The install scripts are served by your Iris deployment (the value of `NEXT_PUBLIC_APP_URL`). Replace `<your-iris-deployment>` with that URL:
+
 ```bash
 # macOS / Linux / WSL
-curl -fsSL https://iris.clickbus.com/install.sh | sh
+curl -fsSL <your-iris-deployment>/install.sh | sh
 
 # Windows PowerShell
-irm https://iris.clickbus.com/install.ps1 | iex
+irm <your-iris-deployment>/install.ps1 | iex
 ```
 
 The installer:
@@ -65,8 +67,8 @@ rm -rf ~/.iris ~/.local/bin/iris  # manual — macOS / Linux / WSL
 ### Manual install (development)
 
 ```bash
-git clone git@github.com:RocketBus/clickbus-iris.git
-cd clickbus-iris
+git clone git@github.com:RocketBus/clickbus-iris.git iris
+cd iris
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .
@@ -186,7 +188,7 @@ flowchart LR
     Repo[Local Git repo]
     CLI[Iris CLI<br/>Python 3.11+]
     Report[Markdown report<br/>+ JSON metrics]
-    Plat[iris.clickbus.com<br/>Next.js platform]
+    Plat[Iris platform<br/>Next.js]
     DB[(Supabase Postgres)]
     GH[GitHub OAuth]
 
@@ -279,7 +281,7 @@ docs/
 
 The CLI runs entirely on your machine. No telemetry is sent unless you explicitly opt in by setting `OTEL_EXPORTER_OTLP_ENDPOINT` and pointing it at your own OpenTelemetry collector. See [`docs/TELEMETRY.md`](docs/TELEMETRY.md) for what is and isn't collected, and how to enable / disable.
 
-The hosted platform at `iris.clickbus.com` is internal to Clickbus collaborators. Authentication is via GitHub OAuth; no source code is uploaded — only the metrics produced by the CLI.
+The hosted platform deploys are internal-access. Authentication is via GitHub OAuth; no source code is uploaded — only the metrics produced by the CLI.
 
 ## License
 

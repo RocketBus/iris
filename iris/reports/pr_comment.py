@@ -74,6 +74,6 @@ def format_pr_comment(result: PRInsightsResult) -> str:
         lines.append("")
 
     # Footer
-    lines.append("> *[Iris](https://iris.clickbus.com) — metrics are hypotheses, not verdicts.*")
+    lines.append("> *Iris — metrics are hypotheses, not verdicts.*")
 
     return "\n".join(lines)

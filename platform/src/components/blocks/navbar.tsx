@@ -33,9 +33,7 @@ export const Navbar = () => {
       <div className="flex items-center justify-between px-6 py-3">
         <Link href="/" className="flex shrink-0 items-center gap-2">
           <ApertureMark className="size-5 text-primary" />
-          <span className="text-sm font-semibold tracking-tight">
-            Clickbus Iris
-          </span>
+          <span className="text-sm font-semibold tracking-tight">Iris</span>
         </Link>
 
         {/* Desktop Navigation */}

@@ -1,6 +1,6 @@
 # Iris Platform
 
-Multi-tenant Next.js application: public marketing site + authenticated engineering intelligence dashboard. Deployed to Vercel at `iris.clickbus.com` (internal Clickbus access). The Python CLI in the parent repo ingests metrics here via `POST /api/ingest`.
+Multi-tenant Next.js application: public marketing site + authenticated engineering intelligence dashboard. Deployed to Vercel at the URL configured in `NEXT_PUBLIC_APP_URL`. The Python CLI in the parent repo ingests metrics here via `POST /api/ingest`.
 
 ## Stack
 
@@ -107,7 +107,8 @@ RLS policies in `supabase/policies/rls_policies.sql`.
 
 ## Deployment
 
-Vercel at `iris.clickbus.com` (internal). Configuration in `platform/vercel.json`:
+Vercel at the URL configured in `NEXT_PUBLIC_APP_URL`. Configuration in `platform/vercel.json`:
+
 - Region: `gru1` (São Paulo)
 - Project root: `platform/`
 - Build command: defaults
@@ -116,7 +117,7 @@ Environment variables and OAuth setup steps in `platform/VERCEL.md`.
 
 ## Code style
 
-- **Comments**: only when *why* is non-obvious. Don't restate what the code does.
+- **Comments**: only when _why_ is non-obvious. Don't restate what the code does.
 - **Tests**: integration tests use real DBs; unit tests for analysis modules.
 - **Types**: TS strict mode. Schemas via `zod` (in `lib/form-schema.ts` and `lib/env.ts`).
 - **Pre-commit**: `lint-staged` runs `eslint --fix` + `prettier --write` on staged files; configured in `package.json`.

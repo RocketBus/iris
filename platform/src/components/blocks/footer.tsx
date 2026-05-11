@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import Link from "next/link";
 
@@ -14,9 +14,7 @@ export function Footer() {
       <div className="container flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
         <div className="flex items-center gap-2">
           <ApertureMark className="size-4 text-primary" />
-          <span className="text-sm font-semibold tracking-tight">
-            Clickbus Iris
-          </span>
+          <span className="text-sm font-semibold tracking-tight">Iris</span>
           <span className="text-muted-foreground text-xs">
             &copy; {new Date().getFullYear()}
           </span>
@@ -37,13 +35,13 @@ export function Footer() {
             href="/privacy"
             className="text-muted-foreground text-sm transition-opacity hover:opacity-75"
           >
-            {t('footer.privacy')}
+            {t("footer.privacy")}
           </Link>
           <Link
             href="/terms"
             className="text-muted-foreground text-sm transition-opacity hover:opacity-75"
           >
-            {t('footer.terms')}
+            {t("footer.terms")}
           </Link>
         </nav>
       </div>

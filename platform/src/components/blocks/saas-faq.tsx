@@ -22,6 +22,7 @@ const faqKeys = [
 
 export function SaasFAQ() {
   const { t } = useBrowserTranslation();
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   return (
     <section className="py-28 lg:py-32">
@@ -47,7 +48,10 @@ export function SaasFAQ() {
                   {t(`faqPage.questions.${key}Title`)}
                 </AccordionTrigger>
                 <AccordionContent className="text-muted-foreground">
-                  {t(`faqPage.questions.${key}Answer`)}
+                  {t(`faqPage.questions.${key}Answer`).replaceAll(
+                    "{appUrl}",
+                    appUrl,
+                  )}
                 </AccordionContent>
               </AccordionItem>
             ))}

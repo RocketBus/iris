@@ -1,22 +1,22 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { Check, Copy, Loader2, Sparkles } from 'lucide-react';
+import { Check, Copy, Loader2, Sparkles } from "lucide-react";
 
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { useTranslation } from '@/hooks/useTranslation';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/card";
+import { useTranslation } from "@/hooks/useTranslation";
+import { cn } from "@/lib/utils";
 
 interface ConnectViewProps {
   tenantSlug: string;
@@ -49,17 +49,17 @@ function CommandLine({ command }: { command: string }) {
         size="sm"
         onClick={copy}
         className="h-7 gap-1 px-2 text-xs"
-        aria-label={copied ? t('connect.copied') : t('connect.copy')}
+        aria-label={copied ? t("connect.copied") : t("connect.copy")}
       >
         {copied ? (
           <>
             <Check className="size-3" />
-            {t('connect.copied')}
+            {t("connect.copied")}
           </>
         ) : (
           <>
             <Copy className="size-3" />
-            {t('connect.copy')}
+            {t("connect.copy")}
           </>
         )}
       </Button>
@@ -67,13 +67,17 @@ function CommandLine({ command }: { command: string }) {
   );
 }
 
-export function ConnectView({ tenantSlug, initialRepoCount }: ConnectViewProps) {
+export function ConnectView({
+  tenantSlug,
+  initialRepoCount,
+}: ConnectViewProps) {
   const { t } = useTranslation();
   const router = useRouter();
   const [repoCount, setRepoCount] = useState(initialRepoCount);
 
   const detected = repoCount > initialRepoCount;
   const hasExistingRepos = initialRepoCount > 0;
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   useEffect(() => {
     let cancelled = false;
@@ -81,11 +85,11 @@ export function ConnectView({ tenantSlug, initialRepoCount }: ConnectViewProps) 
     const poll = async () => {
       try {
         const res = await fetch(`/api/tenants/${tenantSlug}/repo-count`, {
-          cache: 'no-store',
+          cache: "no-store",
         });
         if (!res.ok) return;
         const body: { repoCount?: number } = await res.json();
-        if (cancelled || typeof body.repoCount !== 'number') return;
+        if (cancelled || typeof body.repoCount !== "number") return;
         setRepoCount(body.repoCount);
       } catch {
         /* Ignore transient errors — next tick will retry */
@@ -111,9 +115,9 @@ export function ConnectView({ tenantSlug, initialRepoCount }: ConnectViewProps) 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">{t('connect.title')}</h1>
+        <h1 className="text-2xl font-bold sm:text-3xl">{t("connect.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t('connect.subtitle')}
+          {t("connect.subtitle")}
         </p>
       </div>
 
@@ -121,17 +125,17 @@ export function ConnectView({ tenantSlug, initialRepoCount }: ConnectViewProps) 
         <Card className="border-signal-purple/30 bg-signal-purple/5">
           <CardContent className="flex items-center justify-between gap-4 py-4">
             <p className="text-sm text-muted-foreground">
-              {t('connect.alreadyConnected', {
+              {t("connect.alreadyConnected", {
                 count: initialRepoCount,
                 repoLabel:
                   initialRepoCount === 1
-                    ? t('connect.repoSingular')
-                    : t('connect.repoPlural'),
+                    ? t("connect.repoSingular")
+                    : t("connect.repoPlural"),
               })}
             </p>
             <Button asChild variant="outline" size="sm">
               <Link href={`/${tenantSlug}/dashboard`}>
-                {t('connect.goToDashboard')}
+                {t("connect.goToDashboard")}
               </Link>
             </Button>
           </CardContent>
@@ -144,14 +148,14 @@ export function ConnectView({ tenantSlug, initialRepoCount }: ConnectViewProps) 
             <span className="mr-2 inline-flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
               1
             </span>
-            {t('connect.step1Label')}
+            {t("connect.step1Label")}
           </CardTitle>
-          <CardDescription>{t('connect.step1Hint')}</CardDescription>
+          <CardDescription>{t("connect.step1Hint")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          <CommandLine command="curl -fsSL https://iris.clickbus.com/install.sh | sh" />
+          <CommandLine command={`curl -fsSL ${appUrl}/install.sh | sh`} />
           <p className="pt-1 text-xs text-muted-foreground">
-            {t('connect.step1Alt')}{' '}
+            {t("connect.step1Alt")}{" "}
             <code className="rounded bg-muted px-1 py-0.5 font-mono">
               pipx install iris
             </code>
@@ -165,9 +169,9 @@ export function ConnectView({ tenantSlug, initialRepoCount }: ConnectViewProps) 
             <span className="mr-2 inline-flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
               2
             </span>
-            {t('connect.step2Label')}
+            {t("connect.step2Label")}
           </CardTitle>
-          <CardDescription>{t('connect.step2Hint')}</CardDescription>
+          <CardDescription>{t("connect.step2Hint")}</CardDescription>
         </CardHeader>
         <CardContent>
           <CommandLine command="iris login" />
@@ -180,9 +184,9 @@ export function ConnectView({ tenantSlug, initialRepoCount }: ConnectViewProps) 
             <span className="mr-2 inline-flex size-6 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
               3
             </span>
-            {t('connect.step3Label')}
+            {t("connect.step3Label")}
           </CardTitle>
-          <CardDescription>{t('connect.step3Hint')}</CardDescription>
+          <CardDescription>{t("connect.step3Hint")}</CardDescription>
         </CardHeader>
         <CardContent>
           <CommandLine command="iris /path/to/your/repo --push" />
@@ -191,23 +195,23 @@ export function ConnectView({ tenantSlug, initialRepoCount }: ConnectViewProps) 
 
       <div
         className={cn(
-          'flex items-center gap-3 rounded-md border p-4 text-sm',
+          "flex items-center gap-3 rounded-md border p-4 text-sm",
           detected
-            ? 'border-signal-purple/40 bg-signal-purple/5 text-signal-purple'
-            : 'border-border bg-muted/30 text-muted-foreground',
+            ? "border-signal-purple/40 bg-signal-purple/5 text-signal-purple"
+            : "border-border bg-muted/30 text-muted-foreground",
         )}
       >
         {detected ? (
           <>
             <Sparkles className="size-4" />
-            <span>{t('connect.detected')}</span>
+            <span>{t("connect.detected")}</span>
           </>
         ) : (
           <>
             <Loader2 className="size-4 animate-spin" />
             <div className="flex flex-col">
-              <span>{t('connect.waiting')}</span>
-              <span className="text-xs">{t('connect.waitingHint')}</span>
+              <span>{t("connect.waiting")}</span>
+              <span className="text-xs">{t("connect.waitingHint")}</span>
             </div>
           </>
         )}

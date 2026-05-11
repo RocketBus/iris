@@ -2,8 +2,8 @@
 # Iris Installer — macOS, Linux, WSL
 #
 # Usage:
-#   curl -fsSL https://iris.clickbus.com/install.sh | sh
-#   wget -qO- https://iris.clickbus.com/install.sh | sh
+#   curl -fsSL <your-iris-deployment>/install.sh | sh
+#   wget -qO- <your-iris-deployment>/install.sh | sh
 #
 # Environment variables:
 #   IRIS_HOME=~/.iris           Install location (default: ~/.iris)
@@ -27,7 +27,7 @@ if [ "$VERSION" = "latest" ]; then
         exit 1
     }
 fi
-WHEEL_URL="$RELEASES_DOWNLOAD/v${VERSION}/clickbus_iris-${VERSION}-py3-none-any.whl"
+WHEEL_URL="$RELEASES_DOWNLOAD/v${VERSION}/iris-${VERSION}-py3-none-any.whl"
 
 # --- Colors (disabled if not a terminal) ---
 if [ -t 1 ]; then

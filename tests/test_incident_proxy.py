@@ -118,7 +118,7 @@ def test_fix_targeting_ai_code_attracts_fixes():
                 co_authors=["copilot@users.noreply.github.com"],
                 files=[FileChange("src/auth.py", 50, 0)]),
         _commit("ai2", days_offset=1, message="feat: add api",
-                co_authors=["claude-code@iris.clickbus.com"],
+                co_authors=["claude-code@iris.invalid"],
                 files=[FileChange("src/api.py", 40, 0)]),
         _commit("h1", days_offset=2, message="feat: add utils",
                 files=[FileChange("src/utils.py", 30, 0)]),

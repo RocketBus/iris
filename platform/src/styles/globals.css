@@ -6,7 +6,7 @@
 @variant dark (&:is(.dark *));
 
 /* ============================================
-   Iris — Clickbus Embarque Design System
+   Iris — Embarque Design System
    Light theme by default; dark variant via .dark
    Tokens use HSL space without the wrapping hsl()
    so they can be composed by Tailwind utilities.
@@ -21,7 +21,7 @@
   --popover-foreground: 0 0% 13.3%;
 
   /* Brand */
-  --primary: 273 100% 58%;            /* #A528FF */
+  --primary: 273 100% 58%; /* #A528FF */
   --primary-foreground: 0 0% 100%;
 
   /* Secondaries */
@@ -29,7 +29,7 @@
   --secondary-foreground: 0 0% 13.3%;
   --muted: 0 0% 96%;
   --muted-foreground: 0 0% 39%;
-  --accent: 47 100% 50%;              /* #E2D849 amarelo destaque */
+  --accent: 47 100% 50%; /* #E2D849 amarelo destaque */
   --accent-foreground: 0 0% 13.3%;
 
   /* Feedback */
@@ -42,11 +42,11 @@
   --ring: 273 100% 58%;
 
   /* Charts */
-  --chart-1: 273 100% 58%;            /* primary purple */
-  --chart-2: 47 100% 50%;             /* accent yellow */
-  --chart-3: 142 71% 45%;             /* success green */
-  --chart-4: 0 84% 60%;               /* danger red */
-  --chart-5: 0 0% 39%;                /* muted */
+  --chart-1: 273 100% 58%; /* primary purple */
+  --chart-2: 47 100% 50%; /* accent yellow */
+  --chart-3: 142 71% 45%; /* success green */
+  --chart-4: 0 84% 60%; /* danger red */
+  --chart-5: 0 0% 39%; /* muted */
 
   /* Sidebar */
   --sidebar: 0 0% 100%;
@@ -62,16 +62,22 @@
 
   --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
   --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-  --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+  --shadow-sm:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
   --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-  --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-  --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-  --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
+  --shadow-md:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
+  --shadow-lg:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
+  --shadow-xl:
+    0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
   --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
 
   --font-sans: var(--font-rubik), "Rubik", ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono:
+    var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 .dark {
@@ -141,12 +147,12 @@
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
   /* Iris signal palette (matches Embarque DS chart colors) */
-  --color-signal-purple: #A528FF;
-  --color-signal-yellow: #E2D849;
-  --color-signal-green: #A528FF;
-  --color-signal-red: #EF4444;
+  --color-signal-purple: #a528ff;
+  --color-signal-yellow: #e2d849;
+  --color-signal-green: #a528ff;
+  --color-signal-red: #ef4444;
   --color-signal-gray: #636363;
-  --color-glow-primary: rgba(165, 40, 255, 0.20);
+  --color-glow-primary: rgba(165, 40, 255, 0.2);
 
   --radius-xs: calc(var(--radius) - 4px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -180,12 +186,20 @@
   --animate-accordion-up: accordion-up 0.2s ease-out;
 
   @keyframes accordion-down {
-    from { height: 0; }
-    to { height: var(--radix-accordion-content-height); }
+    from {
+      height: 0;
+    }
+    to {
+      height: var(--radix-accordion-content-height);
+    }
   }
   @keyframes accordion-up {
-    from { height: var(--radix-accordion-content-height); }
-    to { height: 0; }
+    from {
+      height: var(--radix-accordion-content-height);
+    }
+    to {
+      height: 0;
+    }
   }
 }
 
@@ -270,33 +284,57 @@ body {
   box-shadow: 0 0 20px var(--color-glow-primary);
 }
 .text-glow {
-  text-shadow: 0 0 20px var(--color-glow-primary), 0 0 40px var(--color-glow-primary);
+  text-shadow:
+    0 0 20px var(--color-glow-primary),
+    0 0 40px var(--color-glow-primary);
 }
 
 .grid-dots {
-  background-image: radial-gradient(circle, rgba(165, 40, 255, 0.08) 1px, transparent 1px);
+  background-image: radial-gradient(
+    circle,
+    rgba(165, 40, 255, 0.08) 1px,
+    transparent 1px
+  );
   background-size: 24px 24px;
 }
 
 @keyframes blink {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+  0%,
+  50% {
+    opacity: 1;
+  }
+  51%,
+  100% {
+    opacity: 0;
+  }
 }
 .cursor-blink {
   animation: blink 1s step-end infinite;
 }
 
 @keyframes breathe {
-  0%, 100% { transform: scaleY(1); }
-  50% { transform: scaleY(1.03); }
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(1.03);
+  }
 }
 .pulse-breathe {
   animation: breathe 3s ease-in-out infinite;
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px var(--color-glow-primary); }
-  50% { box-shadow: 0 0 40px var(--color-glow-primary), 0 0 60px rgba(165, 40, 255, 0.10); }
+  0%,
+  100% {
+    box-shadow: 0 0 20px var(--color-glow-primary);
+  }
+  50% {
+    box-shadow:
+      0 0 40px var(--color-glow-primary),
+      0 0 60px rgba(165, 40, 255, 0.1);
+  }
 }
 .glow-pulse {
   animation: glow-pulse 3s ease-in-out infinite;

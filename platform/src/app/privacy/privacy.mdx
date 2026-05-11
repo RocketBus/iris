@@ -2,13 +2,22 @@
 
 **Last updated:** 2026-05-02
 
-This Privacy Policy describes how Clickbus (the "Controller") collects, uses, and protects personal data through **Clickbus Iris** ("the Service") — both the open-source CLI and the hosted platform at `iris.clickbus.com`.
+Iris is open-source software (Apache 2.0). This Privacy Policy applies to the **hosted deployment of Iris that you are currently accessing**. The legal entity operating that deployment is the data Controller. If you self-host Iris or deploy a fork, **you (or your organization) are the Controller** for your own deployment, and you must publish your own Privacy Policy.
 
-The hosted platform is restricted to Clickbus collaborators. The CLI is open source under Apache 2.0 and runs entirely on your machine; this policy applies only when you connect the CLI to the hosted platform or use the platform directly.
+For this deployment:
+
+- **Controller**: {props.operatorName || "[not configured — set OPERATOR_NAME]"}
+- **Jurisdiction**: {props.operatorJurisdiction || "[not configured — set OPERATOR_JURISDICTION]"}
+- **Privacy contact**: {props.operatorPrivacyEmail || "[not configured — set OPERATOR_PRIVACY_EMAIL]"}
+- **Data Protection Officer**: {props.operatorDpoEmail || "[not configured — set OPERATOR_DPO_EMAIL]"}
+
+This Privacy Policy describes how the Controller collects, uses, and protects personal data through **Iris** ("the Service") — both the open-source CLI and the hosted platform you are accessing.
+
+The hosted platform is access-restricted to authorized users. The CLI is open source under Apache 2.0 and runs entirely on your machine; this policy applies only when you connect the CLI to a hosted platform deployment or use the platform directly.
 
 ## 1. Data we collect
 
-**The CLI (running locally) does not transmit data to Clickbus by default.** It reads your Git repository's metadata (commits, diffs, PR information via the GitHub CLI) and produces a local report. Nothing leaves your machine unless you opt in to the hosted platform via `iris push` or to your own observability backend via `OTEL_EXPORTER_OTLP_ENDPOINT` (see [`docs/TELEMETRY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/docs/TELEMETRY.md)).
+**The CLI (running locally) does not transmit data to the Controller by default.** It reads your Git repository's metadata (commits, diffs, PR information via the GitHub CLI) and produces a local report. Nothing leaves your machine unless you opt in to a hosted platform via `iris push` or to your own observability backend via `OTEL_EXPORTER_OTLP_ENDPOINT` (see [`docs/TELEMETRY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/docs/TELEMETRY.md)).
 
 **The hosted platform** collects:
 
@@ -31,10 +40,12 @@ We do **not** sell, rent, or share personal data with third parties for advertis
 
 ## 3. Where data is stored
 
-- **Application data**: Supabase (Postgres) hosted in `us-east`. Row-Level Security policies isolate each organization.
-- **Email delivery**: Resend (US-based transactional email provider).
-- **Hosting**: Vercel (`gru1` region — São Paulo).
+- **Application data**: Supabase (Postgres). Row-Level Security policies isolate each organization.
+- **Email delivery**: Resend (transactional email provider).
+- **Hosting**: Vercel.
 - **Authentication**: GitHub Inc. (subject to GitHub's own privacy policy).
+
+The exact regions depend on the operator's deployment configuration.
 
 ## 4. Retention
 
@@ -42,12 +53,12 @@ Active workspace data is retained while your account is active. Audit log entrie
 
 ## 5. Sub-processors
 
-| Provider | Purpose | Region |
-|---|---|---|
-| Supabase | Database & file storage | us-east |
-| Vercel | Application hosting | gru1 (São Paulo) |
-| Resend | Transactional email | US |
-| GitHub | Authentication (OAuth) | US |
+| Provider | Purpose |
+|---|---|
+| Supabase | Database & file storage |
+| Vercel | Application hosting |
+| Resend | Transactional email |
+| GitHub | Authentication (OAuth) |
 
 ## 6. Your rights (LGPD / GDPR)
 
@@ -59,16 +70,16 @@ You have the right to:
 - **Export** your data in a portable format
 - **Withdraw consent** at any time
 - **Object** to specific processing activities
-- **File a complaint** with the Brazilian National Data Protection Authority (ANPD) or your local supervisory authority
+- **File a complaint** with your local supervisory authority (e.g. the Brazilian National Data Protection Authority — ANPD)
 
-To exercise any of these rights, email **`privacy@clickbus.com.br`**. We respond within 15 business days as required by LGPD Article 19.
+To exercise any of these rights, contact the Controller at the privacy address above. We respond within 15 business days as required by LGPD Article 19.
 
 ## 7. Security
 
 - All traffic is encrypted with TLS 1.2+
 - Database access uses Supabase service-role keys, scoped to the server only
 - Strict Content-Security-Policy and HSTS headers (see `platform/next.config.ts`)
-- Vulnerability reports go to **`security@clickbus.com.br`**; see [`SECURITY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/SECURITY.md)
+- Vulnerability reports follow [`SECURITY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/SECURITY.md)
 
 ## 8. Changes to this policy
 
@@ -76,10 +87,8 @@ Material changes are announced via the platform UI and a commit to this file in 
 
 ## 9. Contact
 
-Data Protection Officer: **`privacy@clickbus.com.br`**
-General contact: **`security@clickbus.com.br`**
-ClickBus, São Paulo — Brazil
+Use the privacy and DPO addresses listed at the top of this document. For vulnerability disclosure, see [`SECURITY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/SECURITY.md).
 
 ---
 
-*This policy is published as part of the open-source repository at [github.com/RocketBus/clickbus-iris](https://github.com/RocketBus/clickbus-iris). For the canonical version applicable to the hosted Service, see [iris.clickbus.com/privacy](https://iris.clickbus.com/privacy).*
+*This template is published as part of the open-source repository at [github.com/RocketBus/clickbus-iris](https://github.com/RocketBus/clickbus-iris). The canonical version applicable to a specific hosted Service is rendered by that deployment with its own operator information.*

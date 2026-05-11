@@ -8,9 +8,9 @@ import { Background } from "@/components/background";
 import { SaasFAQ } from "@/components/blocks/saas-faq";
 
 export const metadata: Metadata = {
-  title: "FAQ | Clickbus Iris",
+  title: "FAQ | Iris",
   description:
-    "Frequently asked questions about Clickbus Iris — engineering intelligence, AI impact, code durability, and how the analysis works.",
+    "Frequently asked questions about Iris — engineering intelligence, AI impact, code durability, and how the analysis works.",
 };
 
 const faqJsonLd = {
@@ -70,7 +70,7 @@ const faqJsonLd = {
       name: "How do I install?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "Run the install script (curl -fsSL https://iris.clickbus.com/install.sh | sh) or pipx install iris. Requires Python 3.11+ and Git.",
+        text: `Run the install script (curl -fsSL ${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/install.sh | sh) or pipx install iris. Requires Python 3.11+ and Git.`,
       },
     },
     {
@@ -78,7 +78,7 @@ const faqJsonLd = {
       name: "How much does it cost?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The CLI is free and open source under Apache 2.0. The hosted platform is internal to Clickbus collaborators; reach out for access.",
+        text: "The CLI is free and open source under Apache 2.0. The hosted platform is internal-access; reach out for access.",
       },
     },
     {

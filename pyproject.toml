@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "clickbus-iris"
+name = "iris"
 version = "1.0.0"
 description = "Engineering intelligence for the AI era — measure signal vs noise in software delivery"
 requires-python = ">=3.11"

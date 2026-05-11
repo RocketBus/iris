@@ -21,7 +21,7 @@ Add a `Co-Authored-By` trailer to commit messages:
 ```
 feat: add payment validation
 
-Co-Authored-By: Claude Code <claude-code@iris.clickbus.com>
+Co-Authored-By: Claude Code <claude-code@iris.invalid>
 ```
 
 This is the same format GitHub uses for co-authored commits. Iris reads these tags to classify commits by origin and tool.
@@ -32,11 +32,11 @@ This is the same format GitHub uses for co-authored commits. Iris reads these ta
 |---|---|
 | Claude Code | `Co-Authored-By: Claude Code <noreply@anthropic.com>` |
 | GitHub Copilot | `Co-Authored-By: GitHub Copilot <copilot@github.com>` |
-| Cursor | `Co-Authored-By: Cursor <cursor@iris.clickbus.com>` |
-| Windsurf | `Co-Authored-By: Windsurf <windsurf@iris.clickbus.com>` |
-| Codeium | `Co-Authored-By: Codeium <codeium@iris.clickbus.com>` |
-| Amazon Q | `Co-Authored-By: Amazon Q <amazon-q@iris.clickbus.com>` |
-| Gemini | `Co-Authored-By: Gemini <gemini@iris.clickbus.com>` |
+| Cursor | `Co-Authored-By: Cursor <cursor@iris.invalid>` |
+| Windsurf | `Co-Authored-By: Windsurf <windsurf@iris.invalid>` |
+| Codeium | `Co-Authored-By: Codeium <codeium@iris.invalid>` |
+| Amazon Q | `Co-Authored-By: Amazon Q <amazon-q@iris.invalid>` |
+| Gemini | `Co-Authored-By: Gemini <gemini@iris.invalid>` |
 
 Iris detects any of these patterns (case-insensitive).
 
@@ -87,7 +87,7 @@ Create `~/.git-commit-template`:
 # If this commit was AI-assisted, uncomment the appropriate line:
 # Co-Authored-By: GitHub Copilot <copilot@github.com>
 # Co-Authored-By: Claude Code <noreply@anthropic.com>
-# Co-Authored-By: Cursor <cursor@iris.clickbus.com>
+# Co-Authored-By: Cursor <cursor@iris.invalid>
 ```
 
 ---

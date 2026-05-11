@@ -78,7 +78,7 @@ def test_analyze_pr_basic_composition():
     pr = _pr()
     commits = [
         _commit("aaa", co_authors=["copilot@users.noreply.github.com"]),
-        _commit("bbb", co_authors=["claude-code@iris.clickbus.com"]),
+        _commit("bbb", co_authors=["claude-code@iris.invalid"]),
         _commit("ccc"),
     ]
     result = analyze_pr(pr, commits)
@@ -217,7 +217,7 @@ def test_format_contains_tool_names():
     pr = _pr()
     commits = [
         _commit("aaa", co_authors=["copilot@users.noreply.github.com"]),
-        _commit("bbb", co_authors=["claude-code@iris.clickbus.com"]),
+        _commit("bbb", co_authors=["claude-code@iris.invalid"]),
     ]
     result = analyze_pr(pr, commits)
     markdown = format_pr_comment(result)
@@ -233,7 +233,7 @@ def test_format_contains_footer():
     markdown = format_pr_comment(result)
 
     assert "hypotheses" in markdown
-    assert "iris.clickbus.com" in markdown
+    assert "Iris" in markdown
 
 
 def test_format_contains_size_info():

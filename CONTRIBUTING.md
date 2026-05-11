@@ -1,11 +1,11 @@
-# Contributing to Clickbus Iris
+# Contributing to Iris
 
 Thanks for considering a contribution. Iris is open source under Apache 2.0 and welcomes pull requests, issues, and discussions.
 
 ## Project layout
 
 ```
-clickbus-iris/
+iris/                  # repo root
 ├── iris/              # Python CLI (the analysis engine)
 ├── platform/          # Next.js app (multi-tenant dashboard)
 ├── docs/              # Architecture, methodology, principles
@@ -15,16 +15,16 @@ clickbus-iris/
 ```
 
 The CLI and the platform ship independently:
-- **CLI** is published to PyPI as `clickbus-iris`.
-- **Platform** is deployed to Vercel at `iris.clickbus.com` (internal); see `platform/VERCEL.md`.
+- **CLI** wheels are published as GitHub Release assets and installed via the `install.sh`/`install.ps1` scripts served by the platform.
+- **Platform** is deployed to Vercel; see `platform/VERCEL.md`.
 
 ## Local setup
 
 ### 1. Python CLI
 
 ```bash
-git clone git@github.com:RocketBus/clickbus-iris.git
-cd clickbus-iris
+git clone git@github.com:RocketBus/clickbus-iris.git iris
+cd iris
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e .

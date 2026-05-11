@@ -2,11 +2,19 @@
 
 **Last updated:** 2026-05-02
 
-These Terms of Service govern your use of **Clickbus Iris** ("the Service") — both the open-source CLI distributed under Apache 2.0 and the hosted platform at `iris.clickbus.com`. By accessing or using the Service you agree to these terms; if you do not agree, do not use the Service.
+Iris is open-source software (Apache 2.0). These Terms apply to the **hosted deployment of Iris that you are currently accessing**. The legal entity operating that deployment ("the Operator") is your counterparty under these Terms. If you self-host Iris or deploy a fork, **you (or your organization) become the Operator** for your own deployment and must publish your own Terms.
+
+For this deployment:
+
+- **Operator**: {props.operatorName || "[not configured — set OPERATOR_NAME]"}
+- **Jurisdiction**: {props.operatorJurisdiction || "[not configured — set OPERATOR_JURISDICTION]"}
+- **Contact**: {props.operatorPrivacyEmail || "[not configured — set OPERATOR_PRIVACY_EMAIL]"}
+
+These Terms govern your use of **Iris** ("the Service") — both the open-source CLI distributed under Apache 2.0 and this hosted deployment. By accessing or using the Service you agree to these Terms; if you do not agree, do not use the Service.
 
 ## 1. Eligibility and access
 
-The hosted platform is restricted to current ClickBus collaborators authenticated via GitHub OAuth against approved GitHub organizations. Authorization to access the platform may be revoked at any time at ClickBus's sole discretion (for example, when employment or contractor agreements end). The CLI is publicly available and free of charge under the Apache License 2.0.
+The hosted platform is access-restricted to users authorized by the Operator (typically via GitHub OAuth against approved GitHub organizations). Authorization may be revoked at the Operator's sole discretion (for example, when employment or contractor agreements end, or for violation of these Terms). The CLI is publicly available and free of charge under the Apache License 2.0.
 
 ## 2. Acceptable use
 
@@ -16,30 +24,31 @@ You agree not to:
 - Attempt to access workspaces or data you are not authorized to view
 - Submit content that is unlawful, infringes third-party rights, or contains malware
 - Interfere with the Service's operation or other users' access (rate-limit abuse, DoS, etc.)
-- Resell, sublicense, or rebrand the hosted platform without an explicit agreement (the open-source CLI is governed by the Apache 2.0 license, which already permits commercial use and modification)
+- Resell, sublicense, or rebrand a hosted deployment without an explicit agreement with the Operator (the open-source code is governed by the Apache 2.0 license, which already permits commercial use and modification)
 
 ## 3. Your content and data
 
-The Service processes Git repository metadata (commits, diffs, PR data) supplied by the CLI on your machine. We do **not** receive or store source code. You retain all rights in your own data and code; nothing in these Terms transfers ownership to ClickBus. Our data-handling practices are described in the [Privacy Policy](/privacy).
+The Service processes Git repository metadata (commits, diffs, PR data) supplied by the CLI on your machine. The Service does **not** receive or store source code. You retain all rights in your own data and code; nothing in these Terms transfers ownership to the Operator. Data-handling practices are described in the [Privacy Policy](/privacy).
 
 ## 4. Service availability
 
-We aim for high availability but do not guarantee uptime. The hosted platform may be unavailable for maintenance, upgrades, infrastructure issues at our providers (Vercel, Supabase, GitHub), or other reasons. We provide the Service **as is**, without warranties of merchantability, fitness for a particular purpose, or non-infringement, to the maximum extent permitted by law.
+The Operator aims for high availability but does not guarantee uptime. The hosted platform may be unavailable for maintenance, upgrades, infrastructure issues at upstream providers (Vercel, Supabase, GitHub), or other reasons. The Service is provided **as is**, without warranties of merchantability, fitness for a particular purpose, or non-infringement, to the maximum extent permitted by law.
 
 ## 5. Limitation of liability
 
-To the maximum extent permitted by law, ClickBus's aggregate liability arising out of or related to the Service is limited to direct damages and shall not exceed the amount paid by you for the Service during the 12 months preceding the claim (this amount is BRL 0,00 for the open-source CLI and the internal hosted platform). ClickBus is not liable for indirect, incidental, consequential, exemplary, or punitive damages, including lost profits or data.
+To the maximum extent permitted by law, the Operator's aggregate liability arising out of or related to the Service is limited to direct damages and shall not exceed the amount paid by you for the Service during the 12 months preceding the claim (this amount is BRL 0,00 / USD 0,00 for the open-source CLI and for hosted deployments offered without charge). The Operator is not liable for indirect, incidental, consequential, exemplary, or punitive damages, including lost profits or data.
 
 ## 6. Intellectual property
 
 The Service combines:
+
 - **The CLI** (`iris/` and related source) — licensed under Apache 2.0; see [`LICENSE`](https://github.com/RocketBus/clickbus-iris/blob/main/LICENSE)
 - **The platform code** — also licensed under Apache 2.0
-- **The "Clickbus Iris" name and logo** — trademarks of ClickBus; the Apache license does not grant trademark rights (Section 6 of the license)
+- **Operator-specific branding** (logo, name, deployment-specific assets, if any) — owned by the Operator and not granted by the Apache license (Section 6 of the license)
 
 ## 7. Termination
 
-You may stop using the Service at any time. We may suspend or terminate your access to the hosted platform if you violate these Terms or if your authorization with ClickBus ends. Upon termination, your account and personal data will be handled according to the [Privacy Policy](/privacy).
+You may stop using the Service at any time. The Operator may suspend or terminate your access if you violate these Terms or if your authorization with the Operator ends. Upon termination, your account and personal data are handled according to the [Privacy Policy](/privacy).
 
 ## 8. Changes
 
@@ -47,13 +56,12 @@ Material changes to these Terms will be announced in the platform UI and reflect
 
 ## 9. Governing law
 
-These Terms are governed by the laws of the Federative Republic of Brazil. Any dispute arising hereunder is subject to the exclusive jurisdiction of the courts of the City of São Paulo, State of São Paulo.
+These Terms are governed by the laws of {props.operatorJurisdiction || "the Operator's jurisdiction"}. Any dispute arising hereunder is subject to the exclusive jurisdiction of the courts in that jurisdiction.
 
 ## 10. Contact
 
-Questions about these Terms: **`privacy@clickbus.com.br`**
-ClickBus, São Paulo — Brazil
+Questions about these Terms: use the contact address listed at the top of this document.
 
 ---
 
-*Published as part of the open-source repository at [github.com/RocketBus/clickbus-iris](https://github.com/RocketBus/clickbus-iris). The canonical version applicable to the hosted Service is at [iris.clickbus.com/terms](https://iris.clickbus.com/terms).*
+*This template is published as part of the open-source repository at [github.com/RocketBus/clickbus-iris](https://github.com/RocketBus/clickbus-iris). The canonical version applicable to a specific hosted Service is rendered by that deployment with its own Operator information.*

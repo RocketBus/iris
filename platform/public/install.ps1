@@ -1,7 +1,7 @@
 # Iris Installer — Windows PowerShell
 #
 # Usage:
-#   irm https://iris.clickbus.com/install.ps1 | iex
+#   irm <your-iris-deployment>/install.ps1 | iex
 #
 # What it does:
 #   1. Checks for Python 3.11+
@@ -27,7 +27,7 @@ if ($VERSION -eq "latest") {
         exit 1
     }
 }
-$WHEEL_URL = "$RELEASES_DOWNLOAD/v$VERSION/clickbus_iris-$VERSION-py3-none-any.whl"
+$WHEEL_URL = "$RELEASES_DOWNLOAD/v$VERSION/iris-$VERSION-py3-none-any.whl"
 
 function Write-Info($msg)  { Write-Host ">>> " -ForegroundColor Green -NoNewline; Write-Host $msg }
 function Write-Warn($msg)  { Write-Host ">>> " -ForegroundColor Yellow -NoNewline; Write-Host $msg }

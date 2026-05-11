@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   const serverUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     process.env.NEXTAUTH_URL ||
-    "https://iris.clickbus.com";
+    "http://localhost:3000";
 
   // Build redirect URL back to CLI's local server
   const callbackParams = new URLSearchParams({

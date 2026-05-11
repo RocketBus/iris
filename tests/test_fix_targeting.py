@@ -126,7 +126,7 @@ def test_tool_attribution():
     for i in range(MIN_FIX_EVENTS):
         commits.append(_commit(
             f"claude_{i}", i * 3, f"feat: claude {i}",
-            co_authors=["claude-code@iris.clickbus.com"],
+            co_authors=["claude-code@iris.invalid"],
             files=[FileChange(f"src/c_{i}.py", 20, 0)],
         ))
         commits.append(_commit(

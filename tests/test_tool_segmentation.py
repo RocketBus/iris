@@ -58,7 +58,7 @@ def _commit(
 def test_build_tool_map_maps_ai_commits_to_tools():
     commits = [
         _commit("aaa", co_authors=["copilot@users.noreply.github.com"]),
-        _commit("bbb", co_authors=["claude-code@iris.clickbus.com"]),
+        _commit("bbb", co_authors=["claude-code@iris.invalid"]),
         _commit("ccc"),  # human
         _commit("ddd", author="dependabot[bot]"),  # bot
     ]
@@ -77,7 +77,7 @@ def test_build_tool_map_empty_for_all_human():
 
 
 def test_build_tool_map_cursor():
-    commits = [_commit("aaa", co_authors=["cursor@iris.clickbus.com"])]
+    commits = [_commit("aaa", co_authors=["cursor@iris.invalid"])]
     classified = classify_origins(commits)
     tool_map = build_tool_map(classified)
 
@@ -93,13 +93,13 @@ def test_detect_tool_all_patterns():
     cases = [
         (["copilot@github.com"], "Copilot"),
         (["github-copilot@users.noreply.github.com"], "Copilot"),
-        (["claude-code@iris.clickbus.com"], "Claude"),
+        (["claude-code@iris.invalid"], "Claude"),
         (["noreply@anthropic.com"], "Claude"),
-        (["cursor@iris.clickbus.com"], "Cursor"),
-        (["codeium@iris.clickbus.com"], "Codeium"),
-        (["tabnine@iris.clickbus.com"], "Tabnine"),
-        (["amazon-q@iris.clickbus.com"], "Amazon Q"),
-        (["gemini@iris.clickbus.com"], "Gemini"),
+        (["cursor@iris.invalid"], "Cursor"),
+        (["codeium@iris.invalid"], "Codeium"),
+        (["tabnine@iris.invalid"], "Tabnine"),
+        (["amazon-q@iris.invalid"], "Amazon Q"),
+        (["gemini@iris.invalid"], "Gemini"),
     ]
     for co_authors, expected_tool in cases:
         c = _commit("x", co_authors=co_authors)
@@ -212,7 +212,7 @@ def test_new_code_churn_by_tool_populates():
         # Introducing commit (Claude)
         commits.append(_commit(
             hash=f"intro_{i:03d}",
-            co_authors=["claude-code@iris.clickbus.com"],
+            co_authors=["claude-code@iris.invalid"],
             days_offset=i * 5,
             files=[FileChange(path=path, lines_added=20, lines_removed=0)],
         ))
@@ -281,7 +281,7 @@ def test_duplicate_by_tool_populates():
         h = f"cursor_{i:03d}"
         commits.append(_commit(
             hash=h,
-            co_authors=["cursor@iris.clickbus.com"],
+            co_authors=["cursor@iris.invalid"],
             days_offset=i,
             files=[
                 FileChange(path=f"src/a_{i}.py", lines_added=10, lines_removed=0),

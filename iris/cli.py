@@ -793,7 +793,7 @@ def _run_login(argv: list[str]) -> None:
 
     # Manual token login (for CI/CD)
     if token:
-        s = server or "https://iris.clickbus.com"
+        s = server or os.environ.get("IRIS_SERVER_URL") or "http://localhost:3000"
         if not manual_login(s, token):
             sys.exit(1)
         return
@@ -1171,7 +1171,8 @@ def _run_upgrade() -> None:
 
     install_dir = os.path.expanduser("~/.iris")
     venv_pip = os.path.join(install_dir, "venv", "bin", "pip")
-    dist_base = "https://iris.clickbus.com/dist"
+    server_url = os.environ.get("IRIS_SERVER_URL", "http://localhost:3000")
+    dist_base = f"{server_url.rstrip('/')}/dist"
 
     # Detect install method
     is_pipx = not os.path.isdir(install_dir) and os.path.isdir(
@@ -1201,7 +1202,7 @@ def _run_upgrade() -> None:
             )
         else:
             print("  Could not detect install method.", file=sys.stderr)
-            print("  Reinstall with: curl -fsSL https://iris.clickbus.com/install.sh | sh")
+            print(f"  Reinstall with: curl -fsSL {server_url.rstrip('/')}/install.sh | sh")
             sys.exit(1)
 
         # Show new version — use sys.executable to survive venvs that ship

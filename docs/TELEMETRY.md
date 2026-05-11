@@ -5,7 +5,7 @@ Iris emits OpenTelemetry traces and metrics **only when you explicitly opt in**.
 ## Default behavior: silent
 
 Out of the box:
-- The `opentelemetry-*` packages are **optional dependencies**, not installed by `pip install clickbus-iris`. They only come in via `pip install 'clickbus-iris[otel]'`.
+- The `opentelemetry-*` packages are **optional dependencies**, not installed by `pip install iris`. They only come in via `pip install 'iris[otel]'`.
 - Even with the OTel packages installed, no spans or metrics are emitted unless you set `OTEL_EXPORTER_OTLP_ENDPOINT`.
 - The single exception is `IRIS_OTEL_DEBUG=1`, which prints OTel events to stdout for local debugging — useful when verifying the exporter works.
 
@@ -48,7 +48,7 @@ Pick a destination that speaks OTLP/HTTP. Examples:
 ### Honeycomb
 
 ```bash
-pip install 'clickbus-iris[otel]'
+pip install 'iris[otel]'
 export OTEL_EXPORTER_OTLP_ENDPOINT="https://api.honeycomb.io"
 export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=YOUR_API_KEY"
 export OTEL_SERVICE_NAME="iris-cli"
@@ -58,7 +58,7 @@ iris /path/to/repo
 ### Grafana Tempo / Loki / Mimir
 
 ```bash
-pip install 'clickbus-iris[otel]'
+pip install 'iris[otel]'
 export OTEL_EXPORTER_OTLP_ENDPOINT="https://otlp-gateway.example.com"
 export OTEL_EXPORTER_OTLP_HEADERS="authorization=Basic <base64>"
 iris /path/to/repo
@@ -93,7 +93,7 @@ In CI, telemetry is off by default. If you want runs to emit traces, set the OTe
 Three guarantees up front:
 
 1. **Opt-in, not opt-out.** Surveillance-by-default is a non-starter for a tool that touches private repos.
-2. **No vendored backend.** Iris doesn't phone home to a Clickbus-controlled endpoint. You point it at your own observability stack.
+2. **No vendored backend.** Iris doesn't phone home to a vendor-controlled endpoint. You point it at your own observability stack.
 3. **No source content.** Even when telemetry is on, the wire payload is metric values and span names, never code.
 
 If you want Iris to send anonymous usage stats to help us prioritize features, that's a feature we don't have and currently don't plan to add. Open an issue if that changes your mind.

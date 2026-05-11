@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { env } from "@/lib/env";
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
@@ -7,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/auth/", "/cli/", "/setup", "/api/"],
     },
-    sitemap: "https://iris.clickbus.com/sitemap.xml",
+    sitemap: `${env.NEXT_PUBLIC_APP_URL}/sitemap.xml`,
   };
 }
