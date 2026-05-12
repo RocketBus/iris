@@ -146,13 +146,25 @@
   --color-sidebar-border: hsl(var(--sidebar-border));
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  /* Iris signal palette (matches Embarque DS chart colors) */
-  --color-signal-purple: #a528ff;
-  --color-signal-yellow: #e2d849;
-  --color-signal-green: #a528ff;
+  /* Iris signal palette — semantic colors for ordinal/diagnostic signals.
+     "good/ok/warn/bad" cover health, stabilization, alerts. */
+  --color-signal-purple: #a528ff; /* brand primary — single hero series */
+  --color-signal-yellow: #f5c542; /* warmer amber, harmonizes with purple */
+  --color-signal-green: #4ade80; /* real green (was #a528ff — that was a bug) */
   --color-signal-red: #ef4444;
   --color-signal-gray: #636363;
   --color-glow-primary: rgba(165, 40, 255, 0.2);
+
+  /* Iris categorical palette — pick from here when a chart has multiple
+     unrelated series (e.g., commit intents). Sized for up to 6 distinct
+     categories that read clearly on the dark background and don't all
+     collapse to "brand purple". */
+  --color-cat-1: #a528ff; /* brand purple   — primary slot */
+  --color-cat-2: #22d3ee; /* cyan           — strong contrast vs purple */
+  --color-cat-3: #f5c542; /* amber          — warning/highlight */
+  --color-cat-4: #f472b6; /* pink           — adjacent to purple */
+  --color-cat-5: #4ade80; /* green          — success/positive */
+  --color-cat-6: #94a3b8; /* slate          — neutral */
 
   --radius-xs: calc(var(--radius) - 4px);
   --radius-sm: calc(var(--radius) - 4px);

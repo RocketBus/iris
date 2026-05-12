@@ -1,39 +1,37 @@
-'use client';
+"use client";
 
-import { ArrowUp, ArrowDown } from 'lucide-react';
-import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
+import { ArrowUp, ArrowDown } from "lucide-react";
+import { Treemap, ResponsiveContainer, Tooltip } from "recharts";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { useTranslation } from '@/hooks/useTranslation';
-import { cn } from '@/lib/utils';
-import type { HealthMapEntry } from '@/types/org-summary';
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useTranslation } from "@/hooks/useTranslation";
+import { cn } from "@/lib/utils";
+import type { HealthMapEntry } from "@/types/org-summary";
 
 interface HealthMapProps {
   entries: HealthMapEntry[];
   orgSlug: string;
 }
 
+// Sequential ramp for the stabilization heatmap. Tiles render with a
+// noticeable fillOpacity (see CustomTreemapContent), so we pick saturated
+// colors that survive the alpha blend instead of muddying into brown.
 function stabToColor(value: number): string {
-  if (value >= 0.7) return '#A528FF'; // green
-  if (value >= 0.5) return '#eab308'; // yellow
-  return '#ef4444'; // red
+  if (value >= 0.7) return "var(--color-signal-green)"; // good
+  if (value >= 0.5) return "var(--color-signal-yellow)"; // warn
+  return "var(--color-signal-red)"; // bad
 }
 
 function healthColor(health: string): string {
   switch (health) {
-    case 'healthy':
-      return 'text-signal-purple';
-    case 'warning':
-      return 'text-signal-yellow';
-    case 'critical':
-      return 'text-signal-red';
+    case "healthy":
+      return "text-signal-purple";
+    case "warning":
+      return "text-signal-yellow";
+    case "critical":
+      return "text-signal-red";
     default:
-      return 'text-muted-foreground';
+      return "text-muted-foreground";
   }
 }
 
@@ -51,7 +49,7 @@ function CustomTreemapContent({
   y = 0,
   width = 0,
   height = 0,
-  name = '',
+  name = "",
   stabilization = 0,
 }: TreemapContentProps) {
   if (width < 30 || height < 20) return null;
@@ -67,7 +65,7 @@ function CustomTreemapContent({
         width={width}
         height={height}
         fill={color}
-        fillOpacity={0.25}
+        fillOpacity={0.55}
         stroke="var(--border)"
         strokeWidth={1}
         rx={4}
@@ -95,8 +93,12 @@ export function HealthMap({ entries }: HealthMapProps) {
   const sorted = [...entries].sort(
     (a, b) => Math.abs(b.delta ?? 0) - Math.abs(a.delta ?? 0),
   );
-  const improving = sorted.filter((e) => e.delta !== null && e.delta > 0.05).slice(0, 3);
-  const worsening = sorted.filter((e) => e.delta !== null && e.delta < -0.05).slice(0, 3);
+  const improving = sorted
+    .filter((e) => e.delta !== null && e.delta > 0.05)
+    .slice(0, 3);
+  const worsening = sorted
+    .filter((e) => e.delta !== null && e.delta < -0.05)
+    .slice(0, 3);
 
   const treemapData = entries.map((e) => ({
     name: e.name,
@@ -107,9 +109,11 @@ export function HealthMap({ entries }: HealthMapProps) {
   return (
     <section className="space-y-4">
       <div>
-        <h2 className="text-lg font-medium">{t('dashboard.healthMap.title')}</h2>
+        <h2 className="text-lg font-medium">
+          {t("dashboard.healthMap.title")}
+        </h2>
         <p className="text-sm text-muted-foreground">
-          {t('dashboard.healthMap.subtitle')}
+          {t("dashboard.healthMap.subtitle")}
         </p>
       </div>
 
@@ -133,12 +137,10 @@ export function HealthMap({ entries }: HealthMapProps) {
                         | undefined;
                       if (!p) return null;
                       return (
-                        <div
-                          className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground shadow-md"
-                        >
+                        <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground shadow-md">
                           <p className="font-medium">{p.name}</p>
                           <p className="text-muted-foreground">
-                            {t('dashboard.healthMap.tooltip', {
+                            {t("dashboard.healthMap.tooltip", {
                               pct: (p.stabilization * 100).toFixed(0),
                               commits: p.size,
                             })}
@@ -159,12 +161,10 @@ export function HealthMap({ entries }: HealthMapProps) {
                     key={e.id}
                     className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2"
                   >
-                    <span className="truncate font-mono text-sm">
-                      {e.name}
-                    </span>
+                    <span className="truncate font-mono text-sm">{e.name}</span>
                     <span
                       className={cn(
-                        'flex-shrink-0 text-sm font-medium',
+                        "flex-shrink-0 text-sm font-medium",
                         healthColor(e.health),
                       )}
                     >
@@ -182,16 +182,19 @@ export function HealthMap({ entries }: HealthMapProps) {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm text-signal-purple">
-                  {t('dashboard.healthMap.improving')}
+                  {t("dashboard.healthMap.improving")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {improving.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between text-sm">
+                  <div
+                    key={e.id}
+                    className="flex items-center justify-between text-sm"
+                  >
                     <span className="truncate font-mono">{e.name}</span>
                     <span className="flex items-center gap-0.5 text-signal-purple">
-                      <ArrowUp className="size-3" />
-                      +{((e.delta ?? 0) * 100).toFixed(0)}pp
+                      <ArrowUp className="size-3" />+
+                      {((e.delta ?? 0) * 100).toFixed(0)}pp
                     </span>
                   </div>
                 ))}
@@ -202,12 +205,15 @@ export function HealthMap({ entries }: HealthMapProps) {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm text-signal-red">
-                  {t('dashboard.healthMap.worsening')}
+                  {t("dashboard.healthMap.worsening")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 {worsening.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between text-sm">
+                  <div
+                    key={e.id}
+                    className="flex items-center justify-between text-sm"
+                  >
                     <span className="truncate font-mono">{e.name}</span>
                     <span className="flex items-center gap-0.5 text-signal-red">
                       <ArrowDown className="size-3" />
@@ -221,7 +227,7 @@ export function HealthMap({ entries }: HealthMapProps) {
           {improving.length === 0 && worsening.length === 0 && (
             <Card>
               <CardContent className="pt-4 text-center text-sm text-muted-foreground">
-                {t('dashboard.healthMap.noChanges')}
+                {t("dashboard.healthMap.noChanges")}
               </CardContent>
             </Card>
           )}
