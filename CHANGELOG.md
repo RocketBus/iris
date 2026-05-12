@@ -4,6 +4,24 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.0.3 — `iris upgrade` delegates to install.sh (2026-05-12)
+
+### Fixed
+
+- `iris upgrade` was wired to a `${SERVER_URL}/dist/latest.txt` endpoint
+  that never existed and defaulted to `http://localhost:3000` because
+  it ignored `~/.iris/config.json`. Combined with a stale
+  `pipx install --force` call (broken since uv started managing the
+  underlying venv), the command produced "Connection refused" or a
+  failed venv creation depending on the path it took.
+- Rewrite the command to shell out to `curl <server>/install.sh | sh`
+  using the install URL from config.json (or `IRIS_SERVER_URL`).
+  install.sh is the single source of truth for version resolution,
+  install-method detection, and the uninstall-then-install dance on
+  pipx — duplicating that logic here drifts immediately.
+
+---
+
 ## v1.0.2 — Per-week AI commit breakdown for /me/ai-usage trend (2026-05-12)
 
 ### Engine

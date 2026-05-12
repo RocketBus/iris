@@ -15,7 +15,7 @@ from iris.models.context import AnalysisContext
 from iris.reports.narrative import generate_narrative
 from iris.reports.writer import write_output
 
-VERSION = "v1.0.2"
+VERSION = "v1.0.3"
 
 
 def _merge_durability(metrics, durability):
@@ -1164,58 +1164,37 @@ def _run_uninstall() -> None:
 
 
 def _run_upgrade() -> None:
-    """Upgrade Iris CLI to the latest version."""
+    """Upgrade Iris CLI by delegating to the same install.sh the user already
+    used. install.sh is the single source of truth for resolving the latest
+    version (GitHub Releases API), detecting pipx vs pip, and doing the
+    correct uninstall-then-install dance on pipx — duplicating that logic
+    here drifts immediately."""
     import subprocess
 
-    from urllib.request import urlopen
+    # Resolve which deployment served the install. Priority: env override,
+    # then ~/.iris/config.json (written by install.sh at install time),
+    # then localhost as a last-resort default.
+    config_server = ""
+    try:
+        from iris.platform.config import load_config
 
-    install_dir = os.path.expanduser("~/.iris")
-    venv_pip = os.path.join(install_dir, "venv", "bin", "pip")
-    server_url = os.environ.get("IRIS_SERVER_URL", "http://localhost:3000")
-    dist_base = f"{server_url.rstrip('/')}/dist"
+        config_server = load_config().get("server_url", "") or ""
+    except Exception:
+        pass
+    server_url = (
+        os.environ.get("IRIS_SERVER_URL") or config_server or "http://localhost:3000"
+    ).rstrip("/")
 
-    # Detect install method
-    is_pipx = not os.path.isdir(install_dir) and os.path.isdir(
-        os.path.expanduser("~/.local/pipx/venvs/iris")
-    )
-
+    install_url = f"{server_url}/install.sh"
     print(f"\n  Iris {VERSION}")
-    print(f"  Checking for updates...\n")
+    print(f"  Running installer from {install_url}\n")
 
     try:
-        latest = urlopen(f"{dist_base}/latest.txt", timeout=10).read().decode().strip()
-        wheel_url = f"{dist_base}/iris-{latest}-py3-none-any.whl"
-    except Exception as e:
-        print(f"  Failed to check latest version: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    try:
-        if is_pipx:
-            subprocess.run(
-                ["pipx", "install", "--force", wheel_url],
-                check=True,
-            )
-        elif os.path.isfile(venv_pip):
-            subprocess.run(
-                [venv_pip, "install", "--quiet", "--force-reinstall", wheel_url],
-                check=True,
-            )
-        else:
-            print("  Could not detect install method.", file=sys.stderr)
-            print(f"  Reinstall with: curl -fsSL {server_url.rstrip('/')}/install.sh | sh")
-            sys.exit(1)
-
-        # Show new version — use sys.executable to survive venvs that ship
-        # only python3 (common with Homebrew Python 3.12 on macOS).
-        result = subprocess.run(
-            [sys.executable, "-c", "from iris.cli import VERSION; print(VERSION)"],
-            capture_output=True, text=True,
+        subprocess.run(
+            f"curl -fsSL '{install_url}' | sh",
+            shell=True,
+            check=True,
         )
-        new_version = result.stdout.strip() if result.returncode == 0 else None
-        if new_version and new_version != VERSION:
-            print(f"  Upgraded: {VERSION} → {new_version}\n")
-        else:
-            print(f"  Reinstalled {new_version or VERSION} (latest).\n")
     except subprocess.CalledProcessError as e:
         print(f"  Upgrade failed: {e}", file=sys.stderr)
         sys.exit(1)
