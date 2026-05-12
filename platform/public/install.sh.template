@@ -228,8 +228,16 @@ main() {
     # --- Install ---
     case "$METHOD" in
         pipx)
+            # `pipx install --force` is broken when iris is already installed:
+            # pipx asks uv to (re)create the venv, uv refuses because it
+            # already exists, install fails. Uninstall first when iris is
+            # present so the second step always starts from clean state.
+            if pipx list --short 2>/dev/null | grep -q '^iris '; then
+                info "Removing previous pipx install of iris..."
+                pipx uninstall iris >/dev/null 2>&1 || true
+            fi
             info "Installing via pipx..."
-            pipx install "$WHEEL_URL" --python "$PYTHON" --force 2>&1
+            pipx install "$WHEEL_URL" --python "$PYTHON" 2>&1
             ensure_path "$HOME/.local/bin"
             ;;
         pip)
