@@ -11,6 +11,7 @@ import { FaGithub } from "react-icons/fa6";
 import { FcGoogle } from "react-icons/fc";
 
 import { Background } from "@/components/background";
+import { ApertureMark } from "@/components/brand/ApertureMark";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -241,13 +242,12 @@ function SignInContent() {
           <div className="flex flex-col gap-4">
             <Card className="mx-auto w-full max-w-sm">
               <CardHeader className="flex flex-col items-center space-y-0">
-                <Image
-                  src="/logo.svg"
-                  alt="logo"
-                  width={94}
-                  height={18}
-                  className="mb-7 dark:invert"
-                />
+                <div className="mb-7 flex items-center gap-2">
+                  <ApertureMark className="size-5 text-primary" />
+                  <span className="text-sm font-semibold tracking-tight">
+                    Iris
+                  </span>
+                </div>
                 <p className="mb-2 text-2xl font-bold">
                   {t("auth.signin.title")}
                 </p>

@@ -1,19 +1,20 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
 
-import Image from 'next/image';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { Background } from '@/components/background';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useBrowserTranslation } from '@/hooks/useBrowserTranslation';
+import { Background } from "@/components/background";
+import { ApertureMark } from "@/components/brand/ApertureMark";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useBrowserTranslation } from "@/hooks/useBrowserTranslation";
 import {
   PENDING_GITHUB_ORG_COOKIE,
   PENDING_GITHUB_ORG_COOKIE_MAX_AGE,
-} from '@/lib/pending-github-org';
+} from "@/lib/pending-github-org";
 
 interface ClientOrg {
   id: number;
@@ -24,8 +25,8 @@ interface ClientOrg {
 }
 
 function persistChoice(org: ClientOrg) {
-  if (typeof document === 'undefined') return;
-  const isSecure = window.location.protocol === 'https:';
+  if (typeof document === "undefined") return;
+  const isSecure = window.location.protocol === "https:";
   const value = encodeURIComponent(
     JSON.stringify({
       id: org.id,
@@ -36,12 +37,12 @@ function persistChoice(org: ClientOrg) {
   );
   const parts = [
     `${PENDING_GITHUB_ORG_COOKIE}=${value}`,
-    'path=/',
+    "path=/",
     `max-age=${PENDING_GITHUB_ORG_COOKIE_MAX_AGE}`,
-    'samesite=lax',
+    "samesite=lax",
   ];
-  if (isSecure) parts.push('secure');
-  document.cookie = parts.join('; ');
+  if (isSecure) parts.push("secure");
+  document.cookie = parts.join("; ");
 }
 
 export function SelectGitHubOrgClient() {
@@ -53,10 +54,10 @@ export function SelectGitHubOrgClient() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch('/api/auth/github-orgs', { credentials: 'include' })
+    fetch("/api/auth/github-orgs", { credentials: "include" })
       .then(async (res) => {
         if (res.status === 412) {
-          if (!cancelled) setError(t('selectGitHubOrg.noLink'));
+          if (!cancelled) setError(t("selectGitHubOrg.noLink"));
           return null;
         }
         if (!res.ok) throw new Error(`${res.status}`);
@@ -66,7 +67,7 @@ export function SelectGitHubOrgClient() {
         if (!cancelled && data) setOrgs(data.orgs ?? []);
       })
       .catch(() => {
-        if (!cancelled) setError(t('selectGitHubOrg.error'));
+        if (!cancelled) setError(t("selectGitHubOrg.error"));
       });
     return () => {
       cancelled = true;
@@ -76,7 +77,7 @@ export function SelectGitHubOrgClient() {
   function choose(org: ClientOrg) {
     setPendingId(org.id);
     persistChoice(org);
-    router.replace('/setup');
+    router.replace("/setup");
   }
 
   return (
@@ -84,16 +85,13 @@ export function SelectGitHubOrgClient() {
       <section className="py-20 lg:pt-32 lg:pb-24">
         <div className="mx-auto w-full max-w-2xl px-4 space-y-6">
           <header className="text-center space-y-2">
-            <Image
-              src="/logo.svg"
-              alt="logo"
-              width={94}
-              height={18}
-              className="mx-auto dark:invert"
-            />
-            <h1 className="text-2xl font-bold">{t('selectGitHubOrg.title')}</h1>
+            <div className="mx-auto flex items-center justify-center gap-2">
+              <ApertureMark className="size-5 text-primary" />
+              <span className="text-sm font-semibold tracking-tight">Iris</span>
+            </div>
+            <h1 className="text-2xl font-bold">{t("selectGitHubOrg.title")}</h1>
             <p className="text-muted-foreground text-sm">
-              {t('selectGitHubOrg.subtitle')}
+              {t("selectGitHubOrg.subtitle")}
             </p>
           </header>
 
@@ -108,7 +106,7 @@ export function SelectGitHubOrgClient() {
           {!error && orgs === null && (
             <Card>
               <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                {t('selectGitHubOrg.loading')}
+                {t("selectGitHubOrg.loading")}
               </CardContent>
             </Card>
           )}
@@ -116,7 +114,7 @@ export function SelectGitHubOrgClient() {
           {!error && orgs && orgs.length === 0 && (
             <Card>
               <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                {t('selectGitHubOrg.empty')}
+                {t("selectGitHubOrg.empty")}
               </CardContent>
             </Card>
           )}
@@ -124,7 +122,10 @@ export function SelectGitHubOrgClient() {
           {!error && orgs && orgs.length > 0 && (
             <div className="grid gap-3">
               {orgs.map((org) => (
-                <Card key={org.id} className="hover:border-primary/40 transition-colors">
+                <Card
+                  key={org.id}
+                  className="hover:border-primary/40 transition-colors"
+                >
                   <CardHeader className="flex flex-row items-center gap-3 space-y-0">
                     <Image
                       src={org.avatarUrl}
@@ -147,7 +148,7 @@ export function SelectGitHubOrgClient() {
                       onClick={() => choose(org)}
                       disabled={pendingId === org.id}
                     >
-                      {t('selectGitHubOrg.select')}
+                      {t("selectGitHubOrg.select")}
                     </Button>
                   </CardHeader>
                   {org.description && (
@@ -165,7 +166,7 @@ export function SelectGitHubOrgClient() {
               href="/setup"
               className="text-sm text-muted-foreground hover:text-foreground"
             >
-              {t('selectGitHubOrg.manual')}
+              {t("selectGitHubOrg.manual")}
             </Link>
           </div>
         </div>

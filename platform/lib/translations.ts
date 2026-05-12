@@ -153,9 +153,9 @@ export const translations = {
       },
     },
     setupLinked: {
-      mirroring: "Mirroring GitHub org @{login}",
+      mirroring: "Will mirror @{login} from GitHub when you create",
       changeChoice: "Pick a different GitHub org",
-      unlink: "Don't link to GitHub for this workspace",
+      unlink: "Create without linking to GitHub",
     },
     selectGitHubOrg: {
       title: "Pick the GitHub organization to track",
@@ -1289,9 +1289,9 @@ export const translations = {
       },
     },
     setupLinked: {
-      mirroring: "Espelhando org do GitHub @{login}",
+      mirroring: "Vai espelhar @{login} do GitHub quando você clicar em criar",
       changeChoice: "Escolher outra org do GitHub",
-      unlink: "Não vincular ao GitHub neste workspace",
+      unlink: "Criar sem vincular ao GitHub",
     },
     selectGitHubOrg: {
       title: "Escolha a organização do GitHub a acompanhar",
