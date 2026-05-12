@@ -1,14 +1,14 @@
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect } from "next/navigation";
 
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from "next-auth/next";
 
-import { TrendChart } from './trend-chart';
+import { TrendChart } from "./trend-chart";
 
-import { Card, CardContent } from '@/components/ui/card';
-import { authOptions } from '@/lib/auth';
-import { getPersonalAIUsage } from '@/lib/queries/personal-ai-usage';
-import { getServerTranslation } from '@/lib/server-translation';
-import { supabaseAdmin } from '@/lib/supabase';
+import { Card, CardContent } from "@/components/ui/card";
+import { authOptions } from "@/lib/auth";
+import { getPersonalAIUsage } from "@/lib/queries/personal-ai-usage";
+import { getServerTranslation } from "@/lib/server-translation";
+import { supabaseAdmin } from "@/lib/supabase";
 
 interface SessionOrg {
   id: string;
@@ -22,7 +22,7 @@ export default async function PersonalAIUsagePage({
   searchParams: Promise<{ user?: string }>;
 }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) redirect('/auth/signin?callbackUrl=/me/ai-usage');
+  if (!session?.user?.id) redirect("/auth/signin?callbackUrl=/me/ai-usage");
 
   const sp = await searchParams;
   // Strict: this page is self-only. Any attempt to scope to another user is
@@ -31,7 +31,11 @@ export default async function PersonalAIUsagePage({
 
   const { t, language } = await getServerTranslation();
   const sessionOrgs = (session.user.organizations ?? []) as SessionOrg[];
-  const orgs = sessionOrgs.map((o) => ({ id: o.id, slug: o.slug, name: o.name }));
+  const orgs = sessionOrgs.map((o) => ({
+    id: o.id,
+    slug: o.slug,
+    name: o.name,
+  }));
 
   const usage = await getPersonalAIUsage(
     supabaseAdmin,
@@ -39,68 +43,76 @@ export default async function PersonalAIUsagePage({
     orgs,
   );
 
-  const numberLocale = language === 'pt-BR' ? 'pt-BR' : 'en-US';
+  const numberLocale = language === "pt-BR" ? "pt-BR" : "en-US";
   const formatPct = (value: number | null, fractionDigits = 0) =>
-    value === null ? '—' : `${value.toFixed(fractionDigits)}%`;
+    value === null ? "—" : `${value.toFixed(fractionDigits)}%`;
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString(numberLocale, {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
     });
 
   return (
     <div className="mx-auto max-w-5xl space-y-8 px-4 py-28 lg:pt-44">
       <header className="space-y-2">
-        <h1 className="text-2xl font-bold">{t('meAiUsage.title')}</h1>
-        <p className="text-sm text-muted-foreground">{t('meAiUsage.subtitle')}</p>
-        <p className="text-xs text-muted-foreground">{t('meAiUsage.privacyNote')}</p>
+        <h1 className="text-2xl font-bold">{t("meAiUsage.title")}</h1>
+        <p className="text-sm text-muted-foreground">
+          {t("meAiUsage.subtitle")}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {t("meAiUsage.privacyNote")}
+        </p>
       </header>
 
       {orgs.length === 0 ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {t('meAiUsage.noOrgs')}
+            {t("meAiUsage.noOrgs")}
           </CardContent>
         </Card>
       ) : !usage.matched ? (
         <Card>
           <CardContent className="py-10 text-center text-sm text-muted-foreground">
-            {t('meAiUsage.noMatch', { name: session.user.name ?? session.user.email ?? '' })}
+            {t("meAiUsage.noMatch", {
+              name: session.user.name ?? session.user.email ?? "",
+            })}
           </CardContent>
         </Card>
       ) : (
         <>
           <section className="grid gap-3 grid-cols-2 lg:grid-cols-4">
             <SummaryCard
-              label={t('meAiUsage.summary.repos')}
+              label={t("meAiUsage.summary.repos")}
               value={usage.totalRepos.toString()}
             />
             <SummaryCard
-              label={t('meAiUsage.summary.orgs')}
+              label={t("meAiUsage.summary.orgs")}
               value={usage.totalOrgs.toString()}
             />
             <SummaryCard
-              label={t('meAiUsage.summary.avgAi')}
+              label={t("meAiUsage.summary.avgAi")}
               value={formatPct(usage.avgAiCommitPct, 1)}
             />
             <SummaryCard
-              label={t('meAiUsage.summary.hvWeeks')}
+              label={t("meAiUsage.summary.hvWeeks")}
               value={usage.maxHighVelocityWeeks.toString()}
             />
           </section>
 
           <section className="space-y-2">
             <div>
-              <h2 className="text-lg font-medium">{t('meAiUsage.trend.title')}</h2>
+              <h2 className="text-lg font-medium">
+                {t("meAiUsage.trend.title")}
+              </h2>
               <p className="text-sm text-muted-foreground">
-                {t('meAiUsage.trend.subtitle')}
+                {t("meAiUsage.trend.subtitle")}
               </p>
             </div>
             {usage.trend.length < 2 ? (
               <Card>
                 <CardContent className="py-8 text-center text-xs text-muted-foreground">
-                  {t('meAiUsage.trend.empty')}
+                  {t("meAiUsage.trend.empty")}
                 </CardContent>
               </Card>
             ) : (
@@ -114,9 +126,11 @@ export default async function PersonalAIUsagePage({
 
           <section className="space-y-2">
             <div>
-              <h2 className="text-lg font-medium">{t('meAiUsage.perRepo.title')}</h2>
+              <h2 className="text-lg font-medium">
+                {t("meAiUsage.perRepo.title")}
+              </h2>
               <p className="text-sm text-muted-foreground">
-                {t('meAiUsage.perRepo.subtitle')}
+                {t("meAiUsage.perRepo.subtitle")}
               </p>
             </div>
             <Card>
@@ -124,25 +138,55 @@ export default async function PersonalAIUsagePage({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left text-muted-foreground">
-                      <th className="pb-2 pr-4">{t('meAiUsage.perRepo.repo')}</th>
-                      <th className="pb-2 pr-4">{t('meAiUsage.perRepo.org')}</th>
-                      <th className="pb-2 pr-4 text-right">
-                        {t('meAiUsage.perRepo.aiPct')}
+                      <th className="pb-2 pr-4">
+                        {t("meAiUsage.perRepo.repo")}
+                      </th>
+                      <th className="pb-2 pr-4">
+                        {t("meAiUsage.perRepo.org")}
                       </th>
                       <th className="pb-2 pr-4 text-right">
-                        {t('meAiUsage.perRepo.hvWeeks')}
+                        {t("meAiUsage.perRepo.commits")}
+                      </th>
+                      <th className="pb-2 pr-4 text-right">
+                        {t("meAiUsage.perRepo.aiPct")}
+                      </th>
+                      <th className="pb-2 pr-4 text-right">
+                        {t("meAiUsage.perRepo.hvWeeks")}
                       </th>
                       <th className="pb-2 text-right">
-                        {t('meAiUsage.perRepo.lastSeen')}
+                        {t("meAiUsage.perRepo.lastSeen")}
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {usage.perRepo.map((row) => (
-                      <tr key={`${row.organizationSlug}/${row.repositoryId}`} className="border-b border-border/50">
-                        <td className="py-2 pr-4 font-mono">{row.repositoryName}</td>
+                      <tr
+                        key={`${row.organizationSlug}/${row.repositoryId}`}
+                        className="border-b border-border/50"
+                      >
+                        <td
+                          className="py-2 pr-4 font-mono"
+                          title={
+                            row.matchedAuthorEmail
+                              ? `Matched via ${row.matchedBy}: ${row.matchedAuthorName} <${row.matchedAuthorEmail}>`
+                              : `Matched via ${row.matchedBy}: ${row.matchedAuthorName}`
+                          }
+                        >
+                          {row.repositoryName}
+                          {row.matchedBy === "name" && (
+                            <span
+                              className="ml-1 inline-block rounded bg-[var(--color-cat-3)]/15 px-1 text-[10px] uppercase tracking-wide text-[var(--color-cat-3)]"
+                              title={t("meAiUsage.perRepo.nameMatchWarning")}
+                            >
+                              {t("meAiUsage.perRepo.nameMatchBadge")}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2 pr-4 text-muted-foreground">
                           {row.organizationName}
+                        </td>
+                        <td className="py-2 pr-4 text-right font-mono">
+                          {row.totalCommits}
                         </td>
                         <td className="py-2 pr-4 text-right font-mono">
                           {row.aiCommitPct.toFixed(0)}%
@@ -163,7 +207,9 @@ export default async function PersonalAIUsagePage({
         </>
       )}
 
-      <p className="text-xs text-muted-foreground">{t('meAiUsage.coverageNote')}</p>
+      <p className="text-xs text-muted-foreground">
+        {t("meAiUsage.coverageNote")}
+      </p>
     </div>
   );
 }

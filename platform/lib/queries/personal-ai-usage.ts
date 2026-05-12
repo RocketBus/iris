@@ -4,9 +4,9 @@
  * comparison, no ranking. See CLAUDE.md principle #2.
  */
 
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { ReportMetrics } from '@/types/metrics';
+import type { ReportMetrics } from "@/types/metrics";
 
 export interface PerRepoUsage {
   organizationSlug: string;
@@ -14,6 +14,10 @@ export interface PerRepoUsage {
   repositoryName: string;
   repositoryId: string;
   aiCommitPct: number;
+  totalCommits: number;
+  matchedAuthorName: string;
+  matchedAuthorEmail: string | null;
+  matchedBy: "email" | "name";
   highVelocityWeeks: number;
   lastSeenAt: string;
 }
@@ -57,14 +61,32 @@ function nameKey(value: string): string {
   return value.trim().toLowerCase();
 }
 
+// Match the current user against the engine's per-author rows. Email is the
+// reliable identity — git deduplicates authors by email and the engine
+// preserves it on every row. Name match remains as a fallback for older
+// payloads (pre-email field) and for authors whose commits lack an email
+// (rare, falls back to author string). Returning the matched method lets
+// callers expose it in the UI so the user can sanity-check what attributed
+// to them.
 function pickUserAuthor(
   payload: ReportMetrics | null,
-  candidates: Set<string>,
-) {
+  emailCandidates: Set<string>,
+  nameCandidates: Set<string>,
+): {
+  author: NonNullable<ReportMetrics["author_velocity"]>["authors"][number];
+  matchedBy: "email" | "name";
+} | null {
   const authors = payload?.author_velocity?.authors;
   if (!authors) return null;
   for (const a of authors) {
-    if (candidates.has(nameKey(a.name))) return a;
+    if (a.email && emailCandidates.has(nameKey(a.email))) {
+      return { author: a, matchedBy: "email" };
+    }
+  }
+  for (const a of authors) {
+    if (nameCandidates.has(nameKey(a.name))) {
+      return { author: a, matchedBy: "name" };
+    }
   }
   return null;
 }
@@ -95,31 +117,36 @@ export async function getPersonalAIUsage(
 
   if (orgs.length === 0) return empty;
 
-  const candidates = new Set<string>();
-  if (user.name) candidates.add(nameKey(user.name));
+  // Email match is the reliable identity. Name match is a fallback for
+  // older payloads (pre-email field) and unusual cases.
+  const emailCandidates = new Set<string>();
+  if (user.email) emailCandidates.add(nameKey(user.email));
+
+  const nameCandidates = new Set<string>();
+  if (user.name) nameCandidates.add(nameKey(user.name));
   if (user.email) {
-    const localPart = user.email.split('@')[0];
-    if (localPart) candidates.add(nameKey(localPart));
+    const localPart = user.email.split("@")[0];
+    if (localPart) nameCandidates.add(nameKey(localPart));
   }
-  if (candidates.size === 0) return empty;
+  if (emailCandidates.size === 0 && nameCandidates.size === 0) return empty;
 
   const orgIds = orgs.map((o) => o.id);
   const orgIndex = new Map(orgs.map((o) => [o.id, o]));
 
   // Fetch repositories so we can resolve names without joining.
   const { data: repoRows } = await supabase
-    .from('repositories')
-    .select('id, name, organization_id')
-    .in('organization_id', orgIds);
+    .from("repositories")
+    .select("id, name, organization_id")
+    .in("organization_id", orgIds);
   const repos = (repoRows ?? []) as RepoRow[];
   const repoIndex = new Map(repos.map((r) => [r.id, r]));
 
   // Fetch metrics across all of the user's orgs. Cap by a reasonable history.
   const { data: metricRows } = await supabase
-    .from('metrics')
-    .select('repository_id, payload, created_at, organization_id')
-    .in('organization_id', orgIds)
-    .order('created_at', { ascending: false })
+    .from("metrics")
+    .select("repository_id, payload, created_at, organization_id")
+    .in("organization_id", orgIds)
+    .order("created_at", { ascending: false })
     .limit(orgs.length * 50);
   const metrics = (metricRows ?? []) as MetricRow[];
 
@@ -137,8 +164,8 @@ export async function getPersonalAIUsage(
   let maxHv = 0;
 
   for (const [repoId, row] of latestPerRepo) {
-    const author = pickUserAuthor(row.payload, candidates);
-    if (!author) continue;
+    const match = pickUserAuthor(row.payload, emailCandidates, nameCandidates);
+    if (!match) continue;
     const repo = repoIndex.get(repoId);
     const org = orgIndex.get(row.organization_id);
     if (!repo || !org) continue;
@@ -148,13 +175,18 @@ export async function getPersonalAIUsage(
       organizationName: org.name,
       repositoryName: repo.name,
       repositoryId: repoId,
-      aiCommitPct: author.ai_commit_pct,
-      highVelocityWeeks: author.high_velocity_weeks,
+      aiCommitPct: match.author.ai_commit_pct,
+      totalCommits: match.author.total_commits ?? 0,
+      matchedAuthorName: match.author.name,
+      matchedAuthorEmail: match.author.email ?? null,
+      matchedBy: match.matchedBy,
+      highVelocityWeeks: match.author.high_velocity_weeks,
       lastSeenAt: row.created_at,
     });
-    aiSum += author.ai_commit_pct;
+    aiSum += match.author.ai_commit_pct;
     aiCount += 1;
-    if (author.high_velocity_weeks > maxHv) maxHv = author.high_velocity_weeks;
+    if (match.author.high_velocity_weeks > maxHv)
+      maxHv = match.author.high_velocity_weeks;
   }
 
   // Trend: weekly average AI % across the user's repos, oldest → newest.
@@ -163,11 +195,11 @@ export async function getPersonalAIUsage(
     { sum: number; count: number; repoIds: Set<string> }
   >();
   for (const m of metrics) {
-    const author = pickUserAuthor(m.payload, candidates);
-    if (!author) continue;
+    const match = pickUserAuthor(m.payload, emailCandidates, nameCandidates);
+    if (!match) continue;
     const week = bucketWeek(m.created_at);
     const bucket = weekly.get(week) ?? { sum: 0, count: 0, repoIds: new Set() };
-    bucket.sum += author.ai_commit_pct;
+    bucket.sum += match.author.ai_commit_pct;
     bucket.count += 1;
     bucket.repoIds.add(m.repository_id);
     weekly.set(week, bucket);

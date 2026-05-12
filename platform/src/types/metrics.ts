@@ -4,7 +4,12 @@
  */
 
 export type CommitOrigin = "HUMAN" | "AI_ASSISTED" | "BOT";
-export type ChangeIntent = "FEATURE" | "FIX" | "REFACTOR" | "CONFIG" | "UNKNOWN";
+export type ChangeIntent =
+  | "FEATURE"
+  | "FIX"
+  | "REFACTOR"
+  | "CONFIG"
+  | "UNKNOWN";
 
 export interface OriginMetrics {
   churn_events: number;
@@ -260,6 +265,8 @@ export interface ReportMetrics {
   author_velocity?: {
     authors: Array<{
       name: string;
+      email?: string;
+      total_commits?: number;
       high_velocity_weeks: number;
       ai_commit_pct: number;
     }>;
@@ -272,7 +279,7 @@ export interface ReportMetrics {
 export type AdoptionConfidence = "clear" | "sparse" | "insufficient";
 
 export interface AdoptionTimeline {
-  first_ai_commit_date: string;        // ISO YYYY-MM-DD
+  first_ai_commit_date: string; // ISO YYYY-MM-DD
   adoption_ramp_start: string;
   adoption_ramp_end: string | null;
   adoption_confidence: AdoptionConfidence;

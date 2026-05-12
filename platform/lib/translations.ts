@@ -245,9 +245,13 @@ export const translations = {
         subtitle: "Sorted by AI-assisted commit share.",
         repo: "Repository",
         org: "Organization",
+        commits: "Commits",
         aiPct: "AI %",
         hvWeeks: "HV weeks",
         lastSeen: "Last seen",
+        nameMatchBadge: "name-only",
+        nameMatchWarning:
+          "Matched by author name, not email — verify this is really you.",
       },
       coverageNote:
         "Tool-level and intent-level breakdowns per author aren't in the engine yet. When they are, this page will pick them up automatically.",
@@ -1382,9 +1386,13 @@ export const translations = {
         subtitle: "Ordenados pela participação assistida por IA nos commits.",
         repo: "Repositório",
         org: "Organização",
+        commits: "Commits",
         aiPct: "% IA",
         hvWeeks: "Semanas AV",
         lastSeen: "Última vez visto",
+        nameMatchBadge: "só por nome",
+        nameMatchWarning:
+          "Atribuído pelo nome do autor, sem email — vale conferir se é você mesmo.",
       },
       coverageNote:
         "Detalhamento por ferramenta e por intenção, no nível de autor, ainda não está no motor. Quando estiver, esta página vai puxar automaticamente.",
