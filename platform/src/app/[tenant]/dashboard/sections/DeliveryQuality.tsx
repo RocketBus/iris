@@ -59,15 +59,8 @@ export function DeliveryQuality({ data }: DeliveryQualityProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer
-              width="100%"
-              height={Math.max(200, sorted.length * 22 + 40)}
-            >
-              <BarChart
-                data={sorted}
-                layout="vertical"
-                margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
-              >
+            <ResponsiveContainer width="100%" height={200}>
+              <BarChart data={sorted} layout="vertical">
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="var(--color-chart-grid)"
