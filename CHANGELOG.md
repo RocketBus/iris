@@ -4,6 +4,52 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.0.4 — Flow Load: WIP simultâneo per ISO week (2026-05-12)
+
+### Engine
+
+- `iris/analysis/flow_load.py` (new): counts PRs in flight per ISO week,
+  segmented by intent classified from the PR title (FEATURE / FIX /
+  REFACTOR / CONFIG / UNKNOWN), plus the number of *distinct* commit
+  authors per week as a separate engineering-parallelism proxy. The
+  author list itself is never persisted — only the count — to keep this
+  aggregate from being usable to rank individuals (Principle #2).
+- `iris/models/pull_request.py`: `merged_at` is now optional and the
+  model gains `closed_at: datetime | None` and
+  `state: Literal["open", "closed", "merged"]`. Required so we can
+  represent PRs that were in flight during a window but didn't merge.
+- `iris/ingestion/github_reader.py`: fetches PRs in all three states
+  (merged, closed-without-merge, open) and keeps the ones whose
+  lifecycle overlaps the analysis window; the previous merged-only
+  scan was insufficient for WIP counting. Consumers that semantically
+  require merged PRs (`pr_lifecycle`, `activity_timeline`,
+  `acceptance_rate`) now filter explicitly on `state == "merged"`.
+- `iris/metrics/aggregator.py` + `iris/models/metrics.py`: new
+  `flow_load` field on `ReportMetrics` (list of `FlowLoadWeek`).
+- `iris/reports/narrative.py` + `iris/i18n.py`: descriptive Flow Load
+  finding when data exists, plus an optional feature-growth finding
+  with thresholds documented as hypotheses pending calibration.
+
+### Platform
+
+- `platform/src/types/metrics.ts`: `FlowLoadWeek` interface +
+  optional `flow_load` field.
+- `platform/src/app/[tenant]/repos/[repoName]/charts.tsx`: new
+  `FlowLoadCard` rendered on repo detail pages — stacked area by intent
+  with `author_concurrency` as a line on a right-side axis. Visible
+  only when the payload includes at least two buckets.
+
+### Docs
+
+- `docs/METRICS.md`: new section 24 documenting the overlap rule, edge
+  cases, coverage limitations ("engineering WIP only — backlog/design/
+  local-branch work do not appear"), and the privacy contract around
+  `author_concurrency`.
+
+Closes #16.
+
+---
+
 ## v1.0.3 — `iris upgrade` delegates to install.sh (2026-05-12)
 
 ### Fixed
