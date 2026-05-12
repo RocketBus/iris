@@ -553,15 +553,20 @@ export function computePRHealth(
     roundsValues.push(p.pr_review_rounds_median ?? null);
     sizeValues.push(p.pr_median_size_lines ?? null);
 
-    // By origin
+    // By origin. Skip groups where commits_in_prs == 0 — the engine defaults
+    // both single_pass_rate and median_review_rounds to 0.0 in that case,
+    // which would otherwise pull the averages toward zero and produce the
+    // misleading "0% / 0.0" cells. The top-level pr_single_pass_rate uses a
+    // separate PR-iteration code path that doesn't depend on commit→PR
+    // hash linkage, so it can read 91% while these read 0.
     const acc = p.acceptance_by_origin;
-    if (acc?.HUMAN) {
+    if (acc?.HUMAN && acc.HUMAN.commits_in_prs > 0) {
       humanSPR = (humanSPR ?? 0) + acc.HUMAN.single_pass_rate;
       humanSPRCount++;
       humanRounds = (humanRounds ?? 0) + acc.HUMAN.median_review_rounds;
       humanRoundsCount++;
     }
-    if (acc?.AI_ASSISTED) {
+    if (acc?.AI_ASSISTED && acc.AI_ASSISTED.commits_in_prs > 0) {
       aiSPR = (aiSPR ?? 0) + acc.AI_ASSISTED.single_pass_rate;
       aiSPRCount++;
       aiRounds = (aiRounds ?? 0) + acc.AI_ASSISTED.median_review_rounds;
