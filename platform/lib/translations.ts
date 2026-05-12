@@ -567,6 +567,21 @@ export const translations = {
           aiPct: "AI%",
         },
       },
+      flowLoad: {
+        title: "Flow Load",
+        subtitle:
+          "WIP per ISO week — PRs in flight stacked by intent, with the count of distinct commit authors per week (engineering parallelism only; backlog, design, and local-branch work do not appear).",
+        wipAxis: "PRs in flight",
+        authorsAxis: "Authors / week",
+        authorsLine: "Distinct authors",
+        intentLabels: {
+          FEATURE: "Feature",
+          FIX: "Fix",
+          REFACTOR: "Refactor",
+          CONFIG: "Config",
+          UNKNOWN: "Unknown",
+        },
+      },
       aiImpact: {
         title: "AI Impact",
         subtitle: "How AI-assisted code compares to human code over time",
@@ -1728,6 +1743,21 @@ export const translations = {
           feature: "Feature",
           fix: "Fix",
           aiPct: "IA%",
+        },
+      },
+      flowLoad: {
+        title: "Flow Load",
+        subtitle:
+          "WIP por semana ISO — PRs em paralelo agrupados por intent, com o número de autores distintos por semana (paralelismo de engenharia apenas; backlog, design e branches locais não aparecem).",
+        wipAxis: "PRs em paralelo",
+        authorsAxis: "Autores / semana",
+        authorsLine: "Autores distintos",
+        intentLabels: {
+          FEATURE: "Feature",
+          FIX: "Fix",
+          REFACTOR: "Refactor",
+          CONFIG: "Config",
+          UNKNOWN: "Desconhecido",
         },
       },
       aiImpact: {

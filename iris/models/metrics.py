@@ -116,6 +116,9 @@ class ReportMetrics:
     operation_dominant: str | None = None
     operation_by_origin: dict[str, dict] | None = None
 
+    # Flow Load — WIP per ISO week (optional — None when <2 buckets emerge)
+    flow_load: list[dict] | None = None
+
     def to_dict(self) -> dict:
         d = asdict(self)
         # Exclude None fields for backward compatibility

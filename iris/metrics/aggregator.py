@@ -15,6 +15,7 @@ from iris.analysis.churn_detail import calculate_churn_detail, render_chain
 from iris.analysis.churn_calculator import calculate_churn
 from iris.analysis.commit_shape import analyze_commit_shapes
 from iris.analysis.fix_latency import calculate_fix_latency
+from iris.analysis.flow_load import analyze_flow_load
 from iris.analysis.stability_map import calculate_stability_map
 from iris.analysis.intent_classifier import classify_commits
 from iris.analysis.intent_metrics import (
@@ -281,18 +282,35 @@ def aggregate(
                     for g in acceptance_result.by_tool
                 }
 
-    # PR lifecycle (optional)
+    # Flow Load — WIP per ISO week (PRs in flight + author concurrency)
+    flow_load_kwargs: dict = {}
+    flow_load_result = analyze_flow_load(prs or [], commits)
+    if flow_load_result:
+        flow_load_kwargs["flow_load"] = [
+            {
+                "bucket": b.bucket,
+                "bucket_start": b.bucket_start.isoformat(),
+                "bucket_end": b.bucket_end.isoformat(),
+                "wip_total": b.wip_total,
+                "wip_by_intent": b.wip_by_intent,
+                "author_concurrency": b.author_concurrency,
+            }
+            for b in flow_load_result.buckets
+        ]
+
+    # PR lifecycle (optional — only over merged PRs)
     pr_kwargs: dict = {}
     if prs:
         pr_result = analyze_pr_lifecycle(prs)
-        pr_kwargs = {
-            "pr_merged_count": pr_result.pr_merged_count,
-            "pr_median_time_to_merge_hours": pr_result.pr_median_time_to_merge_hours,
-            "pr_median_size_files": pr_result.pr_median_size_files,
-            "pr_median_size_lines": pr_result.pr_median_size_lines,
-            "pr_review_rounds_median": pr_result.pr_review_rounds_median,
-            "pr_single_pass_rate": pr_result.pr_single_pass_rate,
-        }
+        if pr_result is not None:
+            pr_kwargs = {
+                "pr_merged_count": pr_result.pr_merged_count,
+                "pr_median_time_to_merge_hours": pr_result.pr_median_time_to_merge_hours,
+                "pr_median_size_files": pr_result.pr_median_size_files,
+                "pr_median_size_lines": pr_result.pr_median_size_lines,
+                "pr_review_rounds_median": pr_result.pr_review_rounds_median,
+                "pr_single_pass_rate": pr_result.pr_single_pass_rate,
+            }
 
     # Fix targeting — which origin's code attracts the most bug fixes
     fix_target_kwargs: dict = {}
@@ -359,4 +377,5 @@ def aggregate(
         **acceptance_kwargs,
         **timeline_kwargs,
         **pr_kwargs,
+        **flow_load_kwargs,
     )

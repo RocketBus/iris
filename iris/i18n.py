@@ -148,6 +148,18 @@ EN = {
         "{files} unique files."
     ),
 
+    # Flow Load findings
+    "finding_flow_load_descriptive": (
+        "Flow Load: median {median_wip} PRs in flight per week "
+        "(peak {peak_wip} in {peak_week}), with a median of "
+        "{median_authors} distinct authors per week."
+    ),
+    "finding_flow_load_feature_growth": (
+        "Feature WIP grew from {start_wip} to {end_wip} PRs/week "
+        "over the window — engineering parallelism is widening "
+        "on new work; revisit alongside merged-feature throughput."
+    ),
+
     # PR findings
     "finding_pr_volume": (
         "{count} PRs merged in this period with a "
@@ -902,6 +914,18 @@ PT_BR = {
     "finding_volume": (
         "{commits} commits analisados em "
         "{files} arquivos únicos."
+    ),
+
+    # Descobertas de Flow Load
+    "finding_flow_load_descriptive": (
+        "Flow Load: mediana de {median_wip} PRs em paralelo por semana "
+        "(pico de {peak_wip} em {peak_week}), com mediana de "
+        "{median_authors} autores distintos por semana."
+    ),
+    "finding_flow_load_feature_growth": (
+        "WIP de features cresceu de {start_wip} para {end_wip} PRs/semana "
+        "no período — o paralelismo de engenharia está se ampliando em "
+        "trabalho novo; cruze com o throughput de features merged."
     ),
 
     # Descobertas de PR

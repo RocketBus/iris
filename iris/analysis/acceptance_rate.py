@@ -60,9 +60,13 @@ def calculate_acceptance_rate(
     if not commits or not prs:
         return None
 
-    # Build PR lookup: commit_hash -> PullRequest
+    # Build PR lookup: commit_hash -> PullRequest. Acceptance is defined
+    # against merged PRs only — commits in still-open or closed-without-merge
+    # PRs were not yet accepted.
     hash_to_pr: dict[str, PullRequest] = {}
     for pr in prs:
+        if pr.state != "merged":
+            continue
         for ch in pr.commit_hashes:
             hash_to_pr[ch] = pr
 
