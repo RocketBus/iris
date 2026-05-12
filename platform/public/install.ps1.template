@@ -13,6 +13,11 @@
 
 $ErrorActionPreference = "Stop"
 
+# Server URL this installer was served from. The platform route bakes the
+# request origin into {{IRIS_SERVER_URL}} at delivery time so an irm-piped
+# install captures the right deployment. Override with $env:IRIS_SERVER_URL.
+$IRIS_SERVER_URL = if ($env:IRIS_SERVER_URL) { $env:IRIS_SERVER_URL } else { "{{IRIS_SERVER_URL}}" }
+
 $VERSION = if ($env:IRIS_VERSION) { $env:IRIS_VERSION } else { "latest" }
 $RELEASES_API = "https://api.github.com/repos/RocketBus/clickbus-iris/releases"
 $RELEASES_DOWNLOAD = "https://github.com/RocketBus/clickbus-iris/releases/download"
@@ -118,6 +123,19 @@ if ($pathDirs -notcontains $binDir) {
 $scriptsDir = $binDir
 
 Write-Host ""
+
+# --- Persist server URL ---
+# Write %USERPROFILE%\.iris\config.json so `iris login` defaults to the
+# deployment that served this installer. Skip if a config already exists.
+$ConfigDir = Join-Path $env:USERPROFILE ".iris"
+$ConfigFile = Join-Path $ConfigDir "config.json"
+if (-not (Test-Path $ConfigFile)) {
+    New-Item -ItemType Directory -Path $ConfigDir -Force | Out-Null
+    @{ server_url = $IRIS_SERVER_URL } |
+        ConvertTo-Json -Compress |
+        Set-Content -Path $ConfigFile -Encoding UTF8
+    Write-Host "  Saved server URL to $ConfigFile - 'iris login' will use $IRIS_SERVER_URL" -ForegroundColor DarkGray
+}
 
 # Verify
 try {

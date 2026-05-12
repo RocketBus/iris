@@ -13,6 +13,12 @@
 
 set -e
 
+# Server URL this installer was served from. The platform route bakes the
+# request origin into {{IRIS_SERVER_URL}} at delivery time so a curl-piped
+# install captures the right deployment. Users can override with:
+#   IRIS_SERVER_URL=https://... curl -fsSL .../install.sh | sh
+IRIS_SERVER_URL="${IRIS_SERVER_URL:-{{IRIS_SERVER_URL}}}"
+
 VERSION="${IRIS_VERSION:-latest}"
 RELEASES_API="https://api.github.com/repos/RocketBus/clickbus-iris/releases"
 RELEASES_DOWNLOAD="https://github.com/RocketBus/clickbus-iris/releases/download"
@@ -249,6 +255,16 @@ WRAPPER
     esac
 
     echo ""
+
+    # --- Persist server URL ---
+    # Write ~/.iris/config.json so `iris login` defaults to the deployment that
+    # served this installer. Skip if a config already exists — preserves
+    # tokens, org_slug, github_user, and any other prior state.
+    if [ ! -f "$HOME/.iris/config.json" ]; then
+        mkdir -p "$HOME/.iris"
+        printf '{"server_url": "%s"}\n' "$IRIS_SERVER_URL" > "$HOME/.iris/config.json"
+        dim "  Saved server URL to ~/.iris/config.json — \`iris login\` will use $IRIS_SERVER_URL"
+    fi
 
     # --- Verify ---
     if command -v iris >/dev/null 2>&1; then
