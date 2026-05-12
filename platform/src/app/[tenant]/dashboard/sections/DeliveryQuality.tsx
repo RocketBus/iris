@@ -59,8 +59,15 @@ export function DeliveryQuality({ data }: DeliveryQualityProps) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={sorted} layout="vertical">
+            <ResponsiveContainer
+              width="100%"
+              height={Math.max(200, sorted.length * 22 + 40)}
+            >
+              <BarChart
+                data={sorted}
+                layout="vertical"
+                margin={{ top: 4, right: 12, left: 4, bottom: 4 }}
+              >
                 <CartesianGrid
                   strokeDasharray="3 3"
                   stroke="var(--color-chart-grid)"
@@ -80,7 +87,13 @@ export function DeliveryQuality({ data }: DeliveryQualityProps) {
                   tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
-                  width={80}
+                  width={170}
+                  // Long repo names get truncated from the START so the
+                  // distinctive suffix (e.g. "-pricing-service") stays
+                  // readable. Tooltip shows the full name on hover.
+                  tickFormatter={(value: string) =>
+                    value.length > 26 ? `…${value.slice(-25)}` : value
+                  }
                 />
                 <Tooltip
                   content={({ payload }) => {
