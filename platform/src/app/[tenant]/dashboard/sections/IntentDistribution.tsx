@@ -167,28 +167,34 @@ export function IntentDistribution({ data }: IntentDistributionProps) {
                   <XAxis
                     dataKey="date"
                     tickFormatter={formatDate}
-                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                    tick={{
+                      fontSize: 10,
+                      fill: "var(--color-muted-foreground)",
+                    }}
                     tickLine={false}
                     axisLine={false}
                     interval="preserveStartEnd"
                     minTickGap={32}
                   />
                   <YAxis
-                    tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                    tick={{
+                      fontSize: 10,
+                      fill: "var(--color-muted-foreground)",
+                    }}
                     tickLine={false}
                     axisLine={false}
                     width={38}
                   />
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "var(--card)",
-                      border: "1px solid var(--border)",
+                      backgroundColor: "var(--color-card)",
+                      border: "1px solid var(--color-border)",
                       borderRadius: "0.5rem",
                       fontSize: 12,
-                      color: "var(--foreground)",
+                      color: "var(--color-foreground)",
                     }}
-                    labelStyle={{ color: "var(--foreground)" }}
-                    itemStyle={{ color: "var(--muted-foreground)" }}
+                    labelStyle={{ color: "var(--color-foreground)" }}
+                    itemStyle={{ color: "var(--color-muted-foreground)" }}
                     labelFormatter={(label) => formatDate(String(label))}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />

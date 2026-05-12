@@ -11,11 +11,12 @@ interface SparklineProps {
 
 export function Sparkline({
   data,
-  color = "var(--primary)",
+  color = "var(--color-primary)",
   width = 80,
   height = 24,
 }: SparklineProps) {
-  if (data.length < 2) return <span className="text-xs text-muted-foreground">—</span>;
+  if (data.length < 2)
+    return <span className="text-xs text-muted-foreground">—</span>;
 
   const chartData = data.map((value, index) => ({ index, value }));
 

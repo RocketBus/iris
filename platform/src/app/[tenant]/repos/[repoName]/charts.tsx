@@ -168,7 +168,7 @@ function ComparisonChart({
             <XAxis
               dataKey="date"
               tickFormatter={formatDate}
-              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickLine={false}
               axisLine={false}
               interval="preserveStartEnd"
@@ -176,15 +176,15 @@ function ComparisonChart({
             />
             <YAxis
               tickFormatter={formatValue}
-              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickLine={false}
               axisLine={false}
               width={38}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "var(--card)",
-                border: "1px solid var(--border)",
+                backgroundColor: "var(--color-card)",
+                border: "1px solid var(--color-border)",
                 borderRadius: "0.5rem",
                 fontSize: 12,
               }}
@@ -201,7 +201,7 @@ function ComparisonChart({
             <Line
               type="monotone"
               dataKey={humanKey}
-              stroke="var(--muted-foreground)"
+              stroke="var(--color-muted-foreground)"
               strokeWidth={2}
               dot={{ r: 2 }}
               connectNulls
@@ -256,22 +256,22 @@ function CommitMixChart({
             <XAxis
               dataKey="date"
               tickFormatter={formatDate}
-              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickLine={false}
               axisLine={false}
               interval="preserveStartEnd"
               minTickGap={32}
             />
             <YAxis
-              tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickLine={false}
               axisLine={false}
               width={38}
             />
             <Tooltip
               contentStyle={{
-                backgroundColor: "var(--card)",
-                border: "1px solid var(--border)",
+                backgroundColor: "var(--color-card)",
+                border: "1px solid var(--color-border)",
                 borderRadius: "0.5rem",
                 fontSize: 12,
               }}
@@ -291,9 +291,9 @@ function CommitMixChart({
               type="monotone"
               dataKey="commits_human"
               stackId="1"
-              fill="var(--muted-foreground)"
+              fill="var(--color-muted-foreground)"
               fillOpacity={0.3}
-              stroke="var(--muted-foreground)"
+              stroke="var(--color-muted-foreground)"
               strokeWidth={1.5}
             />
             <Area

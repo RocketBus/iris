@@ -103,28 +103,28 @@ export function AIvsHuman({ data, tenantSlug }: AIvsHumanProps) {
                 <XAxis
                   dataKey="date"
                   tickFormatter={formatDate}
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
                   minTickGap={32}
                 />
                 <YAxis
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                   width={38}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "var(--card)",
-                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
                     borderRadius: "0.5rem",
                     fontSize: 12,
-                    color: "var(--foreground)",
+                    color: "var(--color-foreground)",
                   }}
-                  labelStyle={{ color: "var(--foreground)" }}
-                  itemStyle={{ color: "var(--muted-foreground)" }}
+                  labelStyle={{ color: "var(--color-foreground)" }}
+                  itemStyle={{ color: "var(--color-muted-foreground)" }}
                   labelFormatter={(label) => formatDate(String(label))}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -133,9 +133,9 @@ export function AIvsHuman({ data, tenantSlug }: AIvsHumanProps) {
                   dataKey="human"
                   name={t("dashboard.aiVsHuman.human")}
                   stackId="1"
-                  fill="var(--muted-foreground)"
+                  fill="var(--color-muted-foreground)"
                   fillOpacity={0.55}
-                  stroke="var(--muted-foreground)"
+                  stroke="var(--color-muted-foreground)"
                   strokeWidth={1.5}
                 />
                 <Area
@@ -222,28 +222,34 @@ export function AIvsHuman({ data, tenantSlug }: AIvsHumanProps) {
                   >
                     <XAxis
                       type="number"
-                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                      tick={{
+                        fontSize: 10,
+                        fill: "var(--color-muted-foreground)",
+                      }}
                       tickLine={false}
                       axisLine={false}
                     />
                     <YAxis
                       type="category"
                       dataKey="tool"
-                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                      tick={{
+                        fontSize: 11,
+                        fill: "var(--color-muted-foreground)",
+                      }}
                       tickLine={false}
                       axisLine={false}
                       width={80}
                     />
                     <Tooltip
                       contentStyle={{
-                        backgroundColor: "var(--card)",
-                        border: "1px solid var(--border)",
+                        backgroundColor: "var(--color-card)",
+                        border: "1px solid var(--color-border)",
                         borderRadius: "0.5rem",
                         fontSize: 12,
-                        color: "var(--foreground)",
+                        color: "var(--color-foreground)",
                       }}
-                      labelStyle={{ color: "var(--foreground)" }}
-                      itemStyle={{ color: "var(--muted-foreground)" }}
+                      labelStyle={{ color: "var(--color-foreground)" }}
+                      itemStyle={{ color: "var(--color-muted-foreground)" }}
                       formatter={(v) => [
                         t("dashboard.aiVsHuman.toolsTooltip", {
                           count: Number(v),

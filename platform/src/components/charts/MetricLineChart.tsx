@@ -46,7 +46,7 @@ export function MetricLineChart({
   data,
   dataKey,
   label,
-  color = "var(--primary)",
+  color = "var(--color-primary)",
   format = "pct",
   height = 200,
 }: MetricLineChartProps) {
@@ -74,7 +74,7 @@ export function MetricLineChart({
           <XAxis
             dataKey="date"
             tickFormatter={formatDate}
-            tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+            tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
             tickLine={false}
             axisLine={false}
             interval="preserveStartEnd"
@@ -82,15 +82,15 @@ export function MetricLineChart({
           />
           <YAxis
             tickFormatter={(v) => formatValue(v, format)}
-            tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+            tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
             tickLine={false}
             axisLine={false}
             width={38}
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: "var(--card)",
-              border: "1px solid var(--border)",
+              backgroundColor: "var(--color-card)",
+              border: "1px solid var(--color-border)",
               borderRadius: "0.5rem",
               fontSize: 12,
             }}

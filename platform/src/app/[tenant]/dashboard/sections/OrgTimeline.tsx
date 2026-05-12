@@ -61,7 +61,7 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
               <XAxis
                 dataKey="weekStart"
                 tickFormatter={(v) => formatDate(String(v))}
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                 tickLine={false}
                 axisLine={false}
                 interval="preserveStartEnd"
@@ -69,7 +69,7 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
               />
               <YAxis
                 yAxisId="left"
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                 tickLine={false}
                 axisLine={false}
                 width={38}
@@ -79,21 +79,21 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
                 orientation="right"
                 domain={[0, 1]}
                 tickFormatter={(v) => `${(Number(v) * 100).toFixed(0)}%`}
-                tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                 tickLine={false}
                 axisLine={false}
                 width={38}
               />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "var(--card)",
-                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--color-card)",
+                  border: "1px solid var(--color-border)",
                   borderRadius: "0.5rem",
                   fontSize: 12,
-                  color: "var(--foreground)",
+                  color: "var(--color-foreground)",
                 }}
-                labelStyle={{ color: "var(--foreground)" }}
-                itemStyle={{ color: "var(--muted-foreground)" }}
+                labelStyle={{ color: "var(--color-foreground)" }}
+                itemStyle={{ color: "var(--color-muted-foreground)" }}
                 labelFormatter={(label) => formatDate(String(label))}
                 formatter={(value, name) => {
                   const v = Number(value);

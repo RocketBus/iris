@@ -36,7 +36,7 @@ export function TrendChart({ data, locale }: TrendChartProps) {
         <XAxis
           dataKey="date"
           tickFormatter={(v) => formatDate(String(v), locale)}
-          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+          tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
           tickLine={false}
           axisLine={false}
           interval="preserveStartEnd"
@@ -45,18 +45,18 @@ export function TrendChart({ data, locale }: TrendChartProps) {
         <YAxis
           domain={[0, 100]}
           tickFormatter={(v) => `${v}%`}
-          tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+          tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
           tickLine={false}
           axisLine={false}
           width={38}
         />
         <Tooltip
           contentStyle={{
-            backgroundColor: "var(--card)",
-            border: "1px solid var(--border)",
+            backgroundColor: "var(--color-card)",
+            border: "1px solid var(--color-border)",
             borderRadius: "0.5rem",
             fontSize: 12,
-            color: "var(--foreground)",
+            color: "var(--color-foreground)",
           }}
           labelFormatter={(label) => formatDate(String(label), locale)}
           formatter={(value) => [`${Number(value).toFixed(0)}%`, ""]}

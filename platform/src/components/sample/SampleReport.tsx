@@ -34,7 +34,7 @@ const intentColor: Record<string, string> = {
   FEATURE: "var(--color-signal-purple)",
   FIX: "var(--color-signal-yellow)",
   REFACTOR: "var(--color-primary)",
-  CONFIG: "var(--muted-foreground)",
+  CONFIG: "var(--color-muted-foreground)",
   UNKNOWN: "var(--color-signal-gray)",
 };
 
@@ -296,14 +296,14 @@ function DeliveryTimeline({ lang }: { lang: Language }) {
                 />
                 <XAxis
                   dataKey="week"
-                  tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 11, fill: "var(--color-muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                 />
                 <YAxis
                   yAxisId="commits"
                   orientation="left"
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                   width={34}
@@ -313,15 +313,15 @@ function DeliveryTimeline({ lang }: { lang: Language }) {
                   orientation="right"
                   domain={[0, 100]}
                   tickFormatter={(v) => `${v}%`}
-                  tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                  tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
                   width={40}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "var(--card)",
-                    border: "1px solid var(--border)",
+                    backgroundColor: "var(--color-card)",
+                    border: "1px solid var(--color-border)",
                     borderRadius: "0.5rem",
                     fontSize: 12,
                   }}

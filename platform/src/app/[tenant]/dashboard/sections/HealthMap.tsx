@@ -66,7 +66,7 @@ function CustomTreemapContent({
         height={height}
         fill={color}
         fillOpacity={0.55}
-        stroke="var(--border)"
+        stroke="var(--color-border)"
         strokeWidth={1}
         rx={4}
       />
@@ -76,7 +76,7 @@ function CustomTreemapContent({
           y={y + height / 2}
           textAnchor="middle"
           dominantBaseline="central"
-          fill="var(--foreground)"
+          fill="var(--color-foreground)"
           fontSize={width > 80 ? 11 : 9}
         >
           {name.length > 12 ? `${name.slice(0, 10)}...` : name}
