@@ -4,6 +4,32 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.0.2 — Per-week AI commit breakdown for /me/ai-usage trend (2026-05-12)
+
+### Engine
+
+- `iris/analysis/author_velocity.py`: `AuthorWeek` now carries `ai_commits`
+  alongside `commits`/`lines_added`/`lines_removed`. The to_dict output
+  emits it under `author_velocity.authors[].weekly[].ai_commits` so the
+  platform can compute a weekly AI share per author without re-running
+  origin classification client-side. Older payloads stay compatible —
+  the new field is additive.
+
+### Platform
+
+- `/me/ai-usage` trend chart now buckets by the actual commit week
+  (from `author_velocity.authors[].weekly`) instead of metric ingestion
+  timestamp. A first-time `iris push` of several repos on the same day
+  no longer collapses to a single point — the user's full commit
+  history is plotted as soon as the engine has emitted at least two
+  weeks of activity.
+- After upgrading the CLI (`iris upgrade`), re-run `iris ... --push`
+  on each repo to regenerate payloads with the new `ai_commits`
+  per-week field. Old payloads still render commit counts; AI share
+  per week is only available from v1.0.2-generated payloads onward.
+
+---
+
 ## v1.0.1 — Fork-friendly and operator-agnostic (2026-05-11)
 
 First patch release after the open-source debut. Decouples the CLI and platform

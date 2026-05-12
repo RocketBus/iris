@@ -35,6 +35,7 @@ class AuthorWeek:
     commits: int
     lines_added: int
     lines_removed: int
+    ai_commits: int = 0  # subset of `commits` whose origin is AI_ASSISTED
 
     @property
     def lines_changed(self) -> int:
@@ -43,6 +44,10 @@ class AuthorWeek:
     @property
     def loc_per_commit(self) -> float:
         return self.lines_changed / self.commits if self.commits else 0
+
+    @property
+    def ai_commit_pct(self) -> float:
+        return (self.ai_commits / self.commits * 100) if self.commits else 0.0
 
 
 @dataclass(frozen=True)
@@ -97,6 +102,7 @@ class AuthorVelocityResult:
                             "commits": w.commits,
                             "lines_added": w.lines_added,
                             "lines_removed": w.lines_removed,
+                            "ai_commits": w.ai_commits,
                         }
                         for w in a.weekly
                     ],
@@ -132,8 +138,8 @@ def compute_author_velocity(
         return None
 
     # Group commits by author (deduplicated by email) and ISO week
-    # author_key -> { week_start -> { commits, added, removed } }
-    author_weeks: dict[str, dict[date, dict]] = defaultdict(lambda: defaultdict(lambda: {"commits": 0, "added": 0, "removed": 0}))
+    # author_key -> { week_start -> { commits, added, removed, ai_commits } }
+    author_weeks: dict[str, dict[date, dict]] = defaultdict(lambda: defaultdict(lambda: {"commits": 0, "added": 0, "removed": 0, "ai_commits": 0}))
     author_names: dict[str, str] = {}  # key -> best name
     author_emails: dict[str, str] = {}  # key -> email
     author_ai_commits: dict[str, int] = defaultdict(int)
@@ -150,13 +156,16 @@ def compute_author_velocity(
 
         added = sum(f.lines_added for f in c.files)
         removed = sum(f.lines_removed for f in c.files)
+        is_ai = bool(origin_map and origin_map.get(c.hash) == "AI_ASSISTED")
 
         author_weeks[key][week_start]["commits"] += 1
         author_weeks[key][week_start]["added"] += added
         author_weeks[key][week_start]["removed"] += removed
+        if is_ai:
+            author_weeks[key][week_start]["ai_commits"] += 1
 
         author_total_commits[key] += 1
-        if origin_map and origin_map.get(c.hash) == "AI_ASSISTED":
+        if is_ai:
             author_ai_commits[key] += 1
 
     # Build results
@@ -177,6 +186,7 @@ def compute_author_velocity(
                 commits=data["commits"],
                 lines_added=data["added"],
                 lines_removed=data["removed"],
+                ai_commits=data["ai_commits"],
             )
             weekly.append(w)
             total_commits += w.commits

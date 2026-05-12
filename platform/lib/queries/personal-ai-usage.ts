@@ -91,15 +91,6 @@ function pickUserAuthor(
   return null;
 }
 
-function bucketWeek(iso: string): string {
-  const d = new Date(iso);
-  // Snap to ISO week start (Monday) — UTC for stability.
-  const day = d.getUTCDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  d.setUTCDate(d.getUTCDate() + offset);
-  return d.toISOString().slice(0, 10);
-}
-
 export async function getPersonalAIUsage(
   supabase: SupabaseClient,
   user: { name: string | null; email: string | null },
@@ -189,26 +180,46 @@ export async function getPersonalAIUsage(
       maxHv = match.author.high_velocity_weeks;
   }
 
-  // Trend: weekly average AI % across the user's repos, oldest → newest.
-  const weekly = new Map<
-    string,
-    { sum: number; count: number; repoIds: Set<string> }
-  >();
-  for (const m of metrics) {
-    const match = pickUserAuthor(m.payload, emailCandidates, nameCandidates);
-    if (!match) continue;
-    const week = bucketWeek(m.created_at);
-    const bucket = weekly.get(week) ?? { sum: 0, count: 0, repoIds: new Set() };
-    bucket.sum += match.author.ai_commit_pct;
-    bucket.count += 1;
-    bucket.repoIds.add(m.repository_id);
-    weekly.set(week, bucket);
+  // Trend: weekly AI commit share aggregated from each repo's latest payload.
+  // Bucket by ACTUAL commit week (author_velocity.authors[].weekly.week_start),
+  // not by metrics ingestion timestamp — otherwise a first-time push of N repos
+  // all on the same day collapses into one bucket and the chart shows
+  // "insufficient data" even though months of history are sitting in the
+  // payload. ai_commits per week is emitted by iris >= 1.0.2; older payloads
+  // contribute commit counts but no AI share for those weeks.
+  type WeekBucket = {
+    commits: number;
+    aiCommits: number;
+    repoIds: Set<string>;
+    hasAiData: boolean;
+  };
+  const weekly = new Map<string, WeekBucket>();
+
+  for (const [repoId, row] of latestPerRepo) {
+    const match = pickUserAuthor(row.payload, emailCandidates, nameCandidates);
+    if (!match?.author.weekly) continue;
+    for (const w of match.author.weekly) {
+      const bucket: WeekBucket = weekly.get(w.week_start) ?? {
+        commits: 0,
+        aiCommits: 0,
+        repoIds: new Set(),
+        hasAiData: false,
+      };
+      bucket.commits += w.commits;
+      if (typeof w.ai_commits === "number") {
+        bucket.aiCommits += w.ai_commits;
+        bucket.hasAiData = true;
+      }
+      bucket.repoIds.add(repoId);
+      weekly.set(w.week_start, bucket);
+    }
   }
 
   const trend: UsageTrendPoint[] = [...weekly.entries()]
     .map(([date, b]) => ({
       date,
-      aiCommitPct: b.count > 0 ? b.sum / b.count : null,
+      aiCommitPct:
+        b.hasAiData && b.commits > 0 ? (b.aiCommits / b.commits) * 100 : null,
       repos: b.repoIds.size,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));

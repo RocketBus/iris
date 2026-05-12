@@ -269,6 +269,15 @@ export interface ReportMetrics {
       total_commits?: number;
       high_velocity_weeks: number;
       ai_commit_pct: number;
+      // Per-week breakdown emitted by iris >= 1.0.2. The `ai_commits` field
+      // is present from that version onward; older payloads omit it.
+      weekly?: Array<{
+        week_start: string;
+        commits: number;
+        lines_added: number;
+        lines_removed: number;
+        ai_commits?: number;
+      }>;
     }>;
   };
 
