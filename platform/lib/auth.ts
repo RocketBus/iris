@@ -1,22 +1,35 @@
-import bcrypt from 'bcryptjs';
-import CredentialsProvider from 'next-auth/providers/credentials';
-import GitHubProvider from 'next-auth/providers/github';
-import GoogleProvider from 'next-auth/providers/google';
-import { v4 as uuidv4 } from 'uuid';
+import bcrypt from "bcryptjs";
+import CredentialsProvider from "next-auth/providers/credentials";
+import GitHubProvider from "next-auth/providers/github";
+import GoogleProvider from "next-auth/providers/google";
+import { v4 as uuidv4 } from "uuid";
 
-import { debugAuth, debugDatabase, logger, logError, RequestTimer } from './debug';
-import { getEmailDomain, isPersonalEmailDomain } from './email-domain';
-import { env } from './env';
-import { supabaseAdmin } from './supabase';
+import {
+  debugAuth,
+  debugDatabase,
+  logger,
+  logError,
+  RequestTimer,
+} from "./debug";
+import { getEmailDomain, isPersonalEmailDomain } from "./email-domain";
+import { env } from "./env";
+import { isFeatureEnabled } from "./features";
+import { supabaseAdmin } from "./supabase";
+
+// Email + password is gated behind a feature flag. Off by default — Iris
+// deployments rely on OAuth. Operators enable via FEATURES__PASSWORD_AUTH=true.
+const isPasswordAuthEnabled = isFeatureEnabled("passwordAuth");
 
 // For now, let's use JWT strategy instead of database sessions
 // Database sessions require a proper adapter implementation
 
 // Check if Google OAuth is configured
-const isGoogleOAuthConfigured = !!(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET);
+const isGoogleOAuthConfigured = !!(
+  env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+);
 
 if (isGoogleOAuthConfigured) {
-  debugAuth('Google OAuth is configured', {
+  debugAuth("Google OAuth is configured", {
     hasClientId: !!env.GOOGLE_CLIENT_ID,
     hasClientSecret: !!env.GOOGLE_CLIENT_SECRET,
     clientIdLength: env.GOOGLE_CLIENT_ID?.length || 0,
@@ -24,17 +37,19 @@ if (isGoogleOAuthConfigured) {
     expectedCallbackUrl: `${env.NEXTAUTH_URL}/api/auth/callback/google`,
   });
 } else {
-  debugAuth('Google OAuth is NOT configured', {
+  debugAuth("Google OAuth is NOT configured", {
     hasClientId: !!env.GOOGLE_CLIENT_ID,
     hasClientSecret: !!env.GOOGLE_CLIENT_SECRET,
   });
 }
 
 // Check if GitHub OAuth is configured
-const isGitHubOAuthConfigured = !!(env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET);
+const isGitHubOAuthConfigured = !!(
+  env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET
+);
 
 if (isGitHubOAuthConfigured) {
-  debugAuth('GitHub OAuth is configured', {
+  debugAuth("GitHub OAuth is configured", {
     hasClientId: !!env.GITHUB_CLIENT_ID,
     hasClientSecret: !!env.GITHUB_CLIENT_SECRET,
     clientIdLength: env.GITHUB_CLIENT_ID?.length || 0,
@@ -42,7 +57,7 @@ if (isGitHubOAuthConfigured) {
     expectedCallbackUrl: `${env.NEXTAUTH_URL}/api/auth/callback/github`,
   });
 } else {
-  debugAuth('GitHub OAuth is NOT configured', {
+  debugAuth("GitHub OAuth is NOT configured", {
     hasClientId: !!env.GITHUB_CLIENT_ID,
     hasClientSecret: !!env.GITHUB_CLIENT_SECRET,
   });
@@ -51,175 +66,206 @@ if (isGitHubOAuthConfigured) {
 export const authOptions = {
   providers: [
     // Google OAuth Provider (optional)
-    ...(isGoogleOAuthConfigured ? [
-      GoogleProvider({
-        clientId: env.GOOGLE_CLIENT_ID!,
-        clientSecret: env.GOOGLE_CLIENT_SECRET!,
-      })
-    ] : []),
+    ...(isGoogleOAuthConfigured
+      ? [
+          GoogleProvider({
+            clientId: env.GOOGLE_CLIENT_ID!,
+            clientSecret: env.GOOGLE_CLIENT_SECRET!,
+          }),
+        ]
+      : []),
 
     // GitHub OAuth Provider (optional). The read:org scope is required so we
     // can list the user's GitHub orgs during onboarding.
-    ...(isGitHubOAuthConfigured ? [
-      GitHubProvider({
-        clientId: env.GITHUB_CLIENT_ID!,
-        clientSecret: env.GITHUB_CLIENT_SECRET!,
-        authorization: {
-          params: { scope: 'read:user user:email read:org' },
-        },
-      })
-    ] : []),
-    
-    // Credentials Provider for email/password
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' },
-        loginToken: { label: 'Login Token', type: 'text' }
-      },
-      async authorize(credentials) {
-        // Check if loginToken is provided (for 2FA completion)
-        if (credentials?.loginToken) {
-          try {
-            // Validate login token
-            const { data: tokenData, error: tokenError } = await supabaseAdmin
-              .from('two_factor_codes')
-              .select('user_id, expires_at, used')
-              .eq('code', credentials.loginToken)
-              .eq('used', false)
-              .gt('expires_at', new Date().toISOString())
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .single();
+    ...(isGitHubOAuthConfigured
+      ? [
+          GitHubProvider({
+            clientId: env.GITHUB_CLIENT_ID!,
+            clientSecret: env.GITHUB_CLIENT_SECRET!,
+            authorization: {
+              params: { scope: "read:user user:email read:org" },
+            },
+          }),
+        ]
+      : []),
 
-            if (tokenError || !tokenData) {
-              return null;
-            }
+    // Credentials Provider for email/password — gated by the passwordAuth
+    // feature flag. When off, this entire provider is omitted so direct POSTs
+    // to /api/auth/callback/credentials get rejected by NextAuth as unknown.
+    ...(isPasswordAuthEnabled
+      ? [
+          CredentialsProvider({
+            name: "credentials",
+            credentials: {
+              email: { label: "Email", type: "email" },
+              password: { label: "Password", type: "password" },
+              loginToken: { label: "Login Token", type: "text" },
+            },
+            async authorize(credentials) {
+              // Check if loginToken is provided (for 2FA completion)
+              if (credentials?.loginToken) {
+                try {
+                  // Validate login token
+                  const { data: tokenData, error: tokenError } =
+                    await supabaseAdmin
+                      .from("two_factor_codes")
+                      .select("user_id, expires_at, used")
+                      .eq("code", credentials.loginToken)
+                      .eq("used", false)
+                      .gt("expires_at", new Date().toISOString())
+                      .order("created_at", { ascending: false })
+                      .limit(1)
+                      .single();
 
-            // Get user from database
-            const { data: user, error: userError } = await supabaseAdmin
-              .from('users')
-              .select('*')
-              .eq('id', tokenData.user_id)
-              .single();
+                  if (tokenError || !tokenData) {
+                    return null;
+                  }
 
-            if (userError || !user) {
-              return null;
-            }
+                  // Get user from database
+                  const { data: user, error: userError } = await supabaseAdmin
+                    .from("users")
+                    .select("*")
+                    .eq("id", tokenData.user_id)
+                    .single();
 
-            // Check if account is locked
-            if (user.locked_until && new Date(user.locked_until) > new Date()) {
-              throw new Error('AccountLocked');
-            }
+                  if (userError || !user) {
+                    return null;
+                  }
 
-            // Mark token as used
-            await supabaseAdmin
-              .from('two_factor_codes')
-              .update({ used: true })
-              .eq('code', credentials.loginToken);
+                  // Check if account is locked
+                  if (
+                    user.locked_until &&
+                    new Date(user.locked_until) > new Date()
+                  ) {
+                    throw new Error("AccountLocked");
+                  }
 
-            return {
-              id: user.id,
-              email: user.email,
-              name: user.name,
-              image: user.avatar_url,
-            };
-          } catch (error) {
-            logError(error, 'Login token auth');
-            throw error;
-          }
-        }
+                  // Mark token as used
+                  await supabaseAdmin
+                    .from("two_factor_codes")
+                    .update({ used: true })
+                    .eq("code", credentials.loginToken);
 
-        // Normal email/password login
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+                  return {
+                    id: user.id,
+                    email: user.email,
+                    name: user.name,
+                    image: user.avatar_url,
+                  };
+                } catch (error) {
+                  logError(error, "Login token auth");
+                  throw error;
+                }
+              }
 
-        try {
-          // Get user from database
-          const { data: user, error } = await supabaseAdmin
-            .from('users')
-            .select('*')
-            .eq('email', credentials.email)
-            .single();
+              // Normal email/password login
+              if (!credentials?.email || !credentials?.password) {
+                return null;
+              }
 
-          if (error || !user) {
-            return null;
-          }
+              try {
+                // Get user from database
+                const { data: user, error } = await supabaseAdmin
+                  .from("users")
+                  .select("*")
+                  .eq("email", credentials.email)
+                  .single();
 
-          // Check if account is locked
-          if (user.locked_until && new Date(user.locked_until) > new Date()) {
-            throw new Error('AccountLocked');
-          }
+                if (error || !user) {
+                  return null;
+                }
 
-          // Check email verification
-          if (!user.email_verified) {
-            throw new Error('EmailNotVerified');
-          }
+                // Check if account is locked
+                if (
+                  user.locked_until &&
+                  new Date(user.locked_until) > new Date()
+                ) {
+                  throw new Error("AccountLocked");
+                }
 
-          // Verify password
-          if (!user.password_hash) {
-            throw new Error('Invalid credentials');
-          }
+                // Check email verification
+                if (!user.email_verified) {
+                  throw new Error("EmailNotVerified");
+                }
 
-          const isPasswordValid = await bcrypt.compare(credentials.password, user.password_hash);
-          
-          if (!isPasswordValid) {
-            // Increment failed login attempts
-            const failedAttempts = (user.failed_login_attempts || 0) + 1;
-            const lockUntil = failedAttempts >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null; // 15 minutes lock
+                // Verify password
+                if (!user.password_hash) {
+                  throw new Error("Invalid credentials");
+                }
 
-            await supabaseAdmin
-              .from('users')
-              .update({
-                failed_login_attempts: failedAttempts,
-                locked_until: lockUntil,
-              })
-              .eq('id', user.id);
+                const isPasswordValid = await bcrypt.compare(
+                  credentials.password,
+                  user.password_hash,
+                );
 
-            throw new Error('Invalid credentials');
-          }
+                if (!isPasswordValid) {
+                  // Increment failed login attempts
+                  const failedAttempts = (user.failed_login_attempts || 0) + 1;
+                  const lockUntil =
+                    failedAttempts >= 5
+                      ? new Date(Date.now() + 15 * 60 * 1000)
+                      : null; // 15 minutes lock
 
-          // Reset failed attempts on successful password verification
-          await supabaseAdmin
-            .from('users')
-            .update({
-              failed_login_attempts: 0,
-              locked_until: null,
-            })
-            .eq('id', user.id);
+                  await supabaseAdmin
+                    .from("users")
+                    .update({
+                      failed_login_attempts: failedAttempts,
+                      locked_until: lockUntil,
+                    })
+                    .eq("id", user.id);
 
-          // Check if 2FA is required
-          if (user.mfa_enabled && user.mfa_secret) {
-            // User has 2FA enabled - require TOTP verification
-            throw new Error(`Requires2FA:totp:${user.id}:${user.email}`);
-          }
+                  throw new Error("Invalid credentials");
+                }
 
-          // Update last login timestamp
-          await supabaseAdmin
-            .from('users')
-            .update({ last_login_at: new Date().toISOString() })
-            .eq('id', user.id);
+                // Reset failed attempts on successful password verification
+                await supabaseAdmin
+                  .from("users")
+                  .update({
+                    failed_login_attempts: 0,
+                    locked_until: null,
+                  })
+                  .eq("id", user.id);
 
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            image: user.avatar_url,
-          };
-        } catch (error) {
-          logError(error, 'authorize');
-          throw error;
-        }
-      }
-    })
+                // Check if 2FA is required
+                if (user.mfa_enabled && user.mfa_secret) {
+                  // User has 2FA enabled - require TOTP verification
+                  throw new Error(`Requires2FA:totp:${user.id}:${user.email}`);
+                }
+
+                // Update last login timestamp
+                await supabaseAdmin
+                  .from("users")
+                  .update({ last_login_at: new Date().toISOString() })
+                  .eq("id", user.id);
+
+                return {
+                  id: user.id,
+                  email: user.email,
+                  name: user.name,
+                  image: user.avatar_url,
+                };
+              } catch (error) {
+                logError(error, "authorize");
+                throw error;
+              }
+            },
+          }),
+        ]
+      : []),
   ],
-  
+
   callbacks: {
-    async signIn({ user, account, profile }: { user: any; account: any; profile?: any }) {
+    async signIn({
+      user,
+      account,
+      profile,
+    }: {
+      user: any;
+      account: any;
+      profile?: any;
+    }) {
       // This callback is called before the authorize function
-      if (account?.provider === 'google' || account?.provider === 'github') {
+      if (account?.provider === "google" || account?.provider === "github") {
         debugAuth(`${account.provider} OAuth signIn callback`, {
           hasUser: !!user,
           hasAccount: !!account,
@@ -231,7 +277,7 @@ export const authOptions = {
       }
       return true;
     },
-    
+
     async redirect({ url, baseUrl }: { url: string; baseUrl: string }) {
       try {
         const postLoginPath = "/auth/post-login";
@@ -252,35 +298,45 @@ export const authOptions = {
 
         return `${baseUrl}${postLoginPath}`;
       } catch (error) {
-        logError(error, 'redirect callback');
+        logError(error, "redirect callback");
         return `${baseUrl}/auth/post-login`;
       }
     },
-    
-     
-    async jwt({ token, user, account, profile }: { token: any; user: any; account: any; profile?: any }) {
+
+    async jwt({
+      token,
+      user,
+      account,
+      profile,
+    }: {
+      token: any;
+      user: any;
+      account: any;
+      profile?: any;
+    }) {
       try {
-        debugAuth('JWT callback called', {
+        debugAuth("JWT callback called", {
           hasToken: !!token,
           hasUser: !!user,
           hasAccount: !!account,
           tokenSub: token?.sub,
           userId: user?.id,
-          accountProvider: account?.provider
+          accountProvider: account?.provider,
         });
 
         // For OAuth providers (Google), create user if doesn't exist
-        if (account?.provider === 'google') {
-          debugAuth('Processing Google OAuth user', { email: user.email });
+        if (account?.provider === "google") {
+          debugAuth("Processing Google OAuth user", { email: user.email });
 
           const { data: existingUser, error } = await supabaseAdmin
-            .from('users')
-            .select('*')
-            .eq('email', user.email)
+            .from("users")
+            .select("*")
+            .eq("email", user.email)
             .single();
 
-          if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-            logger.error('Database error fetching user for Google OAuth', {
+          if (error && error.code !== "PGRST116") {
+            // PGRST116 = no rows returned
+            logger.error("Database error fetching user for Google OAuth", {
               error: error.message,
               email: user.email,
             });
@@ -291,21 +347,22 @@ export const authOptions = {
 
           // If user doesn't exist, create them
           if (!supabaseUser) {
-            debugAuth('Creating new Google OAuth user', { email: user.email });
+            debugAuth("Creating new Google OAuth user", { email: user.email });
 
-            const { data: createdUser, error: createError } = await supabaseAdmin
-              .from('users')
-              .insert({
-                email: user.email!,
-                name: user.name,
-                avatar_url: user.image,
-                email_verified: true, // OAuth users are pre-verified
-              })
-              .select()
-              .single();
+            const { data: createdUser, error: createError } =
+              await supabaseAdmin
+                .from("users")
+                .insert({
+                  email: user.email!,
+                  name: user.name,
+                  avatar_url: user.image,
+                  email_verified: true, // OAuth users are pre-verified
+                })
+                .select()
+                .single();
 
             if (createError) {
-              logger.error('Error creating Google OAuth user', {
+              logger.error("Error creating Google OAuth user", {
                 error: createError.message,
                 email: user.email,
                 code: createError.code,
@@ -314,21 +371,27 @@ export const authOptions = {
             }
 
             if (!createdUser) {
-              logger.error('Failed to create Google OAuth user - no data returned', {
-                email: user.email,
-              });
+              logger.error(
+                "Failed to create Google OAuth user - no data returned",
+                {
+                  email: user.email,
+                },
+              );
               return false;
             }
 
             supabaseUser = createdUser;
-            debugAuth('Google OAuth user created successfully', { 
+            debugAuth("Google OAuth user created successfully", {
               userId: supabaseUser.id,
-              email: supabaseUser.email 
+              email: supabaseUser.email,
             });
           } else {
             // User exists - check if account is locked
-            if (supabaseUser.locked_until && new Date(supabaseUser.locked_until) > new Date()) {
-              logger.error('Google OAuth login blocked - account is locked', {
+            if (
+              supabaseUser.locked_until &&
+              new Date(supabaseUser.locked_until) > new Date()
+            ) {
+              logger.error("Google OAuth login blocked - account is locked", {
                 userId: supabaseUser.id,
                 email: supabaseUser.email,
                 lockedUntil: supabaseUser.locked_until,
@@ -337,7 +400,14 @@ export const authOptions = {
             }
 
             // Update user data with latest Google information (account linking)
-            const updateData: { name?: string; avatar_url?: string | null; email_verified?: boolean; failed_login_attempts?: number; locked_until?: null; last_login_at?: string } = {
+            const updateData: {
+              name?: string;
+              avatar_url?: string | null;
+              email_verified?: boolean;
+              failed_login_attempts?: number;
+              locked_until?: null;
+              last_login_at?: string;
+            } = {
               email_verified: true, // Ensure email is verified for OAuth users
               failed_login_attempts: 0, // Reset failed attempts on successful OAuth login
               locked_until: null, // Unlock account if locked
@@ -354,22 +424,22 @@ export const authOptions = {
             }
 
             const { error: updateError } = await supabaseAdmin
-              .from('users')
+              .from("users")
               .update(updateData)
-              .eq('id', supabaseUser.id);
+              .eq("id", supabaseUser.id);
 
             if (updateError) {
-              logger.error('Error updating Google OAuth user data', {
+              logger.error("Error updating Google OAuth user data", {
                 error: updateError.message,
                 userId: supabaseUser.id,
                 email: supabaseUser.email,
               });
               // Continue anyway - don't fail login if update fails
             } else {
-              debugAuth('Google OAuth user data updated', { 
+              debugAuth("Google OAuth user data updated", {
                 userId: supabaseUser.id,
                 email: supabaseUser.email,
-                updatedFields: Object.keys(updateData)
+                updatedFields: Object.keys(updateData),
               });
             }
           }
@@ -381,9 +451,9 @@ export const authOptions = {
             user.name = user.name || supabaseUser.name;
             user.email = supabaseUser.email;
             user.image = supabaseUser.avatar_url || user.image;
-            debugAuth('User ID set from database', {
+            debugAuth("User ID set from database", {
               userId: supabaseUser.id,
-              email: supabaseUser.email
+              email: supabaseUser.email,
             });
           }
         }
@@ -391,24 +461,24 @@ export const authOptions = {
         // GitHub OAuth flow — mirrors the Google branch above. Also captures
         // the GitHub login + access token so subsequent epic issues can call
         // the GitHub API on behalf of the user (list orgs, repos, etc.).
-        if (account?.provider === 'github') {
-          debugAuth('Processing GitHub OAuth user', { email: user.email });
+        if (account?.provider === "github") {
+          debugAuth("Processing GitHub OAuth user", { email: user.email });
 
           if (!user.email) {
-            logger.error('GitHub OAuth user has no email — refusing sign-in', {
+            logger.error("GitHub OAuth user has no email — refusing sign-in", {
               login: (account as { login?: string })?.login,
             });
             return false;
           }
 
           const { data: existingUser, error } = await supabaseAdmin
-            .from('users')
-            .select('*')
-            .eq('email', user.email)
+            .from("users")
+            .select("*")
+            .eq("email", user.email)
             .single();
 
-          if (error && error.code !== 'PGRST116') {
-            logger.error('Database error fetching user for GitHub OAuth', {
+          if (error && error.code !== "PGRST116") {
+            logger.error("Database error fetching user for GitHub OAuth", {
               error: error.message,
               email: user.email,
             });
@@ -418,19 +488,20 @@ export const authOptions = {
           let supabaseUser = existingUser;
 
           if (!supabaseUser) {
-            const { data: createdUser, error: createError } = await supabaseAdmin
-              .from('users')
-              .insert({
-                email: user.email!,
-                name: user.name,
-                avatar_url: user.image,
-                email_verified: true,
-              })
-              .select()
-              .single();
+            const { data: createdUser, error: createError } =
+              await supabaseAdmin
+                .from("users")
+                .insert({
+                  email: user.email!,
+                  name: user.name,
+                  avatar_url: user.image,
+                  email_verified: true,
+                })
+                .select()
+                .single();
 
             if (createError || !createdUser) {
-              logger.error('Error creating GitHub OAuth user', {
+              logger.error("Error creating GitHub OAuth user", {
                 error: createError?.message,
                 email: user.email,
               });
@@ -438,34 +509,46 @@ export const authOptions = {
             }
 
             supabaseUser = createdUser;
-            debugAuth('GitHub OAuth user created', {
+            debugAuth("GitHub OAuth user created", {
               userId: supabaseUser.id,
               email: supabaseUser.email,
             });
           } else {
-            if (supabaseUser.locked_until && new Date(supabaseUser.locked_until) > new Date()) {
-              logger.error('GitHub OAuth login blocked - account is locked', {
+            if (
+              supabaseUser.locked_until &&
+              new Date(supabaseUser.locked_until) > new Date()
+            ) {
+              logger.error("GitHub OAuth login blocked - account is locked", {
                 userId: supabaseUser.id,
                 email: supabaseUser.email,
               });
               return false;
             }
 
-            const updateData: { name?: string; avatar_url?: string | null; email_verified?: boolean; failed_login_attempts?: number; locked_until?: null; last_login_at?: string } = {
+            const updateData: {
+              name?: string;
+              avatar_url?: string | null;
+              email_verified?: boolean;
+              failed_login_attempts?: number;
+              locked_until?: null;
+              last_login_at?: string;
+            } = {
               email_verified: true,
               failed_login_attempts: 0,
               locked_until: null,
               last_login_at: new Date().toISOString(),
             };
-            if (user.name && user.name !== supabaseUser.name) updateData.name = user.name;
-            if (user.image !== supabaseUser.avatar_url) updateData.avatar_url = user.image || null;
+            if (user.name && user.name !== supabaseUser.name)
+              updateData.name = user.name;
+            if (user.image !== supabaseUser.avatar_url)
+              updateData.avatar_url = user.image || null;
 
             const { error: updateError } = await supabaseAdmin
-              .from('users')
+              .from("users")
               .update(updateData)
-              .eq('id', supabaseUser.id);
+              .eq("id", supabaseUser.id);
             if (updateError) {
-              logger.error('Error updating GitHub OAuth user data', {
+              logger.error("Error updating GitHub OAuth user data", {
                 error: updateError.message,
                 userId: supabaseUser.id,
               });
@@ -482,67 +565,70 @@ export const authOptions = {
           // Persist token + login on JWT for downstream API calls.
           const githubLogin =
             (profile as { login?: string } | undefined)?.login ??
-            (account as { providerAccountId?: string } | undefined)?.providerAccountId;
-          token.githubAccessToken = (account as { access_token?: string }).access_token ?? null;
+            (account as { providerAccountId?: string } | undefined)
+              ?.providerAccountId;
+          token.githubAccessToken =
+            (account as { access_token?: string }).access_token ?? null;
           token.githubLogin = githubLogin ?? null;
         }
 
         if (user) {
-          debugAuth('Setting token properties', { 
-            userId: user.id, 
+          debugAuth("Setting token properties", {
+            userId: user.id,
             userEmail: user.email,
-            tokenSub: token.sub 
+            tokenSub: token.sub,
           });
-          
+
           token.id = user.id;
           token.sub = user.id; // Ensure sub is also set for JWT
-          
-          debugAuth('Token updated', { 
-            tokenId: token.id, 
-            tokenSub: token.sub 
+
+          debugAuth("Token updated", {
+            tokenId: token.id,
+            tokenSub: token.sub,
           });
         }
-        
+
         return token;
       } catch (error) {
-        logError(error, 'jwt callback');
+        logError(error, "jwt callback");
         return false;
       }
     },
 
-     
     async session({ session, token }: { session: any; token: any }) {
-      debugAuth('Session callback called', { 
-        hasSession: !!session, 
+      debugAuth("Session callback called", {
+        hasSession: !!session,
         hasToken: !!token,
         tokenSub: token?.sub,
         tokenId: token?.id,
-        sessionUserEmail: session?.user?.email
+        sessionUserEmail: session?.user?.email,
       });
 
       if (token.sub && session.user) {
-        debugAuth('Setting session user ID', {
+        debugAuth("Setting session user ID", {
           tokenSub: token.sub,
-          sessionUserEmail: session.user.email
+          sessionUserEmail: session.user.email,
         });
 
         session.user.id = token.sub;
 
         // Surface GitHub OAuth artefacts when present (set in jwt callback).
-        if (token.githubAccessToken) session.user.githubAccessToken = token.githubAccessToken;
+        if (token.githubAccessToken)
+          session.user.githubAccessToken = token.githubAccessToken;
         if (token.githubLogin) session.user.githubLogin = token.githubLogin;
 
         await ensureAutoAcceptedDomainMembership(token.sub, session.user.email);
-        
-        debugAuth('Session user ID set', { 
+
+        debugAuth("Session user ID set", {
           sessionUserId: session.user.id,
-          tokenSub: token.sub
+          tokenSub: token.sub,
         });
-        
+
         // Get user's organizations
         const { data: organizations } = await supabaseAdmin
-          .from('organization_members')
-          .select(`
+          .from("organization_members")
+          .select(
+            `
             role,
             organizations (
               id,
@@ -551,42 +637,47 @@ export const authOptions = {
               plan,
               logo_url
             )
-          `)
-          .eq('user_id', token.sub)
-          .eq('status', 'active');
+          `,
+          )
+          .eq("user_id", token.sub)
+          .eq("status", "active");
 
-        session.user.organizations = organizations?.map((member: any) => ({  
-          id: member.organizations.id,
-          name: member.organizations.name,
-          slug: member.organizations.slug,
-          plan: member.organizations.plan,
-          logo_url: member.organizations.logo_url,
-          role: member.role,
-        })) || [];
+        session.user.organizations =
+          organizations?.map((member: any) => ({
+            id: member.organizations.id,
+            name: member.organizations.name,
+            slug: member.organizations.slug,
+            plan: member.organizations.plan,
+            logo_url: member.organizations.logo_url,
+            role: member.role,
+          })) || [];
 
         // Get user preferences and avatar
         const { data: userData } = await supabaseAdmin
-          .from('users')
-          .select('preferences, theme_preference, avatar_url')
-          .eq('id', token.sub)
+          .from("users")
+          .select("preferences, theme_preference, avatar_url")
+          .eq("id", token.sub)
           .single();
 
         if (userData) {
-          session.user.preferences = userData.preferences || { language: 'pt-BR', theme: 'system' };
-          session.user.themePreference = userData.theme_preference || 'system';
+          session.user.preferences = userData.preferences || {
+            language: "pt-BR",
+            theme: "system",
+          };
+          session.user.themePreference = userData.theme_preference || "system";
           session.user.image = userData.avatar_url || null; // Update image in session
         }
 
-        debugAuth('Session updated', { 
+        debugAuth("Session updated", {
           userId: session.user.id,
           organizationsCount: session.user.organizations.length,
           sessionUserKeys: Object.keys(session.user),
-          themePreference: session.user.themePreference
+          themePreference: session.user.themePreference,
         });
       } else {
-        debugAuth('Session callback - no token.sub or session.user', { 
+        debugAuth("Session callback - no token.sub or session.user", {
           hasTokenSub: !!token?.sub,
-          hasSessionUser: !!session?.user
+          hasSessionUser: !!session?.user,
         });
       }
 
@@ -595,13 +686,23 @@ export const authOptions = {
   },
 
   pages: {
-    signIn: '/auth/signin',
+    signIn: "/auth/signin",
   },
 
   events: {
-    async signIn({ user, account, profile, isNewUser }: { user: any; account: any; profile?: any; isNewUser?: boolean }) {
-      if (account?.provider === 'google') {
-        debugAuth('Google OAuth signIn event', {
+    async signIn({
+      user,
+      account,
+      profile,
+      isNewUser,
+    }: {
+      user: any;
+      account: any;
+      profile?: any;
+      isNewUser?: boolean;
+    }) {
+      if (account?.provider === "google") {
+        debugAuth("Google OAuth signIn event", {
           hasUser: !!user,
           hasAccount: !!account,
           hasProfile: !!profile,
@@ -613,14 +714,21 @@ export const authOptions = {
     async error(message: unknown) {
       const eventError = (message as { error?: unknown })?.error ?? message;
 
-      logger.error('NextAuth error event', {
+      logger.error("NextAuth error event", {
         name: eventError instanceof Error ? eventError.name : undefined,
-        message: eventError instanceof Error ? eventError.message : String(eventError),
+        message:
+          eventError instanceof Error ? eventError.message : String(eventError),
         stack: eventError instanceof Error ? eventError.stack : undefined,
       });
     },
-    async signInError({ error, provider }: { error: unknown; provider?: string }) {
-      logger.error('NextAuth signIn error', {
+    async signInError({
+      error,
+      provider,
+    }: {
+      error: unknown;
+      provider?: string;
+    }) {
+      logger.error("NextAuth signIn error", {
         error: error instanceof Error ? error.message : String(error),
         provider,
         errorName: error instanceof Error ? error.name : undefined,
@@ -630,19 +738,25 @@ export const authOptions = {
   },
 
   logger: {
-    error(code: string, metadata: Error | { error: Error; [key: string]: unknown }) {
-      logger.error('NextAuth logger error', {
+    error(
+      code: string,
+      metadata: Error | { error: Error; [key: string]: unknown },
+    ) {
+      logger.error("NextAuth logger error", {
         code,
-        error: metadata instanceof Error ? metadata.message : metadata.error?.message,
+        error:
+          metadata instanceof Error
+            ? metadata.message
+            : metadata.error?.message,
       });
     },
     warn(code: string) {
-      logger.warn('NextAuth logger warn', {
+      logger.warn("NextAuth logger warn", {
         code,
       });
     },
     debug(code: string, metadata: unknown) {
-      logger.debug('NextAuth logger debug', {
+      logger.debug("NextAuth logger debug", {
         code,
         metadata,
       });
@@ -650,107 +764,127 @@ export const authOptions = {
   },
 
   session: {
-    strategy: 'jwt' as const,
+    strategy: "jwt" as const,
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
 
   secret: env.NEXTAUTH_SECRET,
 
   // Enable debug mode to get more detailed error messages
-  debug: env.NODE_ENV === 'development',
+  debug: env.NODE_ENV === "development",
 };
 
 // Helper functions for authentication
 
 export async function ensureAutoAcceptedDomainMembership(
   userId: string,
-  email: string | null | undefined
+  email: string | null | undefined,
 ) {
   const domain = getEmailDomain(email);
 
   if (!domain) {
-    debugAuth('Auto-accept domain skipped: missing domain', { userId, email });
+    debugAuth("Auto-accept domain skipped: missing domain", { userId, email });
     return;
   }
 
   if (isPersonalEmailDomain(domain)) {
-    debugAuth('Auto-accept domain skipped: personal email domain', { userId, domain });
+    debugAuth("Auto-accept domain skipped: personal email domain", {
+      userId,
+      domain,
+    });
     return;
   }
 
   try {
-    const timer = new RequestTimer('ensureAutoAcceptedDomainMembership');
+    const timer = new RequestTimer("ensureAutoAcceptedDomainMembership");
 
-    const { data: enabledOrganizations, error: organizationsError } = await supabaseAdmin
-      .from('organizations')
-      .select('id')
-      .eq('settings->autoAcceptDomainMembers->>enabled', 'true')
-      .eq('settings->autoAcceptDomainMembers->>domain', domain);
+    const { data: enabledOrganizations, error: organizationsError } =
+      await supabaseAdmin
+        .from("organizations")
+        .select("id")
+        .eq("settings->autoAcceptDomainMembers->>enabled", "true")
+        .eq("settings->autoAcceptDomainMembers->>domain", domain);
 
-    timer.checkpoint('fetchOrganizations');
+    timer.checkpoint("fetchOrganizations");
 
     if (organizationsError) {
-      logError(organizationsError, 'ensureAutoAcceptedDomainMembership.fetchOrganizations');
+      logError(
+        organizationsError,
+        "ensureAutoAcceptedDomainMembership.fetchOrganizations",
+      );
       return;
     }
 
     if (!enabledOrganizations || enabledOrganizations.length === 0) {
-      debugAuth('Auto-accept domain: no organizations matched domain', { userId, domain });
-      return;
-    }
-
-    const { data: existingMemberships, error: membershipsError } = await supabaseAdmin
-      .from('organization_members')
-      .select('organization_id')
-      .eq('user_id', userId);
-
-    timer.checkpoint('fetchMemberships');
-
-    if (membershipsError) {
-      logError(membershipsError, 'ensureAutoAcceptedDomainMembership.fetchMemberships');
-      return;
-    }
-
-    const existingOrgIds = new Set(
-      (existingMemberships || []).map(
-        (membership: { organization_id: string }) => membership.organization_id
-      )
-    );
-
-    const organizationsToJoin = (enabledOrganizations || []).filter(
-      (organization: { id: string | null }) =>
-        organization?.id && !existingOrgIds.has(organization.id)
-    );
-
-    if (organizationsToJoin.length === 0) {
-      debugAuth('Auto-accept domain: user already belongs to all matched organizations', {
+      debugAuth("Auto-accept domain: no organizations matched domain", {
         userId,
         domain,
       });
       return;
     }
 
+    const { data: existingMemberships, error: membershipsError } =
+      await supabaseAdmin
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", userId);
+
+    timer.checkpoint("fetchMemberships");
+
+    if (membershipsError) {
+      logError(
+        membershipsError,
+        "ensureAutoAcceptedDomainMembership.fetchMemberships",
+      );
+      return;
+    }
+
+    const existingOrgIds = new Set(
+      (existingMemberships || []).map(
+        (membership: { organization_id: string }) => membership.organization_id,
+      ),
+    );
+
+    const organizationsToJoin = (enabledOrganizations || []).filter(
+      (organization: { id: string | null }) =>
+        organization?.id && !existingOrgIds.has(organization.id),
+    );
+
+    if (organizationsToJoin.length === 0) {
+      debugAuth(
+        "Auto-accept domain: user already belongs to all matched organizations",
+        {
+          userId,
+          domain,
+        },
+      );
+      return;
+    }
+
     const insertPayload = organizationsToJoin.map((organization) => ({
       user_id: userId,
       organization_id: organization.id as string,
-      role: 'member',
-      status: 'active',
+      role: "member",
+      status: "active",
     }));
 
     const { error: insertError } = await supabaseAdmin
-      .from('organization_members')
+      .from("organization_members")
       .insert(insertPayload);
 
-    timer.end({ step: 'insertMemberships' });
+    timer.end({ step: "insertMemberships" });
 
     if (insertError) {
-      if ((insertError as { code?: string }).code === '23505') {
-        debugAuth('Auto-accept domain: membership already exists (duplicate)', {
+      if ((insertError as { code?: string }).code === "23505") {
+        debugAuth("Auto-accept domain: membership already exists (duplicate)", {
           userId,
           domain,
         });
       } else {
-        logError(insertError, 'ensureAutoAcceptedDomainMembership.insertMemberships');
+        logError(
+          insertError,
+          "ensureAutoAcceptedDomainMembership.insertMemberships",
+        );
       }
       return;
     }
@@ -764,26 +898,26 @@ export async function ensureAutoAcceptedDomainMembership(
         .filter((id): id is string => Boolean(id));
       const escapedEmail = email.replace(/[%_\\]/g, (match) => `\\${match}`);
       const { error: deleteInvitesError } = await supabaseAdmin
-        .from('invitations')
+        .from("invitations")
         .delete()
-        .in('organization_id', joinedOrgIds)
-        .ilike('email', escapedEmail);
+        .in("organization_id", joinedOrgIds)
+        .ilike("email", escapedEmail);
 
       if (deleteInvitesError) {
         logError(
           deleteInvitesError,
-          'ensureAutoAcceptedDomainMembership.deleteInvitations'
+          "ensureAutoAcceptedDomainMembership.deleteInvitations",
         );
       }
     }
 
-    debugDatabase('Auto-accepted domain membership inserted', {
+    debugDatabase("Auto-accepted domain membership inserted", {
       userId,
       domain,
       organizationsCount: organizationsToJoin.length,
     });
   } catch (error) {
-    logError(error, 'ensureAutoAcceptedDomainMembership');
+    logError(error, "ensureAutoAcceptedDomainMembership");
   }
 }
 
@@ -795,10 +929,10 @@ export async function createUser(
   verificationExpires: Date,
   emailVerified = false,
 ) {
-  const timer = new RequestTimer('createUser');
+  const timer = new RequestTimer("createUser");
 
   try {
-    debugAuth('Creating new user', {
+    debugAuth("Creating new user", {
       email,
       name,
       hasPassword: !!passwordHash,
@@ -808,7 +942,7 @@ export async function createUser(
     });
 
     const { data: user, error } = await supabaseAdmin
-      .from('users')
+      .from("users")
       .insert({
         email,
         name,
@@ -817,27 +951,29 @@ export async function createUser(
         // Clicking a valid invite link proves inbox ownership, so we skip
         // the separate verification step for invited users.
         email_verification_token: emailVerified ? null : verificationToken,
-        email_verification_expires: emailVerified ? null : verificationExpires.toISOString(),
+        email_verification_expires: emailVerified
+          ? null
+          : verificationExpires.toISOString(),
       })
       .select()
       .single();
 
     if (error) {
-      debugDatabase('Database error creating user', { error });
+      debugDatabase("Database error creating user", { error });
       throw error;
     }
 
-    debugAuth('User created successfully', {
+    debugAuth("User created successfully", {
       userId: user.id,
       email: user.email,
-      emailVerified: user.email_verified
+      emailVerified: user.email_verified,
     });
 
     timer.end({ userId: user.id });
     return user;
   } catch (error) {
     timer.end({ error: true });
-    logError(error, 'createUser');
+    logError(error, "createUser");
     throw error;
   }
 }
@@ -845,25 +981,25 @@ export async function createUser(
 export async function verifyEmailToken(token: string) {
   try {
     const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('email_verification_token', token)
-      .gt('email_verification_expires', new Date().toISOString())
+      .from("users")
+      .select("*")
+      .eq("email_verification_token", token)
+      .gt("email_verification_expires", new Date().toISOString())
       .single();
 
     if (error || !user) {
-      return { success: false, message: 'Invalid or expired token' };
+      return { success: false, message: "Invalid or expired token" };
     }
 
     // Update user as verified
     const { error: updateError } = await supabaseAdmin
-      .from('users')
+      .from("users")
       .update({
         email_verified: true,
         email_verification_token: null,
         email_verification_expires: null,
       })
-      .eq('id', user.id);
+      .eq("id", user.id);
 
     if (updateError) {
       throw updateError;
@@ -871,33 +1007,33 @@ export async function verifyEmailToken(token: string) {
 
     return { success: true, user };
   } catch (error) {
-    logError(error, 'verifyEmailToken');
-    return { success: false, message: 'Verification failed' };
+    logError(error, "verifyEmailToken");
+    return { success: false, message: "Verification failed" };
   }
 }
 
 export async function createPasswordResetToken(email: string) {
   try {
     const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('email', email)
+      .from("users")
+      .select("*")
+      .eq("email", email)
       .single();
 
     if (error || !user) {
-      return { success: false, message: 'User not found' };
+      return { success: false, message: "User not found" };
     }
 
     const resetToken = uuidv4();
     const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     const { error: updateError } = await supabaseAdmin
-      .from('users')
+      .from("users")
       .update({
         password_reset_token: resetToken,
         password_reset_expires: resetExpires.toISOString(),
       })
-      .eq('id', user.id);
+      .eq("id", user.id);
 
     if (updateError) {
       throw updateError;
@@ -905,50 +1041,47 @@ export async function createPasswordResetToken(email: string) {
 
     return { success: true, token: resetToken, user };
   } catch (error) {
-    logError(error, 'createPasswordResetToken');
-    return { success: false, message: 'Failed to create reset token' };
+    logError(error, "createPasswordResetToken");
+    return { success: false, message: "Failed to create reset token" };
   }
 }
 
 export async function resetPassword(token: string, newPassword: string) {
   try {
     const { data: user, error } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('password_reset_token', token)
-      .gt('password_reset_expires', new Date().toISOString())
+      .from("users")
+      .select("*")
+      .eq("password_reset_token", token)
+      .gt("password_reset_expires", new Date().toISOString())
       .single();
 
     if (error || !user) {
-      return { success: false, message: 'Invalid or expired token' };
+      return { success: false, message: "Invalid or expired token" };
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
     // Update password and clear reset token
     const { error: updateError } = await supabaseAdmin
-      .from('users')
+      .from("users")
       .update({
         password_hash: passwordHash,
         password_reset_token: null,
         password_reset_expires: null,
       })
-      .eq('id', user.id);
+      .eq("id", user.id);
 
     if (updateError) {
       throw updateError;
     }
 
     // Invalidate all existing sessions
-    await supabaseAdmin
-      .from('sessions')
-      .delete()
-      .eq('user_id', user.id);
+    await supabaseAdmin.from("sessions").delete().eq("user_id", user.id);
 
     return { success: true };
   } catch (error) {
-    logError(error, 'resetPassword');
-    return { success: false, message: 'Password reset failed' };
+    logError(error, "resetPassword");
+    return { success: false, message: "Password reset failed" };
   }
 }
 
@@ -966,11 +1099,11 @@ export async function createOrganization(
   try {
     // Create organization
     const { data: organization, error: orgError } = await supabaseAdmin
-      .from('organizations')
+      .from("organizations")
       .insert({
         name,
         slug,
-        plan: 'free',
+        plan: "free",
         settings: {
           autoAcceptDomainMembers: {
             enabled: false,
@@ -989,12 +1122,12 @@ export async function createOrganization(
 
     // Add user as owner
     const { error: memberError } = await supabaseAdmin
-      .from('organization_members')
+      .from("organization_members")
       .insert({
         user_id: userId,
         organization_id: organization.id,
-        role: 'owner',
-        status: 'active',
+        role: "owner",
+        status: "active",
       })
       .select()
       .single();
@@ -1005,7 +1138,7 @@ export async function createOrganization(
 
     return organization;
   } catch (error) {
-    logError(error, 'createOrganization');
+    logError(error, "createOrganization");
     throw error;
   }
 }
