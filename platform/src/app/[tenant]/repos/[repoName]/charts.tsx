@@ -11,6 +11,7 @@ import {
   Legend,
   AreaChart,
   Area,
+  ComposedChart,
 } from "recharts";
 
 import { MetricLineChart } from "@/components/charts/MetricLineChart";
@@ -53,6 +54,14 @@ interface PayloadInsights {
     lines_changed: number;
     intent?: Record<string, number>;
     origin?: Record<string, number>;
+  }>;
+  flowLoad?: Array<{
+    bucket: string;
+    bucket_start: string;
+    bucket_end: string;
+    wip_total: number;
+    wip_by_intent: Partial<Record<string, number>>;
+    author_concurrency: number;
   }>;
 }
 
@@ -215,6 +224,166 @@ function ComparisonChart({
               connectNulls
             />
           </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+const FLOW_LOAD_INTENT_ORDER = [
+  "FEATURE",
+  "FIX",
+  "REFACTOR",
+  "CONFIG",
+  "UNKNOWN",
+] as const;
+
+const FLOW_LOAD_INTENT_COLORS: Record<string, string> = {
+  FEATURE: "var(--color-signal-purple)",
+  FIX: "var(--color-signal-yellow)",
+  REFACTOR: "var(--color-signal-green)",
+  CONFIG: "var(--color-muted-foreground)",
+  UNKNOWN: "var(--color-signal-gray)",
+};
+
+function FlowLoadCard({
+  data,
+  title,
+  subtitle,
+  wipAxisLabel,
+  authorsAxisLabel,
+  authorsLineLabel,
+  intentLabels,
+}: {
+  data: NonNullable<PayloadInsights["flowLoad"]>;
+  title: string;
+  subtitle: string;
+  wipAxisLabel: string;
+  authorsAxisLabel: string;
+  authorsLineLabel: string;
+  intentLabels: Record<string, string>;
+}) {
+  if (data.length < 2) return null;
+
+  const chartData = data.map((b) => {
+    const intent = b.wip_by_intent ?? {};
+    return {
+      bucket: b.bucket,
+      FEATURE: intent.FEATURE ?? 0,
+      FIX: intent.FIX ?? 0,
+      REFACTOR: intent.REFACTOR ?? 0,
+      CONFIG: intent.CONFIG ?? 0,
+      UNKNOWN: intent.UNKNOWN ?? 0,
+      author_concurrency: b.author_concurrency,
+    };
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{subtitle}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={280}>
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 8, right: 12, bottom: 0, left: 0 }}
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              stroke="var(--color-chart-grid)"
+              vertical={false}
+            />
+            <XAxis
+              dataKey="bucket"
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
+              tickLine={false}
+              axisLine={false}
+              interval="preserveStartEnd"
+              minTickGap={24}
+            />
+            <YAxis
+              yAxisId="wip"
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
+              tickLine={false}
+              axisLine={false}
+              width={38}
+              label={{
+                value: wipAxisLabel,
+                angle: -90,
+                position: "insideLeft",
+                style: {
+                  fontSize: 10,
+                  fill: "var(--color-muted-foreground)",
+                  textAnchor: "middle",
+                },
+              }}
+            />
+            <YAxis
+              yAxisId="authors"
+              orientation="right"
+              tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
+              tickLine={false}
+              axisLine={false}
+              width={38}
+              label={{
+                value: authorsAxisLabel,
+                angle: 90,
+                position: "insideRight",
+                style: {
+                  fontSize: 10,
+                  fill: "var(--color-muted-foreground)",
+                  textAnchor: "middle",
+                },
+              }}
+            />
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "var(--color-card)",
+                border: "1px solid var(--color-border)",
+                borderRadius: "0.5rem",
+                fontSize: 12,
+              }}
+              formatter={(value, name) => {
+                const key = String(name);
+                if (key === "author_concurrency") {
+                  return [Number(value), authorsLineLabel];
+                }
+                return [Number(value), intentLabels[key] ?? key];
+              }}
+            />
+            <Legend
+              wrapperStyle={{ fontSize: 12 }}
+              formatter={(value) => {
+                const key = String(value);
+                if (key === "author_concurrency") return authorsLineLabel;
+                return intentLabels[key] ?? key;
+              }}
+            />
+            {FLOW_LOAD_INTENT_ORDER.map((intent) => (
+              <Area
+                key={intent}
+                yAxisId="wip"
+                type="monotone"
+                dataKey={intent}
+                stackId="wip"
+                fill={FLOW_LOAD_INTENT_COLORS[intent]}
+                fillOpacity={0.55}
+                stroke={FLOW_LOAD_INTENT_COLORS[intent]}
+                strokeWidth={1}
+              />
+            ))}
+            <Line
+              yAxisId="authors"
+              type="monotone"
+              dataKey="author_concurrency"
+              stroke="var(--color-foreground)"
+              strokeWidth={2}
+              dot={{ r: 2, fill: "var(--color-foreground)" }}
+              activeDot={{ r: 4 }}
+            />
+          </ComposedChart>
         </ResponsiveContainer>
       </CardContent>
     </Card>
@@ -708,6 +877,25 @@ export function RepoCharts({
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Flow Load — WIP per ISO week + author concurrency */}
+      {insights.flowLoad && insights.flowLoad.length >= 2 && (
+        <FlowLoadCard
+          data={insights.flowLoad}
+          title={t("repoCharts.flowLoad.title")}
+          subtitle={t("repoCharts.flowLoad.subtitle")}
+          wipAxisLabel={t("repoCharts.flowLoad.wipAxis")}
+          authorsAxisLabel={t("repoCharts.flowLoad.authorsAxis")}
+          authorsLineLabel={t("repoCharts.flowLoad.authorsLine")}
+          intentLabels={{
+            FEATURE: t("repoCharts.flowLoad.intentLabels.FEATURE"),
+            FIX: t("repoCharts.flowLoad.intentLabels.FIX"),
+            REFACTOR: t("repoCharts.flowLoad.intentLabels.REFACTOR"),
+            CONFIG: t("repoCharts.flowLoad.intentLabels.CONFIG"),
+            UNKNOWN: t("repoCharts.flowLoad.intentLabels.UNKNOWN"),
+          }}
+        />
       )}
 
       {/* AI Impact — temporal comparison of Human vs AI-assisted code */}

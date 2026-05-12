@@ -1,13 +1,17 @@
-"""GitHub PR ingestion — reads merged pull requests via the gh CLI.
+"""GitHub PR ingestion — reads pull requests via the gh CLI.
 
 Uses `gh pr list --json` with subprocess, same pattern as git_reader.
 Gracefully returns an empty list if gh is not available or the repo
 has no GitHub remote.
 
+Fetches PRs in three states: merged, closed-without-merge, and open.
+This is required for Flow Load (WIP) analysis, which needs to count
+PRs whose lifecycle overlaps with each time bucket — not just the
+ones that ended up merged.
+
 Assumptions:
 - `gh` CLI is optional — PR analysis is skipped if unavailable
 - repo must have a GitHub remote (origin) for PR fetching to work
-- Only merged PRs are fetched (state=merged)
 """
 
 import json
@@ -16,7 +20,7 @@ import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
 
-from iris.models.pull_request import PRReview, PullRequest
+from iris.models.pull_request import PRReview, PRState, PullRequest
 
 
 def detect_github_remote(repo_path: str) -> str | None:
@@ -59,8 +63,14 @@ def is_gh_available() -> bool:
     return shutil.which("gh") is not None
 
 
-_PR_FIELDS_BASIC = "number,title,createdAt,mergedAt,additions,deletions,changedFiles,author"
-_PR_FIELDS_FULL = "number,title,createdAt,mergedAt,additions,deletions,changedFiles,author,reviews,commits"
+_PR_FIELDS_BASIC = (
+    "number,title,createdAt,mergedAt,closedAt,state,"
+    "additions,deletions,changedFiles,author"
+)
+_PR_FIELDS_FULL = (
+    "number,title,createdAt,mergedAt,closedAt,state,"
+    "additions,deletions,changedFiles,author,reviews,commits"
+)
 
 # Maximum PRs to fetch in a single gh call. Larger requests with the reviews
 # field can trigger GitHub GraphQL 504 timeouts (observed on repos with
@@ -68,28 +78,24 @@ _PR_FIELDS_FULL = "number,title,createdAt,mergedAt,additions,deletions,changedFi
 _BATCH_SIZE = 500
 
 
-def _fetch_prs(nwo: str, limit: int) -> list[dict]:
-    """Fetch merged PRs via gh CLI, falling back to a two-pass strategy.
+def _fetch_prs(nwo: str, limit: int, gh_state: str) -> list[dict]:
+    """Fetch PRs in a given gh state, falling back to a two-pass strategy.
 
     First attempts a single call with full fields (including reviews).
     If that fails (504 timeout from large review payloads), falls back to:
     1. Fetch basic PR metadata (no reviews) — lightweight, reliable
     2. Fetch reviews separately in smaller batches and merge them in
     """
-    # Try full fetch first (works for most repos)
     if limit <= _BATCH_SIZE:
-        result = _gh_pr_list(nwo, _PR_FIELDS_FULL, limit)
+        result = _gh_pr_list(nwo, _PR_FIELDS_FULL, limit, gh_state)
         if result is not None:
             return result
 
-    # For large limits or when single fetch fails: two-pass strategy.
-    # Pass 1: basic metadata (no reviews — never times out)
-    prs = _gh_pr_list(nwo, _PR_FIELDS_BASIC, limit)
+    prs = _gh_pr_list(nwo, _PR_FIELDS_BASIC, limit, gh_state)
     if prs is None:
         return []
 
-    # Pass 2: fetch reviews in smaller batches and merge by PR number
-    reviews_prs = _gh_pr_list(nwo, "number,reviews", min(limit, _BATCH_SIZE))
+    reviews_prs = _gh_pr_list(nwo, "number,reviews", min(limit, _BATCH_SIZE), gh_state)
     if reviews_prs:
         reviews_by_number = {pr["number"]: pr.get("reviews", []) for pr in reviews_prs}
         for pr in prs:
@@ -98,14 +104,14 @@ def _fetch_prs(nwo: str, limit: int) -> list[dict]:
     return prs
 
 
-def _gh_pr_list(nwo: str, fields: str, limit: int) -> list[dict] | None:
+def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] | None:
     """Run gh pr list and return parsed JSON, or None on failure."""
     try:
         result = subprocess.run(
             [
                 "gh", "pr", "list",
                 "--repo", nwo,
-                "--state", "merged",
+                "--state", gh_state,
                 "--json", fields,
                 "--limit", str(limit),
             ],
@@ -126,15 +132,21 @@ def _gh_pr_list(nwo: str, fields: str, limit: int) -> list[dict] | None:
 
 
 def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
-    """Read merged pull requests from GitHub via gh CLI.
+    """Read pull requests from GitHub via gh CLI.
+
+    Fetches PRs in all three lifecycle states (merged, closed-without-merge,
+    open). A PR is kept when its lifecycle overlaps the analysis window:
+        created_at < now AND
+        NOT (merged_at < since) AND
+        NOT (closed_at < since)
 
     Args:
         repo_path: Absolute path to a Git repository with a GitHub remote.
         days: Number of days to look back from now.
 
     Returns:
-        List of PullRequest objects for PRs merged within the window.
-        Returns empty list if gh is unavailable or repo has no GitHub remote.
+        List of PullRequest objects with state populated. Returns an empty
+        list if gh is unavailable or the repo has no GitHub remote.
     """
     if not is_gh_available():
         return []
@@ -150,11 +162,15 @@ def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
     # on active repos (e.g., vercel/ai, vercel/next.js all capped at 300).
     fetch_limit = max(500, days * 15)
 
-    raw_prs = _fetch_prs(nwo, fetch_limit)
-    if not raw_prs:
-        return []
+    # gh's --state semantics:
+    #   open   — still open
+    #   closed — closed without merging (NOT including merged)
+    #   merged — merged
+    merged_raw = _fetch_prs(nwo, fetch_limit, "merged")
+    closed_raw = _fetch_prs(nwo, fetch_limit, "closed")
+    open_raw = _fetch_prs(nwo, fetch_limit, "open")
 
-    return _parse_pull_requests(raw_prs, since)
+    return _parse_pull_requests(merged_raw + closed_raw + open_raw, since)
 
 
 def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
@@ -200,13 +216,13 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
         return None
 
     created_at_str = raw.get("createdAt", "")
-    merged_at_str = raw.get("mergedAt", "")
-
     if not created_at_str:
         return None
 
     created_at = _parse_datetime(created_at_str)
-    merged_at = _parse_datetime(merged_at_str) if merged_at_str else created_at
+    merged_at = _parse_datetime(raw["mergedAt"]) if raw.get("mergedAt") else None
+    closed_at = _parse_datetime(raw["closedAt"]) if raw.get("closedAt") else None
+    state = _infer_state(raw.get("state"), merged_at, closed_at)
 
     reviews = _parse_reviews(raw.get("reviews", []))
     commit_hashes = _parse_commit_hashes(raw.get("commits", []))
@@ -220,6 +236,8 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
         author=author_login,
         created_at=created_at,
         merged_at=merged_at,
+        closed_at=closed_at,
+        state=state,
         additions=raw.get("additions", 0),
         deletions=raw.get("deletions", 0),
         changed_files=raw.get("changedFiles", 0),
@@ -232,19 +250,29 @@ def _parse_pull_requests(
     raw_prs: list[dict],
     since: datetime,
 ) -> list[PullRequest]:
-    """Parse gh JSON output into PullRequest objects, filtering by date."""
+    """Parse gh JSON output into PullRequest objects, filtering by window overlap."""
     prs = []
+    seen: set[int] = set()
 
     for raw in raw_prs:
-        merged_at_str = raw.get("mergedAt")
-        if not merged_at_str:
+        number = raw.get("number", 0)
+        if number in seen:
             continue
 
-        merged_at = _parse_datetime(merged_at_str)
-        if merged_at < since:
+        created_at_str = raw.get("createdAt")
+        if not created_at_str:
             continue
+        created_at = _parse_datetime(created_at_str)
 
-        created_at = _parse_datetime(raw.get("createdAt", merged_at_str))
+        merged_at = _parse_datetime(raw["mergedAt"]) if raw.get("mergedAt") else None
+        closed_at = _parse_datetime(raw["closedAt"]) if raw.get("closedAt") else None
+        state = _infer_state(raw.get("state"), merged_at, closed_at)
+
+        # Window-overlap filter: drop PRs that finished before the window began.
+        if merged_at is not None and merged_at < since:
+            continue
+        if state == "closed" and closed_at is not None and closed_at < since:
+            continue
 
         reviews = _parse_reviews(raw.get("reviews", []))
         commit_hashes = _parse_commit_hashes(raw.get("commits", []))
@@ -253,21 +281,46 @@ def _parse_pull_requests(
         author_login = author.get("login", "") if isinstance(author, dict) else ""
 
         prs.append(PullRequest(
-            number=raw.get("number", 0),
+            number=number,
             title=raw.get("title", ""),
             author=author_login,
             created_at=created_at,
             merged_at=merged_at,
+            closed_at=closed_at,
+            state=state,
             additions=raw.get("additions", 0),
             deletions=raw.get("deletions", 0),
             changed_files=raw.get("changedFiles", 0),
             reviews=reviews,
             commit_hashes=commit_hashes,
         ))
+        seen.add(number)
 
-    # Sort by merged date ascending (oldest first)
-    prs.sort(key=lambda p: p.merged_at)
+    # Sort by created_at ascending (oldest first) — preserves a stable order
+    # across the mixed-state result set, where merged_at may be None.
+    prs.sort(key=lambda p: p.created_at)
     return prs
+
+
+def _infer_state(
+    gh_state: str | None,
+    merged_at: datetime | None,
+    closed_at: datetime | None,
+) -> PRState:
+    """Map gh's uppercase state string to our lowercase Literal.
+
+    Falls back to inferring from merged_at/closed_at when gh did not supply
+    a usable state value.
+    """
+    if gh_state:
+        normalized = gh_state.lower()
+        if normalized in ("open", "closed", "merged"):
+            return normalized  # type: ignore[return-value]
+    if merged_at is not None:
+        return "merged"
+    if closed_at is not None:
+        return "closed"
+    return "open"
 
 
 def _parse_reviews(raw_reviews: list[dict]) -> list[PRReview]:
@@ -306,7 +359,6 @@ def _parse_datetime(date_str: str) -> datetime:
 
     GitHub returns dates like "2024-01-15T10:30:00Z".
     """
-    # Handle 'Z' suffix (GitHub convention)
     if date_str.endswith("Z"):
         date_str = date_str[:-1] + "+00:00"
     return datetime.fromisoformat(date_str)

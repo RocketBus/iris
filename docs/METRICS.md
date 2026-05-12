@@ -511,7 +511,72 @@ AI adoption**, not rank individuals.
 
 ---
 
-## 24. Adoption timeline (post-report, not on `ReportMetrics`)
+## 24. Flow Load (WIP simultâneo)
+
+Per-ISO-week count of PRs in flight, segmented by intent, plus a count
+of distinct commit authors per week as a separate engineering-parallelism
+proxy.
+
+| Field | Unit | Source | Nullable when |
+|---|---|---|---|
+| `flow_load` | `FlowLoadWeek[]` | `analysis/flow_load.py` | < 2 weeks of signal |
+
+`FlowLoadWeek`:
+
+- `bucket` — ISO week label, e.g. `"2026-W18"`
+- `bucket_start` / `bucket_end` — ISO dates (Monday and Sunday)
+- `wip_total` — distinct PRs whose lifecycle overlaps the bucket
+- `wip_by_intent` — same count broken down by PR intent
+  (`FEATURE | FIX | REFACTOR | CONFIG | UNKNOWN`); PR intent is
+  classified from the PR title using the same heuristics as
+  `intent_classifier.py`
+- `author_concurrency` — distinct commit authors (deduped by email,
+  falling back to author name) with at least one non-merge commit in
+  the bucket
+
+Overlap rule for a bucket `[t_start, t_end)`:
+
+```
+created_at < t_end
+AND (merged_at is None  OR merged_at > t_start)
+AND (closed_at is None  OR closed_at > t_start)
+```
+
+Edge cases:
+
+- A PR still open on the analysis date counts in every bucket from its
+  `created_at` onward.
+- A PR opened and merged/closed inside the same bucket counts in that
+  bucket.
+- Buckets with no PRs in flight emit `wip_total: 0` rather than being
+  omitted.
+
+Coverage limitations:
+
+- **Engineering WIP only.** Backlog, discovery, design, and work kept on
+  private local branches don't appear here. Surface this caveat
+  alongside the chart so consumers don't read it as "company-wide WIP".
+- **No per-author leak.** Only the *count* of distinct authors is
+  persisted in `author_concurrency`; the underlying author list stays
+  local to `flow_load.py`. This is intentional, to preserve Principle
+  #2 (never rank individuals).
+- **Title-based PR intent.** The file-type fallback in the commit
+  classifier is inert here because PRs have no file list. Aggregating
+  intent from a PR's commits is left as a future option to validate
+  empirically.
+
+Findings emitted by `narrative.py` (see `iris/i18n.py:finding_flow_load_*`):
+
+- `finding_flow_load_descriptive` — always when `flow_load` exists:
+  median WIP/week, peak week, median distinct authors/week.
+- `finding_flow_load_feature_growth` — triggers when the last bucket's
+  FEATURE WIP is ≥ `FLOW_LOAD_FEATURE_GROWTH_MULTIPLIER` (1.5×) the
+  first bucket's, AND ≥ `FLOW_LOAD_FEATURE_GROWTH_MIN_ABSOLUTE` (2 PRs).
+  **Both thresholds are hypotheses pending calibration with 3–5 repos.**
+
+---
+
+## 25. Adoption timeline (post-report, not on `ReportMetrics`)
 
 When AI-assisted commits started appearing, and how the pre-adoption vs
 post-adoption metrics compare.
@@ -551,6 +616,7 @@ Confidence rules:
 | `analysis/churn_detail.py` | `churn_top_files`, `churn_couplings` |
 | `analysis/activity_timeline.py` | `activity_timeline`, `activity_patterns` |
 | `analysis/pr_lifecycle.py` | `pr_merged_count`, `pr_median_time_to_merge_hours`, `pr_median_size_files`, `pr_median_size_lines`, `pr_review_rounds_median`, `pr_single_pass_rate` |
+| `analysis/flow_load.py` | `flow_load` |
 | `analysis/duplicate_detector.py` | `duplicate_block_rate`, `duplicate_block_count`, `duplicate_median_block_size`, `duplicate_by_origin`, `duplicate_by_tool` |
 | `analysis/move_detector.py` | `moved_code_pct`, `refactoring_ratio`, `move_by_origin` |
 | `analysis/code_provenance.py` | `revision_age_distribution`, `pct_revising_new_code`, `pct_revising_mature_code`, `provenance_by_origin` |

@@ -1,26 +1,26 @@
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect } from "next/navigation";
 
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from "next-auth/next";
 
-import { RepoCharts } from './charts';
-import { GitHubAvatar } from './github-avatar';
-import { InvestmentHotspots } from './investment-hotspots';
+import { RepoCharts } from "./charts";
+import { GitHubAvatar } from "./github-avatar";
+import { InvestmentHotspots } from "./investment-hotspots";
 
-import { AdoptionTimelineCard } from '@/components/charts/AdoptionTimelineCard';
-import { ChangeAlert } from '@/components/charts/ChangeAlert';
-import { MetricCard } from '@/components/charts/MetricCard';
-import { authOptions } from '@/lib/auth';
-import { extractAdoptionSummary } from '@/lib/queries/adoption-timeline';
-import { computeInvestmentHotspots } from '@/lib/queries/invest-here';
+import { AdoptionTimelineCard } from "@/components/charts/AdoptionTimelineCard";
+import { ChangeAlert } from "@/components/charts/ChangeAlert";
+import { MetricCard } from "@/components/charts/MetricCard";
+import { authOptions } from "@/lib/auth";
+import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
+import { computeInvestmentHotspots } from "@/lib/queries/invest-here";
 import {
   getRepoTimeSeries,
   getRepoLatestPayload,
   getRepoAITimeSeries,
   detectChanges,
-} from '@/lib/queries/temporal';
-import { getServerTranslation } from '@/lib/server-translation';
-import { supabaseAdmin } from '@/lib/supabase';
-import type { ReportMetrics } from '@/types/metrics';
+} from "@/lib/queries/temporal";
+import { getServerTranslation } from "@/lib/server-translation";
+import { supabaseAdmin } from "@/lib/supabase";
+import type { ReportMetrics } from "@/types/metrics";
 
 function extractInsights(payload: Record<string, unknown> | null) {
   if (!payload) return {};
@@ -38,10 +38,21 @@ function extractInsights(payload: Record<string, unknown> | null) {
     cascadeRate: payload.cascade_rate as number | undefined,
     cascadeMedianDepth: payload.cascade_median_depth as number | undefined,
     cascadeByOrigin: payload.cascade_rate_by_origin as
-      | Record<string, { cascade_rate: number; cascades: number; total_commits: number }>
+      | Record<
+          string,
+          { cascade_rate: number; cascades: number; total_commits: number }
+        >
       | undefined,
     durabilityByOrigin: payload.durability_by_origin as
-      | Record<string, { survival_rate: number; lines_introduced: number; lines_surviving: number; median_age_days: number }>
+      | Record<
+          string,
+          {
+            survival_rate: number;
+            lines_introduced: number;
+            lines_surviving: number;
+            median_age_days: number;
+          }
+        >
       | undefined,
     activityTimeline: payload.activity_timeline as
       | Array<{
@@ -50,6 +61,16 @@ function extractInsights(payload: Record<string, unknown> | null) {
           lines_changed: number;
           intent?: Record<string, number>;
           origin?: Record<string, number>;
+        }>
+      | undefined,
+    flowLoad: payload.flow_load as
+      | Array<{
+          bucket: string;
+          bucket_start: string;
+          bucket_end: string;
+          wip_total: number;
+          wip_by_intent: Partial<Record<string, number>>;
+          author_concurrency: number;
         }>
       | undefined,
   };
@@ -61,34 +82,34 @@ export default async function RepoDetailPage({
   params: Promise<{ tenant: string; repoName: string }>;
 }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) redirect('/auth/signin');
+  if (!session?.user) redirect("/auth/signin");
 
   const { tenant, repoName } = await params;
   const decodedRepoName = decodeURIComponent(repoName);
   const { t } = await getServerTranslation();
 
   const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id')
-    .eq('slug', tenant)
+    .from("organizations")
+    .select("id")
+    .eq("slug", tenant)
     .single();
   if (!org) notFound();
 
   const { data: membership } = await supabaseAdmin
-    .from('organization_members')
-    .select('role')
-    .eq('user_id', session.user.id)
-    .eq('organization_id', org.id)
+    .from("organization_members")
+    .select("role")
+    .eq("user_id", session.user.id)
+    .eq("organization_id", org.id)
     .single();
 
-  const role = membership?.role as 'owner' | 'admin' | 'member' | undefined;
-  const canSeeHyperEngineers = role === 'owner' || role === 'admin';
+  const role = membership?.role as "owner" | "admin" | "member" | undefined;
+  const canSeeHyperEngineers = role === "owner" || role === "admin";
 
   const { data: repo } = await supabaseAdmin
-    .from('repositories')
-    .select('id, name, remote_url')
-    .eq('organization_id', org.id)
-    .eq('name', decodedRepoName)
+    .from("repositories")
+    .select("id, name, remote_url")
+    .eq("organization_id", org.id)
+    .eq("name", decodedRepoName)
     .single();
   if (!repo) notFound();
 
@@ -105,15 +126,24 @@ export default async function RepoDetailPage({
   );
 
   // Extract high-velocity and AI-native authors from payload
-  const authorVelocity = (payload?.author_velocity as { authors?: Array<{ name: string; high_velocity_weeks: number; ai_commit_pct: number }> }) ?? {};
+  const authorVelocity =
+    (payload?.author_velocity as {
+      authors?: Array<{
+        name: string;
+        high_velocity_weeks: number;
+        ai_commit_pct: number;
+      }>;
+    }) ?? {};
   const hyperEngineers = new Set(
     (authorVelocity.authors ?? [])
       .filter((a) => a.high_velocity_weeks > 0 || a.ai_commit_pct >= 80)
-      .map((a) => a.name)
+      .map((a) => a.name),
   );
 
-  const latest = timeSeries.length > 0 ? timeSeries[timeSeries.length - 1] : null;
-  const previous = timeSeries.length > 1 ? timeSeries[timeSeries.length - 2] : null;
+  const latest =
+    timeSeries.length > 0 ? timeSeries[timeSeries.length - 1] : null;
+  const previous =
+    timeSeries.length > 1 ? timeSeries[timeSeries.length - 2] : null;
 
   const changes =
     latest && previous
@@ -138,16 +168,19 @@ export default async function RepoDetailPage({
       : null;
 
   const { data: runs } = await supabaseAdmin
-    .from('analysis_runs')
-    .select('id, commits_total, window_days, cli_version, active_users, created_at')
-    .eq('repository_id', repo.id)
-    .order('created_at', { ascending: false })
+    .from("analysis_runs")
+    .select(
+      "id, commits_total, window_days, cli_version, active_users, created_at",
+    )
+    .eq("repository_id", repo.id)
+    .order("created_at", { ascending: false })
     .limit(20);
 
   // Get active users from latest run (supports both string[] and {name, github}[] formats)
-  const rawActiveUsers: (string | { name: string; github?: string })[] = runs?.[0]?.active_users ?? [];
+  const rawActiveUsers: (string | { name: string; github?: string })[] =
+    runs?.[0]?.active_users ?? [];
   const activeUsers = rawActiveUsers.map((u) =>
-    typeof u === 'string' ? { name: u } : u
+    typeof u === "string" ? { name: u } : u,
   );
 
   return (
@@ -163,40 +196,44 @@ export default async function RepoDetailPage({
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
-          label={t('repos.detail.metrics.stabilization')}
+          label={t("repos.detail.metrics.stabilization")}
           value={
             latest?.stabilization_ratio != null
               ? `${(latest.stabilization_ratio * 100).toFixed(0)}%`
-              : '\u2014'
+              : "\u2014"
           }
           delta={stabDelta}
         />
         <MetricCard
-          label={t('repos.detail.metrics.revertRate')}
+          label={t("repos.detail.metrics.revertRate")}
           value={
             latest?.revert_rate != null
               ? `${(latest.revert_rate * 100).toFixed(1)}%`
-              : '\u2014'
+              : "\u2014"
           }
           delta={revertDelta}
           invertDelta
         />
         <MetricCard
-          label={t('repos.detail.metrics.churnEvents')}
-          value={latest?.churn_events?.toString() ?? '\u2014'}
+          label={t("repos.detail.metrics.churnEvents")}
+          value={latest?.churn_events?.toString() ?? "\u2014"}
           delta={churnDelta}
           deltaFormat="abs"
           invertDelta
         />
         <MetricCard
-          label={t('repos.detail.metrics.commits')}
-          value={latest?.commits_total?.toString() ?? '\u2014'}
+          label={t("repos.detail.metrics.commits")}
+          value={latest?.commits_total?.toString() ?? "\u2014"}
           delta={commitsDelta}
           deltaFormat="abs"
         />
       </div>
 
-      <RepoCharts timeSeries={timeSeries} insights={insights} aiImpact={aiImpact} />
+      <RepoCharts
+        timeSeries={timeSeries}
+        insights={insights}
+        aiImpact={aiImpact}
+      />
 
       <AdoptionTimelineCard summary={adoptionSummary} compact />
 
@@ -205,7 +242,7 @@ export default async function RepoDetailPage({
       {activeUsers.length > 0 && (
         <div>
           <h2 className="mb-3 text-lg font-medium">
-            {t('repos.detail.activeContributors')}
+            {t("repos.detail.activeContributors")}
           </h2>
           <div className="flex flex-wrap gap-2">
             {activeUsers.map((user) => (
@@ -233,7 +270,7 @@ export default async function RepoDetailPage({
                   <span className="text-sm">{user.name}</span>
                 )}
                 {canSeeHyperEngineers && hyperEngineers.has(user.name) && (
-                  <span title={t('dashboard.hyperEngineers.badge')}>🏆</span>
+                  <span title={t("dashboard.hyperEngineers.badge")}>🏆</span>
                 )}
               </div>
             ))}
@@ -241,8 +278,8 @@ export default async function RepoDetailPage({
           <p className="mt-2 text-xs text-muted-foreground">
             {t(
               activeUsers.length === 1
-                ? 'repos.detail.contributorsCount'
-                : 'repos.detail.contributorsCountPlural',
+                ? "repos.detail.contributorsCount"
+                : "repos.detail.contributorsCountPlural",
               { count: activeUsers.length },
             )}
           </p>
@@ -251,15 +288,23 @@ export default async function RepoDetailPage({
 
       {runs && runs.length > 0 && (
         <div>
-          <h2 className="mb-3 text-lg font-medium">{t('repos.detail.runHistory')}</h2>
+          <h2 className="mb-3 text-lg font-medium">
+            {t("repos.detail.runHistory")}
+          </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-muted-foreground">
-                  <th className="pb-2 pr-4">{t('repos.detail.runColumns.date')}</th>
-                  <th className="pb-2 pr-4">{t('repos.detail.runColumns.commits')}</th>
-                  <th className="pb-2 pr-4">{t('repos.detail.runColumns.window')}</th>
-                  <th className="pb-2">{t('repos.detail.runColumns.cli')}</th>
+                  <th className="pb-2 pr-4">
+                    {t("repos.detail.runColumns.date")}
+                  </th>
+                  <th className="pb-2 pr-4">
+                    {t("repos.detail.runColumns.commits")}
+                  </th>
+                  <th className="pb-2 pr-4">
+                    {t("repos.detail.runColumns.window")}
+                  </th>
+                  <th className="pb-2">{t("repos.detail.runColumns.cli")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -271,7 +316,7 @@ export default async function RepoDetailPage({
                     <td className="py-2 pr-4">{run.commits_total}</td>
                     <td className="py-2 pr-4">{run.window_days}d</td>
                     <td className="py-2 font-mono text-xs text-muted-foreground">
-                      {run.cli_version ?? '\u2014'}
+                      {run.cli_version ?? "\u2014"}
                     </td>
                   </tr>
                 ))}

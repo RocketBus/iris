@@ -109,10 +109,13 @@ def calculate_activity_timeline(
     if len(week_commits) < 2:
         return None
 
-    # Group PRs by ISO week (by merged_at)
+    # Group merged PRs by ISO week (by merged_at). Open/closed PRs are
+    # ignored here — the timeline reports merge throughput per week.
     week_prs: dict[date, list[PullRequest]] = defaultdict(list)
     if prs:
         for pr in prs:
+            if pr.state != "merged" or pr.merged_at is None:
+                continue
             week_start = _iso_week_start(pr.merged_at)
             week_prs[week_start].append(pr)
 

@@ -30,31 +30,38 @@ class PRLifecycleResult:
     pr_single_pass_rate: float
 
 
-def analyze_pr_lifecycle(prs: list[PullRequest]) -> PRLifecycleResult:
-    """Compute PR lifecycle metrics from a list of merged pull requests.
+def analyze_pr_lifecycle(prs: list[PullRequest]) -> PRLifecycleResult | None:
+    """Compute PR lifecycle metrics from a list of pull requests.
+
+    Considers only merged PRs (others have no merged_at to compute
+    time-to-merge from). Returns None when the input contains no
+    merged PRs.
 
     Args:
-        prs: Merged PRs from github_reader (must not be empty).
+        prs: PRs from github_reader (may include open/closed/merged).
 
     Returns:
-        PRLifecycleResult with all 6 metrics populated.
+        PRLifecycleResult with all 6 metrics populated, or None.
     """
-    count = len(prs)
+    merged = [pr for pr in prs if pr.state == "merged" and pr.merged_at is not None]
+    count = len(merged)
+    if count == 0:
+        return None
 
     # Time to merge: hours between created_at and merged_at
     times_to_merge = [
-        (pr.merged_at - pr.created_at).total_seconds() / 3600
-        for pr in prs
+        (pr.merged_at - pr.created_at).total_seconds() / 3600  # type: ignore[operator]
+        for pr in merged
     ]
 
     # PR size: changed files and total lines (additions + deletions)
-    sizes_files = [pr.changed_files for pr in prs]
-    sizes_lines = [pr.additions + pr.deletions for pr in prs]
+    sizes_files = [pr.changed_files for pr in merged]
+    sizes_lines = [pr.additions + pr.deletions for pr in merged]
 
     # Review rounds: count of CHANGES_REQUESTED per PR
     review_rounds = [
         sum(1 for r in pr.reviews if r.state == "CHANGES_REQUESTED")
-        for pr in prs
+        for pr in merged
     ]
 
     # Single pass: PRs with zero CHANGES_REQUESTED
@@ -66,5 +73,5 @@ def analyze_pr_lifecycle(prs: list[PullRequest]) -> PRLifecycleResult:
         pr_median_size_files=int(median(sizes_files)),
         pr_median_size_lines=int(median(sizes_lines)),
         pr_review_rounds_median=round(median(review_rounds), 1),
-        pr_single_pass_rate=round(single_pass_count / count, 2) if count > 0 else 0.0,
+        pr_single_pass_rate=round(single_pass_count / count, 2),
     )

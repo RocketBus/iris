@@ -142,6 +142,15 @@ export interface ActivityPattern {
   description: string;
 }
 
+export interface FlowLoadWeek {
+  bucket: string; // ISO week label, e.g. "2026-W18"
+  bucket_start: string; // YYYY-MM-DD (Monday)
+  bucket_end: string; // YYYY-MM-DD (Sunday)
+  wip_total: number;
+  wip_by_intent: Partial<Record<ChangeIntent, number>>;
+  author_concurrency: number;
+}
+
 export interface VelocityWindow {
   start: string;
   end: string;
@@ -236,6 +245,9 @@ export interface ReportMetrics {
   // Activity timeline
   activity_timeline?: ActivityWeek[];
   activity_patterns?: ActivityPattern[];
+
+  // Flow Load — WIP simultâneo per ISO week
+  flow_load?: FlowLoadWeek[];
 
   // PR lifecycle
   pr_merged_count?: number;

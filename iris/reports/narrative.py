@@ -32,6 +32,11 @@ FIX_DOMINANT_THRESHOLD = 0.40  # 40%
 FIX_CHURN_MULTIPLIER = 2.0  # 2x
 # Stabilization gap between best and worst intent above this triggers insight.
 STABILITY_GAP_THRESHOLD = 0.20  # 20 percentage points
+# Flow Load — feature WIP at the end of the window must exceed the start by
+# this multiplier (and by an absolute floor) to trigger the growth finding.
+# Threshold is a hypothesis pending calibration with 3-5 repos.
+FLOW_LOAD_FEATURE_GROWTH_MULTIPLIER = 1.5
+FLOW_LOAD_FEATURE_GROWTH_MIN_ABSOLUTE = 2
 
 # Maps ChangeIntent values to i18n interpretation keys
 _INTENT_INTERPRETATION_KEYS = {
@@ -145,6 +150,10 @@ def generate_key_findings(metrics: ReportMetrics, lang: str = "en") -> str:
                 f"({ai_revert['reverts']} AI reverts vs {human_revert['reverts']} human)"
             )
 
+    # Flow Load — descriptive WIP snapshot + optional feature-growth signal
+    flow_findings = _flow_load_findings(metrics, s)
+    findings.extend(flow_findings)
+
     # Volume context
     findings.append(s["finding_volume"].format(
         commits=metrics.commits_total,
@@ -155,6 +164,47 @@ def generate_key_findings(metrics: ReportMetrics, lang: str = "en") -> str:
     for f in findings:
         lines.append(f"- {f}")
     return "\n".join(lines)
+
+
+def _flow_load_findings(metrics: ReportMetrics, s: dict) -> list[str]:
+    """Build Flow Load findings (0-2 bullets) from the flow_load series.
+
+    Emits a descriptive snapshot whenever the series exists, plus a
+    feature-growth bullet when the last bucket's FEATURE WIP exceeds the
+    first bucket's by ``FLOW_LOAD_FEATURE_GROWTH_MULTIPLIER`` and at least
+    ``FLOW_LOAD_FEATURE_GROWTH_MIN_ABSOLUTE``.
+    """
+    if not metrics.flow_load:
+        return []
+
+    from statistics import median
+
+    series = metrics.flow_load
+    wips = [b.get("wip_total", 0) for b in series]
+    authors = [b.get("author_concurrency", 0) for b in series]
+    if not any(wips):
+        return []
+
+    peak = max(series, key=lambda b: b.get("wip_total", 0))
+    findings = [s["finding_flow_load_descriptive"].format(
+        median_wip=int(median(wips)),
+        peak_wip=peak.get("wip_total", 0),
+        peak_week=peak.get("bucket", "?"),
+        median_authors=int(median(authors)) if authors else 0,
+    )]
+
+    first = series[0].get("wip_by_intent", {}).get("FEATURE", 0)
+    last = series[-1].get("wip_by_intent", {}).get("FEATURE", 0)
+    if (
+        last >= FLOW_LOAD_FEATURE_GROWTH_MIN_ABSOLUTE
+        and first > 0
+        and last >= first * FLOW_LOAD_FEATURE_GROWTH_MULTIPLIER
+    ):
+        findings.append(s["finding_flow_load_feature_growth"].format(
+            start_wip=first,
+            end_wip=last,
+        ))
+    return findings
 
 
 def generate_pr_findings(metrics: ReportMetrics, lang: str = "en") -> str:
