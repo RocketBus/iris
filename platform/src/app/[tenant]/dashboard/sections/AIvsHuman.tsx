@@ -97,7 +97,7 @@ export function AIvsHuman({ data, tenantSlug }: AIvsHumanProps) {
               <AreaChart data={data.commitMix}>
                 <CartesianGrid
                   strokeDasharray="3 3"
-                  stroke="var(--border)"
+                  stroke="var(--color-chart-grid)"
                   vertical={false}
                 />
                 <XAxis

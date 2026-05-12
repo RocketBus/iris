@@ -55,7 +55,7 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
             <ComposedChart data={normalizedData}>
               <CartesianGrid
                 strokeDasharray="3 3"
-                stroke="var(--border)"
+                stroke="var(--color-chart-grid)"
                 vertical={false}
               />
               <XAxis
