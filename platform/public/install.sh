@@ -20,12 +20,22 @@ MIN_PYTHON="3.11"
 INSTALL_DIR="${IRIS_HOME:-$HOME/.iris}"
 LOCAL_BIN="$HOME/.local/bin"
 
-# Resolve "latest" via GitHub Releases API
+# Resolve "latest" via GitHub Releases API.
+# Capture-then-parse instead of a pipeline so curl failures surface even on
+# shells without `set -o pipefail` (POSIX sh / dash). Without this, a 404 from
+# the API would silently produce an empty VERSION and the script would charge
+# ahead with a broken wheel URL.
 if [ "$VERSION" = "latest" ]; then
-    VERSION=$(curl -fsSL "$RELEASES_API/latest" | grep -oE '"tag_name":\s*"v?[^"]+' | sed -E 's/.*"v?//') || {
-        printf "Failed to resolve latest version from GitHub Releases\n" >&2
+    LATEST_JSON=$(curl -fsSL "$RELEASES_API/latest") || {
+        printf "Failed to fetch latest release from %s\n" "$RELEASES_API/latest" >&2
+        printf "If the repo is private, the GitHub API returns 404 to anonymous callers.\n" >&2
         exit 1
     }
+    VERSION=$(printf '%s' "$LATEST_JSON" | grep -oE '"tag_name":[[:space:]]*"v?[^"]+' | sed -E 's/.*"v?//')
+    if [ -z "$VERSION" ]; then
+        printf "Could not parse a tag_name from the GitHub Releases response.\n" >&2
+        exit 1
+    fi
 fi
 WHEEL_URL="$RELEASES_DOWNLOAD/v${VERSION}/iris-${VERSION}-py3-none-any.whl"
 
