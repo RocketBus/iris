@@ -401,3 +401,369 @@ working keys to:
   exact spelling has changed between API versions before).
 - Decide whether `query` should default to `*` or to `env:production`
   when the customer hasn't customized it.
+
+---
+
+## 9. Revision (2026-05-13) — post-probe findings
+
+Live probe against a real production tenant via
+`scripts/datadog_dora_probe.py`. Both endpoints returned 200 with
+`from`/`to` as ISO 8601 strings (numeric epoch is rejected with HTTP
+400 `"error decoding attribute \"from\": invalid type number"`). Five
+deployments and five failures inspected end-to-end.
+
+### 9.1 What we got right
+
+- `POST /api/v2/dora/deployments` and `POST /api/v2/dora/failures`
+  exist and return the event-level data we need (§1 row 1 stands).
+- The customer is emitting both flows: `source: "apm_deployments"`
+  on deploys (auto-detected by Datadog APM Deployment Tracking) and
+  `source: "api"` on failures (pushed manually by the customer, names
+  like `"RIO-978 | Pedidos sendo processados sem cobrança"` show they
+  register them as post-mortem from their incident workflow). We're
+  reading what they already have, not asking them to instrument
+  anything new.
+- DORA event retention is 2 years; the 30-day initial backfill default
+  in §7 #1 stays well inside that envelope.
+
+### 9.2 What needs to change in §3 schema
+
+**Deployments — fields are nested and richer than modeled.** Top-level
+`repository_url` and `commit_sha` don't exist. The shape is:
+
+```jsonc
+{
+  "type": "dora_deployment",
+  "id": "43vkaZNgiso",
+  "attributes": {
+    "git": { "commit_sha": "<sha>", "repository_id": "github.com/<org>/<repo>" },
+    "commits": [{ "sha", "timestamp", "author": { "email", "canonical_email", "is_bot" },
+                  "message", "html_url", "change_lead_time", "time_to_deploy" }, …],
+    "pull_requests": [{ "created_at", "merged_at", "is_fully_automated" }, …],
+    "service": "search-microfrontend",
+    "env": "staging",                                // free-form string, customers don't normalize
+    "version": "0.14.7",
+    "team": "busca",
+    "change_failure": false,                         // TRI-STATE: true | false | null (null = pending evaluation)
+    "deployment_type": "standard",
+    "source": "apm_deployments",                     // 500/500 sampled deploys had this value
+    "started_at", "finished_at", "duration", "created_at",
+    "number_of_commits": 2,
+    "number_of_pull_requests": 1,
+    "averaged_metrics", "custom",
+    // The two fields below appear ONLY when change_failure == true (probed across 36 events):
+    "recovery_time_sec": 4890,                       // time-to-recovery for THIS deploy
+    "remediation": { "id": "X9RMqDwK-4c", "type": "rollback" }
+  }
+}
+```
+
+Two findings from the 2026-05-13 follow-up probe matter for the schema:
+
+- **`change_failure` is tri-state (`true | false | null`).** ~2.4% of
+  sampled deploys carried `null` — likely "still inside Datadog's
+  evaluation window, no verdict yet". Aggregation must treat `null`
+  distinctly from `false`. CFR denominator should exclude `null`
+  events or surface them as a "pending" bucket in the dashboard.
+- **`env` is free-form text.** Real values observed across 500
+  deploys: `staging` (333), `live` (147), and the long tail
+  `stg`, `eval`, `taken`, `local`, `none`, `dev`, `test`. The
+  customer does not normalize. Do **not** model `env` as an enum;
+  any normalization happens at display time, not at ingestion.
+
+Revised `external_deployments` columns (replaces §3 version):
+
+```sql
+create table external_deployments (
+  id                uuid primary key default gen_random_uuid(),
+  organization_id   uuid not null references organizations(id) on delete cascade,
+  provider          integration_provider not null,
+  provider_event_id text not null,                  -- DD's event id (e.g. "43vkaZNgiso")
+  repository_id     uuid references repositories(id) on delete set null,
+  dd_repository_id  text,                           -- DD slug, e.g. "github.com/rocketbus/foo"
+  service           text,
+  env               text,
+  team              text,
+  version           text,
+  commit_sha        text,                           -- flattened from attributes.git.commit_sha
+  change_failure    boolean,                        -- TRI-STATE: nullable on purpose; null = pending eval
+  deployment_type   text,                           -- "standard", etc.
+  source            text,                           -- "apm_deployments" in 100% of probed events
+  started_at        timestamptz not null,
+  finished_at       timestamptz,
+  duration_seconds  integer,
+  number_of_commits integer,
+  number_of_pull_requests integer,
+  recovery_time_sec integer,                        -- present only when change_failure=true
+  remediation_type  text,                           -- "rollback" observed; present only when change_failure=true
+  remediation_id    text,                           -- DD's id for the remediation event
+  raw               jsonb not null,
+  fetched_at        timestamptz not null default now(),
+  unique (provider, provider_event_id)
+);
+```
+
+**New table `external_deployment_commits`.** Each deploy carries per-commit
+lead-time data we should not throw into `raw`-only — it's the join key for
+the AI-vs-human CFR correlation.
+
+```sql
+create table external_deployment_commits (
+  deployment_id     uuid not null references external_deployments(id) on delete cascade,
+  commit_sha        text not null,
+  commit_timestamp  timestamptz,
+  author_email      text,
+  author_canonical_email text,
+  is_bot            boolean,
+  change_lead_time  integer,                        -- seconds
+  time_to_deploy    integer,                        -- seconds
+  primary key (deployment_id, commit_sha)
+);
+create index external_deployment_commits_sha_idx on external_deployment_commits(commit_sha);
+```
+
+**Pull-request linking is unreliable.** Probed deploy returned a
+`pull_requests[]` with `created_at: "0001-01-01T00:00:00Z"` (zero
+value). Don't model a PR table for v1; if we need PR↔deploy linkage,
+join through Iris's own PR data via `commit_sha`.
+
+**Failures — service/env/team are arrays, no commit attribution.**
+
+```jsonc
+{
+  "type": "dora_failure",
+  "id": "ab038562-17f5-4001-84b4-3748eec8b077",
+  "attributes": {
+    "service": ["platform-pricing-low-fare"],      // array
+    "env": ["live"],                                // array
+    "team": ["pricing"],                            // array
+    "name": "RIO-978 | Pedidos sendo processados sem cobrança",
+    "severity": "Normal" | "High" | "Urgent",      // textual
+    "started_at", "finished_at", "created_at",
+    "time_to_restore": 520167,                     // seconds
+    "source": "api",
+    "internal": {},                                // empty in all 5 samples — skip
+    "custom": { "language": ["jvm"], "backstage.io/...": [...] }
+  }
+}
+```
+
+Revised `external_incidents` columns (replaces §3 version):
+
+```sql
+create table external_incidents (
+  id                uuid primary key default gen_random_uuid(),
+  organization_id   uuid not null references organizations(id) on delete cascade,
+  provider          integration_provider not null,
+  provider_event_id text not null,
+  service           text[],                         -- DD returns arrays
+  env               text[],
+  team              text[],
+  name              text,                           -- "RIO-978 | ..."
+  severity          text,                           -- "Normal" | "High" | "Urgent" | …
+  started_at        timestamptz not null,
+  finished_at       timestamptz,
+  time_to_restore_seconds integer,
+  source            text,                           -- "api" in observed data
+  raw               jsonb not null,
+  fetched_at        timestamptz not null default now(),
+  unique (provider, provider_event_id)
+);
+create index external_incidents_org_started_idx
+  on external_incidents(organization_id, started_at desc);
+create index external_incidents_service_gin
+  on external_incidents using gin (service);
+```
+
+Dropped fields from the §3 version: `triggering_commit_sha`,
+`repository_id` (failures don't carry either), the
+`repository_id`-keyed index.
+
+### 9.3 Source-of-truth shift: both CFR and MTTR live on deployments
+
+The §3/§4 plan assumed CFR comes from incidents and MTTR comes from
+incidents. The follow-up probe found that **both signals are
+carried on the deployment event itself**:
+
+- `attributes.change_failure: bool` — the CFR flag.
+- `attributes.recovery_time_sec: int` — per-deploy time-to-recovery,
+  present whenever `change_failure == true`. Observed range across
+  36 events: 420s → 969610s (~11 days, an outlier; median is in the
+  low thousands of seconds).
+- `attributes.remediation: { id, type }` — how the failure was
+  resolved. Only `"rollback"` observed so far; other documented
+  types include `"hotfix"` and `"forward_fix"`.
+
+That makes the deployment table the per-event source for **both**
+CFR and MTTR. The failures table still matters for MTTR computed
+*at the incident level* (which is what canonical DORA reports), but
+the per-deploy lens is what powers the AI-vs-human correlation.
+
+Concrete impact:
+
+- **§4 PR 4.** `iris/analysis/dora_real.py` computes:
+  - **CFR** = count(`change_failure = true`) / count(`change_failure
+    in (true, false)`) — `null` deploys are excluded from the
+    denominator (pending Datadog's evaluation).
+  - **MTTR (per-deploy)** = mean/p50/p90 of `recovery_time_sec`
+    over failed deploys. This is the metric we surface alongside
+    AI-vs-human correlation.
+  - **MTTR (incident-level)** = mean/p50/p90 of
+    `external_incidents.time_to_restore_seconds`. This is the
+    canonical DORA-reporting number that goes on the dashboard
+    DORA card.
+- **AI-vs-human CFR correlation (§7 #4).** Clean join now:
+  `external_deployment_commits.commit_sha` ↔ Iris's
+  `commit_origin.commit_sha`, filtered by
+  `external_deployments.change_failure = true`. No need to traverse
+  through `external_incidents` at all for this correlation.
+- **Rollback rate as a new derived metric.** With
+  `remediation.type` per deploy, we can compute
+  `rollback_rate = count(remediation_type = 'rollback') / count(change_failure = true)`
+  and split it by code origin. This wasn't in the original PRD but
+  is a free byproduct of the schema and worth surfacing in PR 5.
+- **Incident → deploy attribution** (would be needed to answer "which
+  deploy caused this incident?") is not available from Datadog and
+  has to be inferred: same `service`, `incident.started_at` ≥
+  `deployment.finished_at`, narrowest matching window. Park this
+  behind a separate decision — not needed for the v1 dashboard.
+
+### 9.4 Repository matching uses the DD slug, not a URL
+
+`attributes.git.repository_id` is the string
+`"github.com/rocketbus/search-microfrontend"` — host + path, no
+scheme, no `.git`. Iris's `repositories` table stores `remote_url`
+(varies in shape across customers). The §1 #5 auto-match
+proposal stands but the lookup is a **normalize-both-sides** problem:
+
+- Normalize DD slug: lowercase, strip leading scheme/`www`, strip
+  trailing `.git` — but DD already gives a normalized form.
+- Normalize `repositories.remote_url`: parse host + path, drop
+  scheme/`.git`/`www`, lowercase.
+- Compare normalized strings.
+
+Store the raw DD slug in `external_deployments.dd_repository_id` so
+the join is debuggable when it fails.
+
+### 9.5 Pagination — resolved: time-slicing only (probed 2026-05-13)
+
+The mini-probe (`scripts/datadog_dora_probe.py --paginate-test`) tested
+six hypotheses against both endpoints with `limit: 2` in a 90-day window
+known to contain ≥ 3 events on each side. Result:
+
+| Hypothesis | Deployments | Failures |
+|---|---|---|
+| `attributes.cursor = <last_id>` | replay (overlap 2/2, new=0) | replay |
+| `attributes.next_token = <last_id>` | replay | replay |
+| `attributes.page.after = <last_id>` | replay | replay |
+| `attributes.page.cursor = <last_id>` | replay | replay |
+| `attributes.page.offset = N` + `attributes.page.limit` | replay | replay |
+| **`to = <last.started_at>`** (time-slice) | **advanced**, overlap 1/2, new=1 | **advanced**, overlap 1/2, new=1 |
+
+**The DORA v2 list endpoints have no cursor mechanism.** The API
+silently ignores unknown body params and returns the same first page
+verbatim. Time-slicing is the only way to paginate.
+
+**Boundary is inclusive on `to`.** When the next request shrinks the
+window to `to = last_event.started_at`, the boundary event itself is
+returned again. The `unique (provider, provider_event_id)` constraint
+on `external_deployments` / `external_incidents` makes the duplicate
+upsert a no-op — no code-side dedup needed.
+
+**Concrete sync algorithm for slice 3:**
+
+```
+to_ts   = now (or org's last_sync_at - lookback overlap)
+from_ts = max(last_sync_at, now - default_backfill_window)
+loop:
+  events = POST .../{endpoint} { from: from_ts, to: to_ts, query, limit: MAX }
+  if len(events) == 0:           break
+  upsert events (idempotent via provider_event_id)
+  if len(events) < MAX:          break   # got everything in the window
+  to_ts = min(e.attributes.started_at for e in events)
+  # boundary event will reappear next iteration; upsert is a no-op
+```
+
+**Edge case to guard against:** if `len(events) == MAX` AND every
+event in the page shares the same `started_at` (sub-second
+co-occurrence), `to_ts` doesn't actually shrink and the loop spins.
+Probability is low on real workloads (we're already at ~5 deploys/week
+on a real tenant), but slice 3 should add a defensive "if to_ts
+unchanged after upsert, decrement by 1 ms" guard.
+
+**`limit` ceiling.** Need to confirm with one more probe. Datadog
+docs typically allow up to 1000 per page; safer to pick 100 for v1 to
+keep responses fast and avoid hitting per-request size limits.
+
+### 9.6 Adjustments to §4 PR breakdown
+
+No slice splits or reorders, but content changes:
+
+- **PR 3 (ingestion).** Add `external_deployment_commits` to the
+  migration set. Persist the four extra columns introduced in §9.2
+  (`recovery_time_sec`, `remediation_type`, `remediation_id`,
+  `number_of_pull_requests`) — they all live on the deployment event,
+  so no extra round-trips. Sync loop normalizes DD slug against
+  `repositories.remote_url` per §9.4. Pagination uses time-slicing
+  (§9.5, decision closed). Treat `change_failure` as nullable.
+- **PR 4 (engine).** Two MTTR paths computed in parallel:
+  per-deploy (`recovery_time_sec`) and per-incident
+  (`time_to_restore_seconds`). CFR is `change_failure = true` over
+  non-null deploys. Add a derived `rollback_rate` metric from
+  `remediation_type = 'rollback'`. Surface a "pending" bucket for
+  null `change_failure` so users see what Datadog hasn't evaluated
+  yet. Estimated LOC ≈ ~450 (up from 350 in §4) to cover the
+  extra metric and the tri-state aggregation.
+- **PR 5 (dashboard).** "CFR by code origin" correlation joins
+  `external_deployment_commits` ↔ `commit_origin`, filtered by
+  `external_deployments.change_failure = true`. Threshold of 10
+  failed deploys in the window before showing the card (revised down
+  from "10 incidents" since CFR is now per-deploy). Add a second
+  free correlation: **rollback rate by code origin** — same join
+  filtered on `remediation_type = 'rollback'`. Strong AI-impact
+  signal if there's a delta.
+
+### 9.7 Resolved open questions from §7
+
+- **#1 backfill window:** stays at 30 days. Validated against the
+  2-year retention envelope.
+- **#3 dev keys:** resolved — we have working keys; PR 3 can be built
+  and tested end-to-end.
+- **#4 correlation:** confirmed "CFR by code origin" via the
+  deployment-commits join. Drop the variant that went through the
+  failures table.
+
+Still open: §7 #2 (cron schedule), §7 #5 (Stage 3 opening confirmation).
+
+### 9.8 New open question
+
+- **Customer's failure-emission discipline.** All 5 sampled failures
+  have `source: "api"` and look like post-mortem registrations from
+  RIO ticket lifecycle. If the customer stops registering them
+  (process drift, person leaving, etc.), MTTR data dries up silently.
+  The dashboard should surface "X days since last incident registered"
+  on the integration detail page, so silent decay is visible. Add to
+  PR 5 scope.
+
+### 9.9 Follow-up probe (2026-05-13) — risk closures
+
+Four additional probes ran the same day to close the highest-impact
+unknowns that the first probe left open. Result:
+
+| Risk | Closure | Evidence |
+|---|---|---|
+| Does any deploy actually carry `change_failure: true`? | **Closed.** | 36 events with `change_failure=true` in the 90-day window. CFR-via-deploy is real, not theoretical. |
+| Does `attributes.commits[]` get truncated on large deploys? | **Closed.** | 500 deploys inspected with `number_of_commits` up to 85; zero mismatches between `number_of_commits` and `len(commits[])`. No truncation. |
+| What's the `limit` ceiling? | **Closed at ≥ 500.** | `limit: 500` returned 500 events without error. Slice 3 should still cap at 100 for response latency, but the ceiling isn't a constraint. |
+| Are all deploys `source: "apm_deployments"` or does the shape vary? | **Closed.** | 500/500 sampled events have `source = "apm_deployments"`. A targeted query for `NOT source:apm_deployments` over 90 days returned zero events. |
+
+The follow-up probe also produced two schema additions (already
+incorporated in §9.2): `recovery_time_sec`, `remediation` (with
+`type`/`id`), and `number_of_pull_requests` — plus the tri-state
+note on `change_failure`. These weren't in the original schema
+guess, but they enable a per-deploy MTTR computation and a new
+rollback-rate metric (§9.3, §9.6).
+
+**Confidence to proceed: high.** Open risks (failure-push
+discipline, production rate limits) are operational and don't
+require more API exploration.
