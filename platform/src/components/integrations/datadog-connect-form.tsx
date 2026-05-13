@@ -56,6 +56,7 @@ export type DatadogIntegrationStatus =
       lastError: string | null;
       createdAt: string;
       updatedAt: string;
+      unmatchedDeploymentsCount: number;
     };
 
 interface Props {
@@ -107,6 +108,7 @@ export function DatadogConnectForm({ organizationId, initial }: Props) {
         lastError: null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        unmatchedDeploymentsCount: 0,
       });
       router.refresh();
     } catch (err) {
@@ -190,6 +192,25 @@ export function DatadogConnectForm({ organizationId, initial }: Props) {
               </dt>
               <dd>{new Date(state.createdAt).toLocaleString()}</dd>
             </div>
+            {state.unmatchedDeploymentsCount > 0 && (
+              <div className="sm:col-span-2">
+                <dt className="text-muted-foreground">
+                  {t(
+                    "settings.integrations.datadog.fields.unmatchedDeployments",
+                  )}
+                </dt>
+                <dd className="flex flex-col gap-1">
+                  <span className="font-mono">
+                    {state.unmatchedDeploymentsCount}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {t(
+                      "settings.integrations.datadog.fields.unmatchedDeploymentsHint",
+                    )}
+                  </span>
+                </dd>
+              </div>
+            )}
           </dl>
 
           {state.lastError && (
