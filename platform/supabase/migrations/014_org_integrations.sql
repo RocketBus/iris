@@ -35,13 +35,17 @@ CREATE TRIGGER update_org_integrations_updated_at BEFORE UPDATE ON org_integrati
 -- key on the wire. Both functions are SECURITY INVOKER (default) and take
 -- the master key as a parameter — the key lives in app env, not in the DB.
 -- The application is responsible for passing INTEGRATIONS_ENCRYPTION_KEY.
+--
+-- Note on pgcrypto: Supabase installs pgcrypto into the `extensions`
+-- schema (not `public`), so we schema-qualify the calls. `encode`/`decode`
+-- are built-ins in `pg_catalog` and don't need qualification.
 
 CREATE OR REPLACE FUNCTION encrypt_credentials(plaintext TEXT, master_key TEXT)
 RETURNS TEXT
 LANGUAGE sql
 VOLATILE
 AS $$
-  SELECT encode(pgp_sym_encrypt(plaintext, master_key), 'base64');
+  SELECT encode(extensions.pgp_sym_encrypt(plaintext, master_key), 'base64');
 $$;
 
 CREATE OR REPLACE FUNCTION decrypt_credentials(encrypted TEXT, master_key TEXT)
@@ -49,7 +53,7 @@ RETURNS TEXT
 LANGUAGE sql
 VOLATILE
 AS $$
-  SELECT pgp_sym_decrypt(decode(encrypted, 'base64'), master_key);
+  SELECT extensions.pgp_sym_decrypt(decode(encrypted, 'base64'), master_key);
 $$;
 
 -- Restrict the RPC surface to service-role only. Application code uses
