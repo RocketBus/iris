@@ -128,20 +128,22 @@ def test_parse_dedupes_by_pr_number():
 
 
 # ---------------------------------------------------------------------------
-# gh field contract — regression guard for the two-pass fallback bug.
+# gh field contract — regression guard for the GraphQL-budget fallback.
 #
-# On busy repos (fetch_limit > _BATCH_SIZE), `_fetch_prs` goes straight to
-# the basic-fields path and only re-fetches `reviews` separately. If
-# `commits` is missing from _PR_FIELDS_BASIC, every PR comes back with no
-# commit list — silently breaking flow_efficiency (no commit-time anchor)
-# and acceptance_by_origin (no commit→PR linkage).
+# On busy repos, gh's default `commits` subtree (`commit.authors.user.*`)
+# explodes the 500K-nodes GraphQL budget. We therefore:
+#   - keep `commits` OUT of _PR_FIELDS_BASIC (the fallback list)
+#   - augment commits via a light custom GraphQL query in
+#     `_fetch_commit_refs_by_pr_graphql`
+# These tests pin both halves of the contract.
 # ---------------------------------------------------------------------------
 
 
-def test_pr_fields_basic_includes_commits():
-    """commits MUST stay in BASIC so the fallback fetch produces commit_refs."""
-    assert "commits" in _PR_FIELDS_BASIC.split(",")
+def test_pr_fields_basic_excludes_commits():
+    """commits must NOT be in BASIC — the field crashes the GraphQL budget."""
+    assert "commits" not in _PR_FIELDS_BASIC.split(",")
 
 
 def test_pr_fields_full_includes_commits():
+    """FULL is only used for small windows where the explosion doesn't trigger."""
     assert "commits" in _PR_FIELDS_FULL.split(",")

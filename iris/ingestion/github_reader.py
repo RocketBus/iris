@@ -63,16 +63,17 @@ def is_gh_available() -> bool:
     return shutil.which("gh") is not None
 
 
-# NOTE: `commits` MUST stay in the BASIC field list. The two-pass fallback
-# below only re-fetches `reviews` — leaving `commits` out of pass 1 made
-# busy-repo analyses (fetch_limit > _BATCH_SIZE) return PRs with no
-# commit_refs, which silently broke flow_efficiency (no first_commit_at
-# anchor) and acceptance_by_origin (no commit→PR linkage). Reviews are the
-# only field that triggers GraphQL 504s on verbose-reviewer repos; commits
-# are safe.
+# `commits` and `reviews` are NOT in BASIC. They're both fetched via
+# secondary passes in `_fetch_prs` below because gh's default GraphQL
+# query for `commits` requests heavy author connections (`authors.user.
+# {id,login,email,name}`) that explode the 500K-nodes budget on busy
+# repos — even at limits as low as 50 PRs on commit-heavy repos. The
+# commits secondary pass uses a custom light GraphQL query
+# (`oid + committedDate + authoredDate` only) via
+# `_fetch_commit_refs_by_pr_graphql`.
 _PR_FIELDS_BASIC = (
     "number,title,createdAt,mergedAt,closedAt,state,"
-    "additions,deletions,changedFiles,author,commits"
+    "additions,deletions,changedFiles,author"
 )
 _PR_FIELDS_FULL = (
     "number,title,createdAt,mergedAt,closedAt,state,"
@@ -86,12 +87,26 @@ _BATCH_SIZE = 500
 
 
 def _fetch_prs(nwo: str, limit: int, gh_state: str) -> list[dict]:
-    """Fetch PRs in a given gh state, falling back to a two-pass strategy.
+    """Fetch PRs in a given gh state.
 
-    First attempts a single call with full fields (including reviews).
-    If that fails (504 timeout from large review payloads), falls back to:
-    1. Fetch basic PR metadata (no reviews) — lightweight, reliable
-    2. Fetch reviews separately in smaller batches and merge them in
+    For limits at or below `_BATCH_SIZE`, attempts a one-shot fetch with
+    `_PR_FIELDS_FULL` (everything in a single call). On busy repos that
+    fetch fails — gh's default `commits` subtree requests heavy author
+    connections that overflow GitHub's 500K-nodes GraphQL budget. In that
+    case (and whenever the limit exceeds `_BATCH_SIZE`), fall back to a
+    three-pass strategy:
+
+    1. Basic metadata via `gh pr list --json <BASIC>` — small enough to
+       always succeed.
+    2. Commit refs via `gh api graphql` with a *light* query (oid +
+       committedDate + authoredDate only, no author connections),
+       paginating with cursors. Capped at `_BATCH_SIZE` PRs.
+    3. Reviews via `gh pr list --json number,reviews` in one shot, also
+       capped at `_BATCH_SIZE`.
+
+    Both secondary passes are best-effort — if either fails the PRs come
+    back with the respective field empty, but the rest of the metadata
+    is still usable.
     """
     if limit <= _BATCH_SIZE:
         result = _gh_pr_list(nwo, _PR_FIELDS_FULL, limit, gh_state)
@@ -102,6 +117,12 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> list[dict]:
     if prs is None:
         return []
 
+    commits_by_pr = _fetch_commit_refs_by_pr_graphql(
+        nwo, gh_state, min(limit, _BATCH_SIZE),
+    )
+    for pr in prs:
+        pr["commits"] = commits_by_pr.get(pr["number"], [])
+
     reviews_prs = _gh_pr_list(nwo, "number,reviews", min(limit, _BATCH_SIZE), gh_state)
     if reviews_prs:
         reviews_by_number = {pr["number"]: pr.get("reviews", []) for pr in reviews_prs}
@@ -109,6 +130,133 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> list[dict]:
             pr["reviews"] = reviews_by_number.get(pr["number"], [])
 
     return prs
+
+
+# Max PRs per GraphQL page. GitHub's REST/GraphQL API rejects `first:`
+# values above 100 with an EXCESSIVE_PAGINATION error. We page until we
+# reach the requested cap.
+_GRAPHQL_PAGE_SIZE = 100
+
+_COMMITS_GRAPHQL_QUERY = """
+query($owner:String!,$name:String!,$states:[PullRequestState!]!,$cursor:String){
+  repository(owner:$owner,name:$name){
+    pullRequests(
+      first:%d,
+      after:$cursor,
+      states:$states,
+      orderBy:{field:CREATED_AT,direction:DESC}
+    ){
+      pageInfo{endCursor hasNextPage}
+      nodes{
+        number
+        commits(first:100){
+          nodes{commit{oid committedDate authoredDate}}
+        }
+      }
+    }
+  }
+}
+""" % _GRAPHQL_PAGE_SIZE
+
+
+_GH_STATE_TO_GRAPHQL = {
+    "open": "OPEN",
+    "closed": "CLOSED",
+    "merged": "MERGED",
+}
+
+
+def _fetch_commit_refs_by_pr_graphql(
+    nwo: str,
+    gh_state: str,
+    max_prs: int,
+) -> dict[int, list[dict]]:
+    """Map PR number → light commit dicts via paginated GraphQL.
+
+    Why this exists: `gh pr list --json commits` is unusable on busy
+    repos — gh's default commit subtree pulls `commit.authors.user.
+    {id,login,email,name}`, which explodes the 500K-nodes GraphQL budget
+    even at small page sizes. This helper asks only for the fields the
+    rest of the pipeline actually needs (oid + the two datetimes).
+
+    Returns ``{pr_number → [{"oid": ..., "committedDate": ...,
+    "authoredDate": ...}, ...]}``. Per-PR commit cap is 100 (the gh API
+    `first:` ceiling); PRs with more commits than that lose the older
+    entries — documented limitation that the caller should be aware of.
+
+    Best-effort: returns whatever it has collected so far on any error.
+    """
+    try:
+        owner, name = nwo.split("/", 1)
+    except ValueError:
+        return {}
+
+    graphql_state = _GH_STATE_TO_GRAPHQL.get(gh_state)
+    if graphql_state is None:
+        return {}
+
+    refs_by_pr: dict[int, list[dict]] = {}
+    end_cursor: str | None = None
+
+    while len(refs_by_pr) < max_prs:
+        args = [
+            "gh", "api", "graphql",
+            "-f", "query=" + _COMMITS_GRAPHQL_QUERY,
+            "-F", f"owner={owner}",
+            "-F", f"name={name}",
+            "-f", f"states[]={graphql_state}",
+        ]
+        if end_cursor:
+            args.extend(["-F", f"cursor={end_cursor}"])
+
+        try:
+            result = subprocess.run(
+                args, capture_output=True, text=True, check=True,
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return refs_by_pr
+
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return refs_by_pr
+
+        page = (
+            data.get("data", {})
+            .get("repository", {})
+            .get("pullRequests")
+            if data.get("data") else None
+        )
+        if not page:
+            return refs_by_pr
+
+        for node in page.get("nodes", []):
+            number = node.get("number")
+            if number is None:
+                continue
+            commits = []
+            for entry in node.get("commits", {}).get("nodes", []):
+                commit = entry.get("commit") or {}
+                oid = commit.get("oid", "")
+                if not oid:
+                    continue
+                commits.append({
+                    "oid": oid,
+                    "committedDate": commit.get("committedDate"),
+                    "authoredDate": commit.get("authoredDate"),
+                })
+            refs_by_pr[number] = commits
+            if len(refs_by_pr) >= max_prs:
+                return refs_by_pr
+
+        info = page.get("pageInfo", {}) or {}
+        if not info.get("hasNextPage"):
+            return refs_by_pr
+        end_cursor = info.get("endCursor")
+        if not end_cursor:
+            return refs_by_pr
+
+    return refs_by_pr
 
 
 def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] | None:
