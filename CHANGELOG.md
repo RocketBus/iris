@@ -4,6 +4,63 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.0.5 — Flow Efficiency: active vs wait of the PR lifecycle (2026-05-12)
+
+### Engine
+
+- `iris/analysis/flow_efficiency.py` (new): decomposes the merged-PR
+  lifecycle into four phases (Coding, Awaiting first review, In review,
+  Awaiting merge) and reports the fraction of time that was *active*
+  event-driven work versus *wait* time. Heuristic for the mixed
+  "In review" phase: each event (PR commits + reviews) inside the phase
+  claims the next 4 h as active; intervals are unioned. Threshold is
+  parametrizable and documented as a hypothesis pending calibration.
+- `iris/models/pull_request.py`: introduces `CommitRef(hash,
+  committed_at, authored_at)`; replaces `commit_hashes: list[str]` with
+  `commit_refs: list[CommitRef]` so PR analyses can find the
+  first-commit anchor without re-querying git locally.
+- `iris/ingestion/github_reader.py`: extracts `committedDate` and
+  `authoredDate` per commit (both already in the gh JSON output).
+- `iris/metrics/aggregator.py` + `iris/models/metrics.py`: five new
+  fields on `ReportMetrics` — `flow_efficiency_median`,
+  `flow_efficiency_by_intent`, `flow_efficiency_by_origin`,
+  `time_in_phase_median_hours`, `median_time_to_first_review_hours`.
+- `iris/reports/narrative.py` + `iris/i18n.py`: three findings —
+  descriptive, "wait dominates" (efficiency < 0.30), and "PRs wait Xh
+  until first review" (> 24 h). Thresholds are hypotheses pending
+  calibration.
+- `iris/cli.py` + `iris/analysis/acceptance_rate.py`: updated to use
+  `.hash` on `CommitRef`.
+
+### Privacy (Principle #2)
+
+- Efficiency *per PR* is computed as an intermediate but never persisted
+  or surfaced — the schema and UI expose only window-level aggregates.
+- `by_intent` and `by_origin` segments require at least
+  `min_sample = 10` PRs; below that, the segment is omitted entirely.
+- PR origin uses a ≥50% `AI_ASSISTED` commits rule with bot commits
+  excluded from both numerator and denominator.
+
+### Platform
+
+- `platform/src/types/metrics.ts`: five new optional fields.
+- `platform/src/app/[tenant]/repos/[repoName]/charts.tsx`: new
+  `FlowEfficiencyCard` on the repo detail page surfacing the efficiency
+  percentage and median time-to-first-review prominently, with a stacked
+  horizontal bar of the five phase keys (colored active vs wait) and an
+  optional by-intent breakdown.
+- `platform/lib/translations.ts`: `flowEfficiency.*` strings in en-US
+  and pt-BR.
+
+### Docs
+
+- `docs/METRICS.md`: new section 25 with the phase table, the
+  active/wait heuristic, edge cases, and the Principle #2 mitigations.
+
+Closes #17.
+
+---
+
 ## v1.0.4 — Flow Load: WIP simultâneo per ISO week (2026-05-12)
 
 ### Engine
