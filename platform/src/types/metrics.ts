@@ -289,7 +289,6 @@ export interface ReportMetrics {
         failed: number;
         evaluated: number;
         cfr: number | null;
-        coverage_pct: number;
       }
     >
   >;
@@ -303,6 +302,8 @@ export interface ReportMetrics {
       }
     >
   >;
+  /** Org-wide attribution coverage for the two by-origin maps above. 0-100. */
+  dora_cfr_by_origin_coverage_pct?: number;
 
   // PR lifecycle
   pr_merged_count?: number;

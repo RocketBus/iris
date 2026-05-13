@@ -803,6 +803,9 @@ export const translations = {
           connectButton: "Connect Datadog",
           connectSuccess: "Datadog connected successfully.",
           connectError: "Failed to connect Datadog.",
+          errorTitle: "Datadog sync is failing",
+          errorDescription:
+            "Iris is still connected, but the most recent sync errored. Review the message below; once Datadog accepts the credentials again, the next cron run resumes ingestion.",
           connectedTitle: "Datadog is connected",
           connectedDescription:
             "Iris uses these credentials to sync deploys and incidents on a daily cadence.",
@@ -2106,6 +2109,9 @@ export const translations = {
           connectButton: "Conectar Datadog",
           connectSuccess: "Datadog conectado com sucesso.",
           connectError: "Falha ao conectar o Datadog.",
+          errorTitle: "A sincronização do Datadog está falhando",
+          errorDescription:
+            "O Iris segue conectado, mas a sincronização mais recente deu erro. Confira a mensagem abaixo; assim que o Datadog voltar a aceitar as credenciais, o próximo cron retoma a ingestão.",
           connectedTitle: "Datadog está conectado",
           connectedDescription:
             "O Iris usa essas credenciais para sincronizar deploys e incidentes diariamente.",

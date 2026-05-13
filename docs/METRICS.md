@@ -719,8 +719,9 @@ every `dora_*` field is null and the report's DORA section is empty.
 | `dora_lead_time_seconds_median` | seconds | same | no deploy carries `commits[].change_lead_time` |
 | `dora_deploy_frequency_per_day` | float ≥ 0 | same | `ExternalDORAData.window_from`/`window_to` not provided |
 | `dora_remediation_distribution` | `Record<remediation_type, int>` | same | no failed deploys in the window |
-| `dora_cfr_by_origin` | `Record<origin, {failed, evaluated, cfr, coverage_pct}>` | same | analysis run had no local commit-origin classification (e.g. CLI invoked without commit data) |
+| `dora_cfr_by_origin` | `Record<origin, {failed, evaluated, cfr}>` | same | analysis run had no local commit-origin classification (e.g. CLI invoked without commit data) |
 | `dora_rollback_rate_by_origin` | `Record<origin, {rollbacks, failed, rollback_rate}>` | same | no failed deploys in the window or no origin map |
+| `dora_cfr_by_origin_coverage_pct` | float `0.0–100.0` | same | no origin map (matches the two `_by_origin` fields above) |
 
 Tri-state `change_failure`:
 
@@ -733,6 +734,11 @@ MTTR has two flavors that come from different events:
 
 - **Per-deploy** (`dora_mttr_per_deploy_seconds_*`) — median/p90 of `recovery_time_sec` over failed deploys. Joins cleanly back to commits via `commit_sha`; this is the per-deploy lens the AI-vs-human correlation card uses (slice 5).
 - **Per-incident** (`dora_mttr_per_incident_seconds_*`) — median/p90 of `time_to_restore_seconds` over failure events. Canonical DORA-reporting number.
+
+By-origin attribution:
+
+- `dora_cfr_by_origin` and `dora_rollback_rate_by_origin` count *per commit* on each evaluated deploy. A commit's origin is looked up from the local commit window's classifier output (`origin_classifier.classify_origins`). When a deploy references a commit older than the analysis window, the lookup fails silently — those commits don't appear in any per-origin bucket.
+- `dora_cfr_by_origin_coverage_pct` reports the org-wide attribution rate: `known_origin_commits / (known + unknown)`. A low value means the by-origin numbers are computed over only a fraction of the data and may not generalize; a value at or near 100 means the analysis window covers every deploy's commits.
 
 ---
 
@@ -757,7 +763,7 @@ MTTR has two flavors that come from different events:
 | `analysis/pr_lifecycle.py` | `pr_merged_count`, `pr_median_time_to_merge_hours`, `pr_median_size_files`, `pr_median_size_lines`, `pr_review_rounds_median`, `pr_single_pass_rate` |
 | `analysis/flow_load.py` | `flow_load` |
 | `analysis/flow_efficiency.py` | `flow_efficiency_median`, `median_time_to_first_review_hours`, `time_in_phase_median_hours`, `flow_efficiency_by_intent`, `flow_efficiency_by_origin` |
-| `analysis/dora_real.py` | `dora_source`, `dora_deployments_total`, `dora_deployments_failed`, `dora_deployments_pending_evaluation`, `dora_incidents_total`, `dora_cfr`, `dora_mttr_per_deploy_seconds_median`, `dora_mttr_per_deploy_seconds_p90`, `dora_mttr_per_incident_seconds_median`, `dora_mttr_per_incident_seconds_p90`, `dora_rollback_rate`, `dora_rollbacks_total`, `dora_lead_time_seconds_median`, `dora_deploy_frequency_per_day`, `dora_remediation_distribution`, `dora_cfr_by_origin`, `dora_rollback_rate_by_origin` |
+| `analysis/dora_real.py` | `dora_source`, `dora_deployments_total`, `dora_deployments_failed`, `dora_deployments_pending_evaluation`, `dora_incidents_total`, `dora_cfr`, `dora_mttr_per_deploy_seconds_median`, `dora_mttr_per_deploy_seconds_p90`, `dora_mttr_per_incident_seconds_median`, `dora_mttr_per_incident_seconds_p90`, `dora_rollback_rate`, `dora_rollbacks_total`, `dora_lead_time_seconds_median`, `dora_deploy_frequency_per_day`, `dora_remediation_distribution`, `dora_cfr_by_origin`, `dora_rollback_rate_by_origin`, `dora_cfr_by_origin_coverage_pct` |
 | `analysis/duplicate_detector.py` | `duplicate_block_rate`, `duplicate_block_count`, `duplicate_median_block_size`, `duplicate_by_origin`, `duplicate_by_tool` |
 | `analysis/move_detector.py` | `moved_code_pct`, `refactoring_ratio`, `move_by_origin` |
 | `analysis/code_provenance.py` | `revision_age_distribution`, `pct_revising_new_code`, `pct_revising_mature_code`, `provenance_by_origin` |

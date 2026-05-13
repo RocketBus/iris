@@ -250,7 +250,7 @@ def test_cfr_by_origin_per_commit_join():
 
 
 def test_cfr_by_origin_skips_unknown_commits_but_reports_coverage():
-    """Commits not in origin_map are excluded from origin buckets but lower coverage."""
+    """Commits not in origin_map are excluded from origin buckets; org-wide coverage drops."""
     data = ExternalDORAData(
         deployments=[
             _deploy_with_commits(
@@ -268,14 +268,35 @@ def test_cfr_by_origin_skips_unknown_commits_but_reports_coverage():
     origin_map = {"known": "AI_ASSISTED"}
     result = analyze_dora_real(data, origin_map=origin_map)
 
+    # Per-origin bucket carries only attributable commits, no coverage_pct.
     assert result.cfr_by_origin == {
-        "AI_ASSISTED": {
-            "failed": 1,
-            "evaluated": 1,
-            "cfr": 1.0,
-            "coverage_pct": round(1 / (1 + 2) * 100, 1),
-        },
+        "AI_ASSISTED": {"failed": 1, "evaluated": 1, "cfr": 1.0},
     }
+    # Coverage is org-wide: 1 known / (1 known + 2 unknown).
+    assert result.cfr_by_origin_coverage_pct == round(1 / 3 * 100, 1)
+
+
+def test_full_attribution_reports_100_pct_coverage():
+    """No unknowns → coverage is 100%."""
+    data = ExternalDORAData(
+        deployments=[
+            _deploy_with_commits(
+                event_id="d1", change_failure=False, commit_shas=["a", "b"],
+            ),
+        ]
+    )
+    result = analyze_dora_real(
+        data, origin_map={"a": "HUMAN", "b": "HUMAN"},
+    )
+    assert result.cfr_by_origin_coverage_pct == 100.0
+
+
+def test_coverage_pct_is_none_without_origin_map():
+    """Without origin_map, coverage is undefined."""
+    data = ExternalDORAData(
+        deployments=[_deploy_with_commits(event_id="d1", change_failure=False, commit_shas=["x"])]
+    )
+    assert analyze_dora_real(data).cfr_by_origin_coverage_pct is None
 
 
 def test_rollback_rate_by_origin_filters_on_remediation():

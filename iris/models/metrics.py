@@ -151,6 +151,11 @@ class ReportMetrics:
     # AI-vs-human correlation card (dashboard) keys off these.
     dora_cfr_by_origin: dict[str, dict] | None = None
     dora_rollback_rate_by_origin: dict[str, dict] | None = None
+    # Org-wide attribution coverage for the by-origin breakdowns above:
+    # known_origin_commits / total_referenced_commits. Low values mean the
+    # window pulled deploys whose commits are older than the local commit
+    # window — the by-origin numbers stay correct but represent a subset.
+    dora_cfr_by_origin_coverage_pct: float | None = None
 
     def to_dict(self) -> dict:
         d = asdict(self)

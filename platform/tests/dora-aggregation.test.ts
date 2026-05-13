@@ -78,8 +78,8 @@ describe("computeDORA", () => {
         dora_deployments_pending_evaluation: 0,
         dora_incidents_total: 0,
         dora_cfr_by_origin: {
-          AI_ASSISTED: { failed: 2, evaluated: 5, cfr: 0.4, coverage_pct: 100 },
-          HUMAN: { failed: 0, evaluated: 5, cfr: 0, coverage_pct: 100 },
+          AI_ASSISTED: { failed: 2, evaluated: 5, cfr: 0.4 },
+          HUMAN: { failed: 0, evaluated: 5, cfr: 0 },
         },
       }),
     );
@@ -92,8 +92,8 @@ describe("computeDORA", () => {
         dora_deployments_pending_evaluation: 0,
         dora_incidents_total: 0,
         dora_cfr_by_origin: {
-          AI_ASSISTED: { failed: 0, evaluated: 3, cfr: 0, coverage_pct: 100 },
-          HUMAN: { failed: 1, evaluated: 7, cfr: 1 / 7, coverage_pct: 100 },
+          AI_ASSISTED: { failed: 0, evaluated: 3, cfr: 0 },
+          HUMAN: { failed: 1, evaluated: 7, cfr: 1 / 7 },
         },
       }),
     );

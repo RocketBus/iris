@@ -444,4 +444,5 @@ def _dora_real_kwargs(
         "dora_remediation_distribution": result.remediation_distribution or None,
         "dora_cfr_by_origin": result.cfr_by_origin,
         "dora_rollback_rate_by_origin": result.rollback_rate_by_origin,
+        "dora_cfr_by_origin_coverage_pct": result.cfr_by_origin_coverage_pct,
     }

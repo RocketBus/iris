@@ -78,7 +78,13 @@ export function DatadogConnectForm({ organizationId, initial }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
-  const isConnected = state.status === "active";
+  // Show the "connected" surface for both active AND error states. The data
+  // (last_sync_at, last_error, unmatched count, last incident) is most
+  // useful precisely when the integration is failing — falling through to
+  // the connect form would hide it. Only fully disconnected / never-connected
+  // orgs see the form.
+  const isLive = state.status === "active" || state.status === "error";
+  const inErrorState = state.status === "error";
 
   async function handleConnect(e: React.FormEvent) {
     e.preventDefault();
@@ -156,16 +162,24 @@ export function DatadogConnectForm({ organizationId, initial }: Props) {
     }
   }
 
-  if (isConnected) {
+  if (isLive) {
     return (
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="size-5 text-primary" />
-            {t("settings.integrations.datadog.connectedTitle")}
+            <ShieldCheck
+              className={
+                inErrorState ? "size-5 text-destructive" : "size-5 text-primary"
+              }
+            />
+            {inErrorState
+              ? t("settings.integrations.datadog.errorTitle")
+              : t("settings.integrations.datadog.connectedTitle")}
           </CardTitle>
           <CardDescription>
-            {t("settings.integrations.datadog.connectedDescription")}
+            {inErrorState
+              ? t("settings.integrations.datadog.errorDescription")
+              : t("settings.integrations.datadog.connectedDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
