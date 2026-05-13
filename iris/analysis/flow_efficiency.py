@@ -43,8 +43,16 @@ Scope
   terminal state and are excluded.
 - PRs with total elapsed < ``min_elapsed_seconds`` (default 5 min) are
   excluded — instant-merge bot PRs would distort the median.
-- Bot reviewers (Copilot etc.) count as activity events just like
-  humans. Origin classification is by commit author, not reviewer.
+- **Bot reviewers are excluded** from the timestamps that anchor phases
+  (``first_review_at`` and ``approval_at``). Repos with auto-review
+  bots (Vercel, Dependabot, github-actions, mergify, etc.) would
+  otherwise see the In Review phase collapse to ~0 seconds — the bot
+  fires at PR open, leaving no room for human activity to register as
+  "active". The detection reuses the same ``_BOT_AUTHOR_PATTERNS``
+  regex as ``origin_classifier``. Bot reviews still get counted as
+  *commit/review events* inside the active/wait union heuristic for
+  the In Review phase, so noise like Copilot Review still contributes
+  there — only the phase-anchor timestamps drop bots.
 """
 
 from collections import defaultdict
@@ -53,8 +61,9 @@ from datetime import datetime
 from statistics import median
 
 from iris.analysis.intent_classifier import classify_commit
+from iris.analysis.origin_classifier import _BOT_AUTHOR_PATTERNS
 from iris.models.commit import Commit
-from iris.models.pull_request import PullRequest
+from iris.models.pull_request import PRReview, PullRequest
 
 
 # ---------------------------------------------------------------------------
@@ -142,12 +151,19 @@ def compute_pr_phases(
     pr_opened_at = pr.created_at
     merged_at = pr.merged_at
 
-    review_times = [r.submitted_at for r in pr.reviews]
-    first_review_at = min(review_times) if review_times else None
+    # Phase anchors use ONLY non-bot reviews. See module docstring.
+    human_reviews = [r for r in pr.reviews if not _is_bot_reviewer(r)]
+    human_review_times = [r.submitted_at for r in human_reviews]
+    first_review_at = min(human_review_times) if human_review_times else None
     approval_times = [
-        r.submitted_at for r in pr.reviews if r.state == "APPROVED"
+        r.submitted_at for r in human_reviews if r.state == "APPROVED"
     ]
     approval_at = min(approval_times) if approval_times else None
+
+    # The active/wait union heuristic inside "In review" still receives ALL
+    # reviews (bots included) — Copilot Review and similar are legit signal
+    # there, even if they shouldn't anchor the phase boundary.
+    all_review_times = [r.submitted_at for r in pr.reviews]
 
     coding = _seconds_between(first_commit_at, pr_opened_at)
 
@@ -169,7 +185,7 @@ def compute_pr_phases(
     in_review_end = approval_at if approval_at is not None else merged_at
     in_review_start = first_review_at
 
-    events: list[datetime] = list(committed_times) + list(review_times)
+    events: list[datetime] = list(committed_times) + list(all_review_times)
     in_review_active = _active_duration(
         events,
         phase_start=in_review_start,
@@ -359,6 +375,15 @@ def _active_duration(
             cur_lo, cur_hi = lo, hi
     merged_total += cur_hi - cur_lo
     return merged_total
+
+
+def _is_bot_reviewer(review: PRReview) -> bool:
+    """True when the reviewer's login matches a known bot pattern.
+
+    Uses the same regex as ``origin_classifier`` so the definition of "bot"
+    stays consistent across origin classification and Flow Efficiency.
+    """
+    return bool(_BOT_AUTHOR_PATTERNS.search(review.author or ""))
 
 
 def _pr_intent(pr: PullRequest) -> str:
