@@ -32,3 +32,4 @@ platform/coverage/
 
 # Supabase CLI per-machine cache (project refs, pooler URLs, version files)
 supabase/.temp/
+.vercel
