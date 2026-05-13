@@ -21,16 +21,27 @@ interface IntegrationsPageProps {
 }
 
 /**
- * Provider catalog. Slice 1 ships only Datadog as "Coming soon"; later
- * slices wire it to a real status from `org_integrations`. New providers
- * get added here without touching the page layout.
+ * Provider catalog. Slice 2 wired the Datadog status to org_integrations;
+ * new providers get added here without touching the page layout.
  */
-const PROVIDERS = [
-  {
-    id: "datadog" as const,
-    statusKey: "notConnected" as const,
-  },
-];
+const PROVIDERS = [{ id: "datadog" as const }];
+
+type ProviderStatus = "active" | "error" | "disconnected" | "not_connected";
+
+function statusKey(
+  status: ProviderStatus,
+): "notConnected" | "connected" | "error" | "disconnected" {
+  switch (status) {
+    case "active":
+      return "connected";
+    case "error":
+      return "error";
+    case "disconnected":
+      return "disconnected";
+    default:
+      return "notConnected";
+  }
+}
 
 export default async function IntegrationsPage({
   params,
@@ -60,6 +71,16 @@ export default async function IntegrationsPage({
     redirect(`/${tenant}/dashboard`);
   }
 
+  const { data: integrations } = await supabaseAdmin
+    .from("org_integrations")
+    .select("provider, status")
+    .eq("organization_id", org.id);
+
+  const statusByProvider = new Map<string, ProviderStatus>();
+  for (const row of integrations ?? []) {
+    statusByProvider.set(row.provider, row.status as ProviderStatus);
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -72,39 +93,44 @@ export default async function IntegrationsPage({
       </div>
 
       <div className="grid gap-4">
-        {PROVIDERS.map((provider) => (
-          <Link
-            key={provider.id}
-            href={`/${tenant}/settings/integrations/${provider.id}`}
-            className="block"
-          >
-            <Card className="transition-colors hover:border-primary/40">
-              <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
-                <div>
-                  <CardTitle className="text-lg">
-                    {t(`settings.integrations.providers.${provider.id}.name`)}
-                  </CardTitle>
-                  <CardDescription className="mt-1">
-                    {t(
-                      `settings.integrations.providers.${provider.id}.description`,
-                    )}
-                  </CardDescription>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="rounded-full border border-muted-foreground/30 px-2 py-0.5 text-xs text-muted-foreground">
-                    {t(`settings.integrations.status.${provider.statusKey}`)}
-                  </span>
-                  <ChevronRight className="size-4 text-muted-foreground" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  {t(`settings.integrations.providers.${provider.id}.detail`)}
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+        {PROVIDERS.map((provider) => {
+          const sKey = statusKey(
+            statusByProvider.get(provider.id) ?? "not_connected",
+          );
+          return (
+            <Link
+              key={provider.id}
+              href={`/${tenant}/settings/integrations/${provider.id}`}
+              className="block"
+            >
+              <Card className="transition-colors hover:border-primary/40">
+                <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+                  <div>
+                    <CardTitle className="text-lg">
+                      {t(`settings.integrations.providers.${provider.id}.name`)}
+                    </CardTitle>
+                    <CardDescription className="mt-1">
+                      {t(
+                        `settings.integrations.providers.${provider.id}.description`,
+                      )}
+                    </CardDescription>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="rounded-full border border-muted-foreground/30 px-2 py-0.5 text-xs text-muted-foreground">
+                      {t(`settings.integrations.status.${sKey}`)}
+                    </span>
+                    <ChevronRight className="size-4 text-muted-foreground" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    {t(`settings.integrations.providers.${provider.id}.detail`)}
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
 
       <p className="text-xs text-muted-foreground">

@@ -745,6 +745,7 @@ export const translations = {
           notConnected: "Not connected",
           connected: "Connected",
           error: "Error",
+          disconnected: "Disconnected",
         },
         providers: {
           datadog: {
@@ -760,6 +761,38 @@ export const translations = {
           comingSoonTitle: "Coming soon",
           comingSoonDescription:
             "Connection flow, credentials, and sync configuration land in upcoming releases.",
+        },
+        datadog: {
+          connectTitle: "Connect Datadog",
+          connectDescription:
+            "Provide a Datadog API key and Application key with the dora_metrics_read scope. We'll validate them against your tenant before saving.",
+          connectButton: "Connect Datadog",
+          connectSuccess: "Datadog connected successfully.",
+          connectError: "Failed to connect Datadog.",
+          connectedTitle: "Datadog is connected",
+          connectedDescription:
+            "Iris uses these credentials to sync deploys and incidents on a daily cadence.",
+          disconnectButton: "Disconnect",
+          disconnectSuccess:
+            "Datadog disconnected. Historical data is preserved.",
+          disconnectError: "Failed to disconnect Datadog.",
+          fields: {
+            apiKey: "API Key",
+            appKey: "Application Key",
+            appKeyHint:
+              "The Application Key carries the user's permissions. Create one scoped to dora_metrics_read in Datadog's Application Keys settings.",
+            site: "Datadog Site",
+            lastSyncAt: "Last sync",
+            connectedAt: "Connected at",
+            neverSynced: "Never synced yet",
+          },
+          disconnectDialog: {
+            title: "Disconnect Datadog?",
+            description:
+              "The credentials will be removed and the daily sync will stop. Deployments and incidents already ingested will remain in Iris. You can reconnect any time.",
+            cancel: "Cancel",
+            confirm: "Yes, disconnect",
+          },
         },
       },
       dangerZone: "Danger Zone",
@@ -1972,6 +2005,7 @@ export const translations = {
           notConnected: "Não conectada",
           connected: "Conectada",
           error: "Erro",
+          disconnected: "Desconectada",
         },
         providers: {
           datadog: {
@@ -1987,6 +2021,38 @@ export const translations = {
           comingSoonTitle: "Em breve",
           comingSoonDescription:
             "Fluxo de conexão, credenciais e configuração de sincronização chegam nas próximas releases.",
+        },
+        datadog: {
+          connectTitle: "Conectar Datadog",
+          connectDescription:
+            "Forneça uma API Key e uma Application Key do Datadog com o escopo dora_metrics_read. Validamos junto ao seu tenant antes de salvar.",
+          connectButton: "Conectar Datadog",
+          connectSuccess: "Datadog conectado com sucesso.",
+          connectError: "Falha ao conectar o Datadog.",
+          connectedTitle: "Datadog está conectado",
+          connectedDescription:
+            "O Iris usa essas credenciais para sincronizar deploys e incidentes diariamente.",
+          disconnectButton: "Desconectar",
+          disconnectSuccess:
+            "Datadog desconectado. Os dados históricos foram preservados.",
+          disconnectError: "Falha ao desconectar o Datadog.",
+          fields: {
+            apiKey: "API Key",
+            appKey: "Application Key",
+            appKeyHint:
+              "A Application Key carrega as permissões do usuário. Crie uma com escopo dora_metrics_read em Application Keys nas configurações do Datadog.",
+            site: "Site do Datadog",
+            lastSyncAt: "Última sincronização",
+            connectedAt: "Conectada em",
+            neverSynced: "Ainda não sincronizada",
+          },
+          disconnectDialog: {
+            title: "Desconectar o Datadog?",
+            description:
+              "As credenciais serão removidas e a sincronização diária será interrompida. Os deploys e incidentes já ingeridos permanecem no Iris. Você pode reconectar a qualquer momento.",
+            cancel: "Cancelar",
+            confirm: "Sim, desconectar",
+          },
         },
       },
       dangerZone: "Zona de Perigo",
