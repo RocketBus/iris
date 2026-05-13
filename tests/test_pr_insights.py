@@ -18,7 +18,7 @@ from iris.analysis.pr_insights import (
     analyze_pr,
 )
 from iris.models.commit import Commit, FileChange
-from iris.models.pull_request import PRReview, PullRequest
+from iris.models.pull_request import CommitRef, PRReview, PullRequest
 from iris.reports.pr_comment import format_pr_comment
 
 
@@ -38,6 +38,7 @@ def _pr(
     reviews: list[PRReview] | None = None,
     commit_hashes: list[str] | None = None,
 ) -> PullRequest:
+    refs = [CommitRef(hash=h) for h in (commit_hashes or [])]
     return PullRequest(
         number=number,
         title=title,
@@ -48,7 +49,7 @@ def _pr(
         deletions=deletions,
         changed_files=changed_files,
         reviews=reviews or [],
-        commit_hashes=commit_hashes or [],
+        commit_refs=refs,
     )
 
 

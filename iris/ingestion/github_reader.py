@@ -20,7 +20,7 @@ import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
 
-from iris.models.pull_request import PRReview, PRState, PullRequest
+from iris.models.pull_request import CommitRef, PRReview, PRState, PullRequest
 
 
 def detect_github_remote(repo_path: str) -> str | None:
@@ -225,7 +225,7 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
     state = _infer_state(raw.get("state"), merged_at, closed_at)
 
     reviews = _parse_reviews(raw.get("reviews", []))
-    commit_hashes = _parse_commit_hashes(raw.get("commits", []))
+    commit_refs = _parse_commit_refs(raw.get("commits", []))
 
     author = raw.get("author", {})
     author_login = author.get("login", "") if isinstance(author, dict) else ""
@@ -242,7 +242,7 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
         deletions=raw.get("deletions", 0),
         changed_files=raw.get("changedFiles", 0),
         reviews=reviews,
-        commit_hashes=commit_hashes,
+        commit_refs=commit_refs,
     )
 
 
@@ -275,7 +275,7 @@ def _parse_pull_requests(
             continue
 
         reviews = _parse_reviews(raw.get("reviews", []))
-        commit_hashes = _parse_commit_hashes(raw.get("commits", []))
+        commit_refs = _parse_commit_refs(raw.get("commits", []))
 
         author = raw.get("author", {})
         author_login = author.get("login", "") if isinstance(author, dict) else ""
@@ -292,7 +292,7 @@ def _parse_pull_requests(
             deletions=raw.get("deletions", 0),
             changed_files=raw.get("changedFiles", 0),
             reviews=reviews,
-            commit_hashes=commit_hashes,
+            commit_refs=commit_refs,
         ))
         seen.add(number)
 
@@ -344,14 +344,26 @@ def _parse_reviews(raw_reviews: list[dict]) -> list[PRReview]:
     return reviews
 
 
-def _parse_commit_hashes(raw_commits: list[dict]) -> list[str]:
-    """Parse commit OIDs from gh JSON commits field."""
-    hashes = []
+def _parse_commit_refs(raw_commits: list[dict]) -> list[CommitRef]:
+    """Parse commit refs (oid + timestamps) from gh JSON commits field.
+
+    gh exposes ``committedDate`` and ``authoredDate`` per commit in the
+    PR's commit list. Both are optional in the JSON; ``hash`` is the
+    only required field.
+    """
+    refs: list[CommitRef] = []
     for raw in raw_commits:
         oid = raw.get("oid", "")
-        if oid:
-            hashes.append(oid)
-    return hashes
+        if not oid:
+            continue
+        committed = raw.get("committedDate")
+        authored = raw.get("authoredDate")
+        refs.append(CommitRef(
+            hash=oid,
+            committed_at=_parse_datetime(committed) if committed else None,
+            authored_at=_parse_datetime(authored) if authored else None,
+        ))
+    return refs
 
 
 def _parse_datetime(date_str: str) -> datetime:

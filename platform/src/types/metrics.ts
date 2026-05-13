@@ -249,6 +249,19 @@ export interface ReportMetrics {
   // Flow Load — WIP simultâneo per ISO week
   flow_load?: FlowLoadWeek[];
 
+  // Flow Efficiency — active vs wait decomposition of merged PR lifecycle
+  flow_efficiency_median?: number; // 0.0–1.0
+  flow_efficiency_by_intent?: Partial<Record<ChangeIntent, number>>;
+  flow_efficiency_by_origin?: Partial<Record<CommitOrigin, number>>;
+  time_in_phase_median_hours?: {
+    coding?: number;
+    awaiting_first_review?: number;
+    in_review_active?: number;
+    in_review_wait?: number;
+    awaiting_merge?: number;
+  };
+  median_time_to_first_review_hours?: number;
+
   // PR lifecycle
   pr_merged_count?: number;
   pr_median_time_to_merge_hours?: number;

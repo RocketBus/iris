@@ -886,7 +886,7 @@ def _run_pr(argv: list[str]) -> None:
     # Read PR commits from local git history
     from iris.ingestion.git_reader import read_pr_commits
 
-    pr_commits = read_pr_commits(repo_path, pr.commit_hashes)
+    pr_commits = read_pr_commits(repo_path, [r.hash for r in pr.commit_refs])
     if not pr_commits:
         print(f"Warning: no commits found in local history for PR #{pr_number}.", file=sys.stderr)
 

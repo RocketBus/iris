@@ -63,6 +63,10 @@ interface PayloadInsights {
     wip_by_intent: Partial<Record<string, number>>;
     author_concurrency: number;
   }>;
+  flowEfficiencyMedian?: number;
+  flowEfficiencyByIntent?: Partial<Record<string, number>>;
+  timeInPhaseMedianHours?: Partial<Record<string, number>>;
+  medianTimeToFirstReviewHours?: number;
 }
 
 interface RepoChartsProps {
@@ -385,6 +389,174 @@ function FlowLoadCard({
             />
           </ComposedChart>
         </ResponsiveContainer>
+      </CardContent>
+    </Card>
+  );
+}
+
+const FLOW_EFF_PHASE_ORDER = [
+  "coding",
+  "awaiting_first_review",
+  "in_review_active",
+  "in_review_wait",
+  "awaiting_merge",
+] as const;
+
+const FLOW_EFF_ACTIVE_PHASES = new Set<string>(["coding", "in_review_active"]);
+
+function FlowEfficiencyCard({
+  median,
+  byIntent,
+  timeInPhase,
+  ttfrHours,
+  title,
+  subtitle,
+  efficiencyLabel,
+  ttfrLabel,
+  ttfrUnit,
+  legendActive,
+  legendWait,
+  phaseLabels,
+  byIntentTitle,
+  intentLabels,
+}: {
+  median: number;
+  byIntent: Partial<Record<string, number>> | undefined;
+  timeInPhase: Partial<Record<string, number>>;
+  ttfrHours: number | undefined;
+  title: string;
+  subtitle: string;
+  efficiencyLabel: string;
+  ttfrLabel: string;
+  ttfrUnit: string;
+  legendActive: string;
+  legendWait: string;
+  phaseLabels: Record<string, string>;
+  byIntentTitle: string;
+  intentLabels: Record<string, string>;
+}) {
+  const totalHours = FLOW_EFF_PHASE_ORDER.reduce(
+    (sum, key) => sum + (timeInPhase[key] ?? 0),
+    0,
+  );
+
+  const byIntentEntries = byIntent
+    ? Object.entries(byIntent).filter(([, v]) => typeof v === "number")
+    : [];
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{subtitle}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              {efficiencyLabel}
+            </div>
+            <div className="mt-1 font-mono text-3xl font-bold text-signal-green">
+              {(median * 100).toFixed(0)}%
+            </div>
+          </div>
+          {ttfrHours != null && (
+            <div>
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">
+                {ttfrLabel}
+              </div>
+              <div className="mt-1 font-mono text-3xl font-bold">
+                {ttfrHours.toFixed(1)}
+                <span className="ml-1 text-base font-normal text-muted-foreground">
+                  {ttfrUnit}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {totalHours > 0 && (
+          <div className="space-y-3">
+            <div className="flex h-3 overflow-hidden rounded-full">
+              {FLOW_EFF_PHASE_ORDER.map((key) => {
+                const hours = timeInPhase[key] ?? 0;
+                if (hours === 0) return null;
+                const pct = (hours / totalHours) * 100;
+                const isActive = FLOW_EFF_ACTIVE_PHASES.has(key);
+                return (
+                  <div
+                    key={key}
+                    className={cn(
+                      "h-full",
+                      isActive ? "bg-signal-green" : "bg-muted-foreground/40",
+                    )}
+                    style={{ width: `${pct}%` }}
+                    title={`${phaseLabels[key] ?? key}: ${hours.toFixed(1)}h`}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block size-2 rounded-full bg-signal-green" />
+                {legendActive}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block size-2 rounded-full bg-muted-foreground/40" />
+                {legendWait}
+              </span>
+            </div>
+            <div className="grid gap-1 text-xs">
+              {FLOW_EFF_PHASE_ORDER.map((key) => {
+                const hours = timeInPhase[key] ?? 0;
+                if (hours === 0) return null;
+                const pct = (hours / totalHours) * 100;
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between border-b border-border/40 py-1"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          "inline-block size-2 rounded-full",
+                          FLOW_EFF_ACTIVE_PHASES.has(key)
+                            ? "bg-signal-green"
+                            : "bg-muted-foreground/40",
+                        )}
+                      />
+                      {phaseLabels[key] ?? key}
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      {hours.toFixed(1)}h ({pct.toFixed(0)}%)
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {byIntentEntries.length > 0 && (
+          <div className="space-y-2 pt-1">
+            <div className="text-xs uppercase tracking-wide text-muted-foreground">
+              {byIntentTitle}
+            </div>
+            <div className="grid gap-1 text-xs">
+              {byIntentEntries.map(([intent, value]) => (
+                <div
+                  key={intent}
+                  className="flex items-center justify-between border-b border-border/40 py-1"
+                >
+                  <span>{intentLabels[intent] ?? intent}</span>
+                  <span className="font-mono text-muted-foreground">
+                    {((value as number) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -878,6 +1050,41 @@ export function RepoCharts({
           </CardContent>
         </Card>
       )}
+
+      {/* Flow Efficiency — active vs wait of merged-PR lifecycle */}
+      {insights.flowEfficiencyMedian != null &&
+        insights.timeInPhaseMedianHours && (
+          <FlowEfficiencyCard
+            median={insights.flowEfficiencyMedian}
+            byIntent={insights.flowEfficiencyByIntent}
+            timeInPhase={insights.timeInPhaseMedianHours}
+            ttfrHours={insights.medianTimeToFirstReviewHours}
+            title={t("repoCharts.flowEfficiency.title")}
+            subtitle={t("repoCharts.flowEfficiency.subtitle")}
+            efficiencyLabel={t("repoCharts.flowEfficiency.efficiencyLabel")}
+            ttfrLabel={t("repoCharts.flowEfficiency.ttfrLabel")}
+            ttfrUnit={t("repoCharts.flowEfficiency.ttfrUnit")}
+            legendActive={t("repoCharts.flowEfficiency.phaseLegendActive")}
+            legendWait={t("repoCharts.flowEfficiency.phaseLegendWait")}
+            phaseLabels={{
+              coding: t("repoCharts.flowEfficiency.phaseLabels.coding"),
+              awaiting_first_review: t(
+                "repoCharts.flowEfficiency.phaseLabels.awaiting_first_review",
+              ),
+              in_review_active: t(
+                "repoCharts.flowEfficiency.phaseLabels.in_review_active",
+              ),
+              in_review_wait: t(
+                "repoCharts.flowEfficiency.phaseLabels.in_review_wait",
+              ),
+              awaiting_merge: t(
+                "repoCharts.flowEfficiency.phaseLabels.awaiting_merge",
+              ),
+            }}
+            byIntentTitle={t("repoCharts.flowEfficiency.byIntentTitle")}
+            intentLabels={intentLabels}
+          />
+        )}
 
       {/* Flow Load — WIP per ISO week + author concurrency */}
       {insights.flowLoad && insights.flowLoad.length >= 2 && (

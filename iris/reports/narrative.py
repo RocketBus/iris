@@ -32,6 +32,11 @@ FIX_DOMINANT_THRESHOLD = 0.40  # 40%
 FIX_CHURN_MULTIPLIER = 2.0  # 2x
 # Stabilization gap between best and worst intent above this triggers insight.
 STABILITY_GAP_THRESHOLD = 0.20  # 20 percentage points
+# Flow Efficiency — below this fraction triggers the "wait dominates" finding.
+# Hypothesis pending calibration with 3-5 repos.
+FLOW_EFFICIENCY_LOW_THRESHOLD = 0.30
+# Time-to-first-review (hours) above which we flag PRs as queued.
+TIME_TO_FIRST_REVIEW_SLOW_HOURS = 24.0
 # Flow Load — feature WIP at the end of the window must exceed the start by
 # this multiplier (and by an absolute floor) to trigger the growth finding.
 # Threshold is a hypothesis pending calibration with 3-5 repos.
@@ -150,6 +155,9 @@ def generate_key_findings(metrics: ReportMetrics, lang: str = "en") -> str:
                 f"({ai_revert['reverts']} AI reverts vs {human_revert['reverts']} human)"
             )
 
+    # Flow Efficiency — wait-dominant signal + time-to-first-review queueing
+    findings.extend(_flow_efficiency_findings(metrics, s))
+
     # Flow Load — descriptive WIP snapshot + optional feature-growth signal
     flow_findings = _flow_load_findings(metrics, s)
     findings.extend(flow_findings)
@@ -164,6 +172,44 @@ def generate_key_findings(metrics: ReportMetrics, lang: str = "en") -> str:
     for f in findings:
         lines.append(f"- {f}")
     return "\n".join(lines)
+
+
+def _flow_efficiency_findings(metrics: ReportMetrics, s: dict) -> list[str]:
+    """Build Flow Efficiency findings (0-2 bullets).
+
+    Descriptive bullet whenever ``flow_efficiency_median`` is present.
+    Adds a queueing bullet if ``median_time_to_first_review_hours`` is
+    above the slow threshold. The "wait dominates" variant replaces the
+    descriptive bullet when efficiency is below the low threshold.
+    """
+    if metrics.flow_efficiency_median is None:
+        return []
+
+    pct = f"{metrics.flow_efficiency_median:.0%}"
+    pr_count = 0
+    # pr_count isn't on ReportMetrics; we surface only the percentage.
+    # When the data is sparse, the by_intent dict tells the platform UI to
+    # hide segments — that's enough caveat for the narrative.
+
+    findings: list[str] = []
+    if metrics.flow_efficiency_median < FLOW_EFFICIENCY_LOW_THRESHOLD:
+        findings.append(s["finding_flow_efficiency_low"].format(pct=pct))
+    else:
+        findings.append(
+            s["finding_flow_efficiency_descriptive"].format(pct=pct, pr_count=pr_count)
+        )
+
+    if (
+        metrics.median_time_to_first_review_hours is not None
+        and metrics.median_time_to_first_review_hours > TIME_TO_FIRST_REVIEW_SLOW_HOURS
+    ):
+        findings.append(
+            s["finding_time_to_first_review_slow"].format(
+                hours=metrics.median_time_to_first_review_hours,
+            )
+        )
+
+    return findings
 
 
 def _flow_load_findings(metrics: ReportMetrics, s: dict) -> list[str]:

@@ -5,7 +5,7 @@ Crosses origin/tool classification with PR merge data to compute:
 - Of those in PRs, what % were in single-pass PRs (no CHANGES_REQUESTED)
 - Breakdown by specific AI tool (Copilot, Claude, Cursor, etc.)
 
-Requires PR data with commit hashes (commit_hashes field on PullRequest).
+Requires PR data with commit refs (commit_refs field on PullRequest).
 Falls back gracefully when PR data is unavailable.
 """
 
@@ -51,7 +51,7 @@ def calculate_acceptance_rate(
 
     Args:
         commits: All commits sorted by date ascending.
-        prs: Merged PRs with commit_hashes populated.
+        prs: Merged PRs with commit_refs populated.
 
     Returns:
         AcceptanceResult with per-origin and per-tool breakdown,
@@ -67,8 +67,8 @@ def calculate_acceptance_rate(
     for pr in prs:
         if pr.state != "merged":
             continue
-        for ch in pr.commit_hashes:
-            hash_to_pr[ch] = pr
+        for ref in pr.commit_refs:
+            hash_to_pr[ref.hash] = pr
 
     # Classify each commit and track PR association
     origin_stats: dict[str, _GroupStats] = defaultdict(_GroupStats)
