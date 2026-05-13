@@ -785,6 +785,9 @@ export const translations = {
             lastSyncAt: "Last sync",
             connectedAt: "Connected at",
             neverSynced: "Never synced yet",
+            unmatchedDeployments: "Unmatched deployments",
+            unmatchedDeploymentsHint:
+              "Deployments whose Datadog repository slug didn't resolve to a tracked Iris repo. Verify the Iris repo's remote URL matches the Datadog repository_id.",
           },
           disconnectDialog: {
             title: "Disconnect Datadog?",
@@ -2045,6 +2048,9 @@ export const translations = {
             lastSyncAt: "Última sincronização",
             connectedAt: "Conectada em",
             neverSynced: "Ainda não sincronizada",
+            unmatchedDeployments: "Deploys não vinculados",
+            unmatchedDeploymentsHint:
+              "Deploys cujo slug de repositório do Datadog não correspondeu a um repositório rastreado pelo Iris. Verifique se a URL remota do repositório no Iris bate com o repository_id do Datadog.",
           },
           disconnectDialog: {
             title: "Desconectar o Datadog?",

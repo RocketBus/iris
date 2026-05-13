@@ -71,6 +71,13 @@ export default async function IntegrationProviderPage({
         site?: string;
         apiKeyMask?: string;
       };
+      const { count: unmatchedCount } = await supabaseAdmin
+        .from("external_deployments")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", org.id)
+        .eq("provider", "datadog")
+        .is("repository_id", null);
+
       initial = {
         status: data.status as "active" | "error" | "disconnected",
         site: config.site ?? null,
@@ -79,6 +86,7 @@ export default async function IntegrationProviderPage({
         lastError: data.last_error,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
+        unmatchedDeploymentsCount: unmatchedCount ?? 0,
       };
     }
   }
