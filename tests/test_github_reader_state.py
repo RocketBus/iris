@@ -14,7 +14,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from iris.ingestion.github_reader import _infer_state, _parse_pull_requests
+from iris.ingestion.github_reader import (
+    _PR_FIELDS_BASIC,
+    _PR_FIELDS_FULL,
+    _infer_state,
+    _parse_pull_requests,
+)
 
 
 _NOW = datetime(2026, 5, 1, tzinfo=timezone.utc)
@@ -120,3 +125,23 @@ def test_parse_dedupes_by_pr_number():
     duplicate = _raw(7, created_offset_days=-10, merged_offset_days=-5, state="MERGED")
     prs = _parse_pull_requests([duplicate, duplicate], _SINCE)
     assert len(prs) == 1
+
+
+# ---------------------------------------------------------------------------
+# gh field contract — regression guard for the two-pass fallback bug.
+#
+# On busy repos (fetch_limit > _BATCH_SIZE), `_fetch_prs` goes straight to
+# the basic-fields path and only re-fetches `reviews` separately. If
+# `commits` is missing from _PR_FIELDS_BASIC, every PR comes back with no
+# commit list — silently breaking flow_efficiency (no commit-time anchor)
+# and acceptance_by_origin (no commit→PR linkage).
+# ---------------------------------------------------------------------------
+
+
+def test_pr_fields_basic_includes_commits():
+    """commits MUST stay in BASIC so the fallback fetch produces commit_refs."""
+    assert "commits" in _PR_FIELDS_BASIC.split(",")
+
+
+def test_pr_fields_full_includes_commits():
+    assert "commits" in _PR_FIELDS_FULL.split(",")

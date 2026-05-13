@@ -63,9 +63,16 @@ def is_gh_available() -> bool:
     return shutil.which("gh") is not None
 
 
+# NOTE: `commits` MUST stay in the BASIC field list. The two-pass fallback
+# below only re-fetches `reviews` — leaving `commits` out of pass 1 made
+# busy-repo analyses (fetch_limit > _BATCH_SIZE) return PRs with no
+# commit_refs, which silently broke flow_efficiency (no first_commit_at
+# anchor) and acceptance_by_origin (no commit→PR linkage). Reviews are the
+# only field that triggers GraphQL 504s on verbose-reviewer repos; commits
+# are safe.
 _PR_FIELDS_BASIC = (
     "number,title,createdAt,mergedAt,closedAt,state,"
-    "additions,deletions,changedFiles,author"
+    "additions,deletions,changedFiles,author,commits"
 )
 _PR_FIELDS_FULL = (
     "number,title,createdAt,mergedAt,closedAt,state,"
