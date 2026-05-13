@@ -78,6 +78,31 @@ export default async function IntegrationProviderPage({
         .eq("provider", "datadog")
         .is("repository_id", null);
 
+      // §9.8 — surface "days since last incident registered" so a silent
+      // drop in failure-event emission is visible to the customer.
+      const { data: lastIncident } = await supabaseAdmin
+        .from("external_incidents")
+        .select("started_at")
+        .eq("organization_id", org.id)
+        .eq("provider", "datadog")
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const lastIncidentAt = lastIncident?.started_at ?? null;
+      // Server component — Date.now() is fine here; the page renders once
+      // per request and is not subject to React's purity rule.
+      // eslint-disable-next-line react-hooks/purity
+      const nowMs = Date.now();
+      const daysSinceLastIncident = lastIncidentAt
+        ? Math.max(
+            0,
+            Math.floor(
+              (nowMs - new Date(lastIncidentAt).getTime()) / 86_400_000,
+            ),
+          )
+        : null;
+
       initial = {
         status: data.status as "active" | "error" | "disconnected",
         site: config.site ?? null,
@@ -87,6 +112,8 @@ export default async function IntegrationProviderPage({
         createdAt: data.created_at,
         updatedAt: data.updated_at,
         unmatchedDeploymentsCount: unmatchedCount ?? 0,
+        lastIncidentAt,
+        daysSinceLastIncident,
       };
     }
   }

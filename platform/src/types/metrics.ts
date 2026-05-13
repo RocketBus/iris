@@ -280,6 +280,30 @@ export interface ReportMetrics {
   dora_lead_time_seconds_median?: number;
   dora_deploy_frequency_per_day?: number;
   dora_remediation_distribution?: Record<string, number>;
+  // Populated only when the analysis run had both DORA events and local
+  // commit-origin classification. Keys mirror `CommitOrigin` values.
+  dora_cfr_by_origin?: Partial<
+    Record<
+      CommitOrigin,
+      {
+        failed: number;
+        evaluated: number;
+        cfr: number | null;
+      }
+    >
+  >;
+  dora_rollback_rate_by_origin?: Partial<
+    Record<
+      CommitOrigin,
+      {
+        rollbacks: number;
+        failed: number;
+        rollback_rate: number | null;
+      }
+    >
+  >;
+  /** Org-wide attribution coverage for the two by-origin maps above. 0-100. */
+  dora_cfr_by_origin_coverage_pct?: number;
 
   // PR lifecycle
   pr_merged_count?: number;

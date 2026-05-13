@@ -73,12 +73,44 @@ class DORARealResult:
     # Per-remediation breakdown (e.g. {"rollback": 12, "hotfix": 3}).
     remediation_distribution: dict[str, int] = field(default_factory=dict)
 
+    # CFR by code origin — populated only when ``origin_map`` is provided to
+    # :func:`analyze_dora_real`. Counts per-commit: each commit on each deploy
+    # gets bucketed by its author's origin (looked up from the local commit
+    # window's classifier output). Deploys with ``change_failure=None`` are
+    # excluded from the denominator, mirroring the org-level CFR.
+    #
+    # Shape:  {origin: {"failed": int, "evaluated": int, "cfr": float | None}}
+    cfr_by_origin: dict[str, dict] | None = None
 
-def analyze_dora_real(data: ExternalDORAData) -> DORARealResult:
+    # Rollback rate by code origin — analogue of cfr_by_origin filtered on
+    # ``remediation_type='rollback'``. None when ``origin_map`` wasn't
+    # provided or when no failed deploys exist.
+    rollback_rate_by_origin: dict[str, dict] | None = None
+
+    # Org-wide attribution coverage for the by-origin breakdowns:
+    # ``known_origin_commits / total_referenced_commits`` across all
+    # evaluated deploys. Surfaces *how much* of the data was actually
+    # attributable — a low number means many deploys referenced commits
+    # older than the analysis window. None when ``origin_map`` wasn't
+    # provided.
+    cfr_by_origin_coverage_pct: float | None = None
+
+
+def analyze_dora_real(
+    data: ExternalDORAData,
+    origin_map: dict[str, str] | None = None,
+) -> DORARealResult:
     """Compute DORA metrics from the pre-fetched external events.
 
     Empty input is supported — every metric defaults to ``None`` / 0
     so the aggregator can wire the result unconditionally.
+
+    Args:
+        data: Pre-fetched DORA events (deployments + incidents).
+        origin_map: Optional ``{commit_sha: origin_value}`` from
+            :func:`iris.analysis.origin_classifier.classify_origins`.
+            When provided, populates ``cfr_by_origin`` and
+            ``rollback_rate_by_origin`` on the result.
     """
     deploys = list(data.deployments)
     incidents = list(data.incidents)
@@ -121,6 +153,13 @@ def analyze_dora_real(data: ExternalDORAData) -> DORARealResult:
         len(deploys), data.window_from, data.window_to
     )
 
+    if origin_map:
+        cfr_by_origin, rollback_by_origin, coverage_pct = _by_origin(
+            evaluated, failed, origin_map
+        )
+    else:
+        cfr_by_origin, rollback_by_origin, coverage_pct = None, None, None
+
     return DORARealResult(
         source=data.source,
         deployments_total=len(deploys),
@@ -141,7 +180,75 @@ def analyze_dora_real(data: ExternalDORAData) -> DORARealResult:
         else None,
         deploy_frequency_per_day=deploy_freq,
         remediation_distribution=remediation_distribution,
+        cfr_by_origin=cfr_by_origin,
+        rollback_rate_by_origin=rollback_by_origin,
+        cfr_by_origin_coverage_pct=coverage_pct,
     )
+
+
+def _by_origin(
+    evaluated: list[ExternalDeployment],
+    failed: list[ExternalDeployment],
+    origin_map: dict[str, str],
+) -> tuple[dict[str, dict], dict[str, dict] | None, float]:
+    """Per-commit CFR + rollback breakdown by origin.
+
+    Each commit on each evaluated deploy is counted once per origin.
+    Commits whose sha doesn't appear in ``origin_map`` (e.g. older than
+    the analysis window) are dropped from the per-origin buckets but
+    contribute to the org-wide ``coverage_pct`` (third return value):
+    ``known / (known + unknown)`` across every evaluated deploy.
+    """
+    evaluated_by_origin: dict[str, int] = {}
+    failed_by_origin: dict[str, int] = {}
+    rollback_by_origin: dict[str, int] = {}
+    known_total = 0
+    unknown_total = 0
+
+    for d in evaluated:
+        is_failed = d.change_failure is True
+        is_rollback = is_failed and d.remediation_type == "rollback"
+        for c in d.commits:
+            origin = origin_map.get(c.commit_sha)
+            if origin is None:
+                unknown_total += 1
+                continue
+            known_total += 1
+            evaluated_by_origin[origin] = evaluated_by_origin.get(origin, 0) + 1
+            if is_failed:
+                failed_by_origin[origin] = failed_by_origin.get(origin, 0) + 1
+            if is_rollback:
+                rollback_by_origin[origin] = rollback_by_origin.get(origin, 0) + 1
+
+    cfr_result: dict[str, dict] = {}
+    for origin, evaluated_count in evaluated_by_origin.items():
+        failed_count = failed_by_origin.get(origin, 0)
+        cfr_result[origin] = {
+            "failed": failed_count,
+            "evaluated": evaluated_count,
+            "cfr": (failed_count / evaluated_count) if evaluated_count else None,
+        }
+
+    referenced_total = known_total + unknown_total
+    coverage_pct = (
+        round(known_total / referenced_total * 100, 1)
+        if referenced_total
+        else 100.0
+    )
+
+    if not failed:
+        return cfr_result, None, coverage_pct
+
+    rollback_result: dict[str, dict] = {}
+    for origin, failed_count in failed_by_origin.items():
+        rollback_count = rollback_by_origin.get(origin, 0)
+        rollback_result[origin] = {
+            "rollbacks": rollback_count,
+            "failed": failed_count,
+            "rollback_rate": (rollback_count / failed_count) if failed_count else None,
+        }
+
+    return cfr_result, rollback_result, coverage_pct
 
 
 def _percentiles(values: list[int]) -> DORAPercentile | None:

@@ -145,6 +145,18 @@ class ReportMetrics:
     dora_deploy_frequency_per_day: float | None = None
     dora_remediation_distribution: dict[str, int] | None = None
 
+    # DORA by code origin — populated only when the analysis run had both
+    # external DORA events AND local commit-origin classification (i.e. the
+    # CLI ran on a real repo and fetched external events). The platform's
+    # AI-vs-human correlation card (dashboard) keys off these.
+    dora_cfr_by_origin: dict[str, dict] | None = None
+    dora_rollback_rate_by_origin: dict[str, dict] | None = None
+    # Org-wide attribution coverage for the by-origin breakdowns above:
+    # known_origin_commits / total_referenced_commits. Low values mean the
+    # window pulled deploys whose commits are older than the local commit
+    # window — the by-origin numbers stay correct but represent a subset.
+    dora_cfr_by_origin_coverage_pct: float | None = None
+
     def to_dict(self) -> dict:
         d = asdict(self)
         # Exclude None fields for backward compatibility

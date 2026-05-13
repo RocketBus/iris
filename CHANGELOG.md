@@ -4,6 +4,135 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.0.6 — Datadog DORA integration (2026-05-13)
+
+Stage 3 opens: Iris can now consume a customer's DORA event stream from
+Datadog and report **real** Change Failure Rate, MTTR, deploy frequency,
+lead time, and rollback rate alongside the engine's commit-derived
+signals. The integration is end-to-end — connect form → daily Vercel
+Cron sync → engine consumption → dashboard rendering — and ships behind
+an opt-in per-org connection.
+
+### Platform — connect flow and storage
+
+- `platform/supabase/migrations/014_org_integrations.sql` (new): one
+  row per `(organization_id, provider)` with encrypted credentials
+  (pgcrypto `pgp_sym_encrypt` keyed by `INTEGRATIONS_ENCRYPTION_KEY`),
+  status, and sync bookkeeping (`last_sync_at`, `last_error`). RPCs
+  `encrypt_credentials` / `decrypt_credentials` are service-role only
+  and schema-qualify pgcrypto via the `extensions` schema.
+- `platform/lib/encryption.ts`, `platform/lib/integrations/datadog/client.ts`
+  (new): credential helpers + DORA v2 API client (validate, list
+  deployments, list failures). Per-site base URL; ISO 8601 timestamps
+  with the trailing `Z` form Datadog accepts.
+- `app/api/organizations/[organizationId]/integrations/[provider]/route.ts`
+  (new): GET / POST / DELETE for connect / status / disconnect.
+  Disconnect preserves historical events; only the credentials are
+  wiped.
+- `app/[tenant]/settings/integrations/` (new): provider list +
+  per-provider detail page with the connect form, last-sync status,
+  unmatched-deployment count, "last incident registered X days ago"
+  silent-decay guard, and an error-state surface when the most recent
+  cron run failed.
+
+### Platform — daily sync
+
+- `platform/supabase/migrations/015_external_deployments.sql`,
+  `016_external_deployment_commits.sql`,
+  `017_external_incidents.sql` (new): persist DORA events with the
+  tri-state `change_failure` column, per-deploy `recovery_time_sec`,
+  remediation type, and per-commit lead-time data unpacked from
+  `attributes.commits[]`. Idempotent upsert by `(provider,
+  provider_event_id)`.
+- `platform/lib/integrations/datadog/sync.ts` (new): per-org pipeline.
+  30-day default backfill on first run, time-slicing pagination (the
+  DORA v2 list endpoints have no cursor mechanism — see
+  `docs/PLAN-datadog.md` §9.5), anti-spin guard for the sub-second
+  co-occurrence edge case, and slug-normalized repository matching.
+- `app/api/cron/sync-integrations/route.ts` (new) +
+  `platform/vercel.json` `crons` entry: daily at `0 4 * * *` UTC,
+  gated by `CRON_SECRET` (Bearer or `x-cron-secret` header). Iterates
+  active integrations sequentially within the 300 s budget.
+
+### Engine — DORA (real) consumption
+
+- `iris/models/external.py`,
+  `iris/analysis/dora_real.py` (new): `analyze_dora_real` computes
+  CFR, MTTR per-deploy (p50/p90), MTTR per-incident (p50/p90),
+  rollback rate, lead time, deploy frequency, remediation distribution,
+  and (when the local commit-origin map is passed) `cfr_by_origin` /
+  `rollback_rate_by_origin` plus `cfr_by_origin_coverage_pct` for
+  attribution coverage. Tri-state `change_failure` handled correctly:
+  `null` is excluded from the CFR denominator and surfaced as a
+  separate "pending evaluation" bucket.
+- `iris/metrics/aggregator.py` + `iris/models/metrics.py`: aggregator
+  gains an optional `external_data` argument; eighteen new `dora_*`
+  fields land on `ReportMetrics` (all optional, all stripped from the
+  JSON when None).
+- `iris/reports/narrative.py` + `iris/i18n.py`: descriptive findings
+  for CFR, MTTR per-deploy, and rollback rate in en + pt-br.
+- `iris/ingestion/external_reader.py` (new) + `iris/cli.py`: when
+  the CLI is logged in to a platform, fetches events from
+  `GET /api/integrations/datadog/events` before invoking the
+  aggregator. Any failure (no auth, no integration, network,
+  malformed) falls through with `None` — standalone `iris .` runs
+  keep working unchanged.
+
+### Platform — dashboard
+
+- `platform/src/app/[tenant]/dashboard/sections/DORAOverview.tsx`
+  (new): headline cards (CFR, MTTR per failed deploy, deploy
+  frequency, lead time) with a **Datadog** badge, a fact strip
+  (deploys / rollback rate / pending), and a CFR-by-origin +
+  rollback-rate-by-origin correlation table. The correlation card
+  stays hidden until the org has ≥ 10 failed deploys — below that the
+  per-origin numbers are too noisy to attribute to AI vs human.
+- `platform/lib/queries/org-summary.ts`: new `computeDORA(payloads)`
+  aggregates the `dora_*` fields across repos (counts summed, CFR
+  weighted by evaluated deploys, by-origin counts summed before
+  recomputing the rate).
+- `app/api/integrations/datadog/events/route.ts` (new): token-authed
+  GET endpoint the CLI calls; returns deployments (with their
+  commits) and incidents for the org window. Distinguishes "no active
+  integration" (`source: null`) from "no events in window"
+  (`source: "datadog"`, empty arrays).
+- `platform/src/types/metrics.ts` + `platform/src/types/org-summary.ts`:
+  TS mirrors of the new engine fields and the new `OrgDORA` aggregation
+  type.
+
+### Platform — operational
+
+- `platform/next.config.ts`: the footer's build version (was showing
+  "dev" everywhere since the Vercel migration) now reads from
+  `package.json` with the Vercel commit SHA appended when present.
+
+### Docs
+
+- `docs/PLAN-datadog.md`: full design doc, including the production
+  probe findings that shaped the schema (§9 onwards).
+- `docs/integrations/datadog.md` (new): customer setup guide —
+  Application Key scope, regional sites, connect flow, cron schedule,
+  what we read / don't read, repository matching, disconnect behavior,
+  and operational notes.
+- `docs/METRICS.md`: full entries for every `dora_*` field, the
+  tri-state semantics, the dual-MTTR rationale (per-deploy vs
+  per-incident), and the module-map row for `analysis/dora_real.py`.
+
+### Principle #2 (no individual ranking)
+
+The integration only writes aggregates. Per-commit author emails
+flowing through `external_deployment_commits` are used solely as the
+join key against the engine's origin classifier; the dashboard never
+surfaces them and the correlation card never breaks down below the
+HUMAN / AI_ASSISTED / BOT bucket level.
+
+Closes #15. Implemented across PRs #36 (plan), #37 (slice 1, UI
+skeleton), #39 (slice 2, DB + encryption + connect), #40 (slice 3,
+ingestion + cron), #41 (slice 4, engine consumption), and #42
+(slice 5, dashboard + correlation + setup docs).
+
+---
+
 ## v1.0.5 — Flow Efficiency: active vs wait of the PR lifecycle (2026-05-12)
 
 ### Engine

@@ -124,3 +124,43 @@ export interface OrgTimelineWeek {
   featurePct: number | null;
   fixPct: number | null;
 }
+
+/**
+ * DORA (real) aggregated across the org's repos. Populated only when at
+ * least one repo's latest run carries `dora_source === "datadog"`.
+ * Counts are summed; rates are weighted by the number of evaluated
+ * deployments contributing to each repo's value (mirrors the engine's
+ * per-commit semantics — each evaluated deploy is one unit of weight).
+ */
+export interface OrgDORA {
+  reposWithData: number;
+  deploymentsTotal: number;
+  deploymentsFailed: number;
+  deploymentsPendingEvaluation: number;
+  incidentsTotal: number;
+  /** 0.0–1.0 weighted by evaluated deploys; null if denominator is zero. */
+  cfr: number | null;
+  rollbacksTotal: number;
+  /** 0.0–1.0 weighted by failed deploys; null if no failures. */
+  rollbackRate: number | null;
+  /** Seconds; median across repos that report a value. */
+  mttrPerDeploySecondsMedian: number | null;
+  mttrPerIncidentSecondsMedian: number | null;
+  leadTimeSecondsMedian: number | null;
+  /** Deploys per day, summed across repos (each repo's window contributes). */
+  deployFrequencyPerDay: number | null;
+  /** Per-origin CFR aggregation across the org. */
+  cfrByOrigin: Array<{
+    origin: "HUMAN" | "AI_ASSISTED" | "BOT";
+    failed: number;
+    evaluated: number;
+    cfr: number;
+  }>;
+  /** Per-origin rollback aggregation across the org. */
+  rollbackRateByOrigin: Array<{
+    origin: "HUMAN" | "AI_ASSISTED" | "BOT";
+    rollbacks: number;
+    failed: number;
+    rollbackRate: number;
+  }>;
+}

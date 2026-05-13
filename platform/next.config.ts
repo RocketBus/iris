@@ -1,8 +1,43 @@
 import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/**
+ * Build-time version string surfaced in the footer.
+ *
+ * Resolution order:
+ *   1. Explicit override via `NEXT_PUBLIC_BUILD_VERSION` env var.
+ *   2. `package.json` version, plus the short Vercel commit SHA when present.
+ *
+ * The Vercel system env var `VERCEL_GIT_COMMIT_SHA` is set on every build
+ * inside Vercel, so production / preview deploys get a unique identifier
+ * even between releases without changing `package.json`.
+ *
+ * `package.json` is read at config-load time via fs to stay portable
+ * across Next's TS loader and direct Node ESM imports, which differ on
+ * JSON import attribute support.
+ */
+function resolveBuildVersion(): string {
+  if (process.env.NEXT_PUBLIC_BUILD_VERSION) {
+    return process.env.NEXT_PUBLIC_BUILD_VERSION;
+  }
+  const here = dirname(fileURLToPath(import.meta.url));
+  const pkg = JSON.parse(
+    readFileSync(resolve(here, "package.json"), "utf-8"),
+  ) as { version: string };
+  const base = `v${pkg.version}`;
+  const sha = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7);
+  return sha ? `${base} (${sha})` : base;
+}
 
 const nextConfig: NextConfig = {
   pageExtensions: ["js", "jsx", "mdx", "ts", "tsx"],
+  // Baked into the client bundle at build time so the footer can render it.
+  env: {
+    NEXT_PUBLIC_BUILD_VERSION: resolveBuildVersion(),
+  },
   images: {
     unoptimized: true,
   },

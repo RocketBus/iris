@@ -189,3 +189,154 @@ def test_deploy_frequency_none_without_window():
     )
     result = analyze_dora_real(data)
     assert result.deploy_frequency_per_day is None
+
+
+def _deploy_with_commits(
+    *,
+    event_id: str,
+    change_failure: bool | None,
+    commit_shas: list[str],
+    remediation_type: str | None = None,
+) -> ExternalDeployment:
+    commits = [ExternalDeploymentCommit(commit_sha=s) for s in commit_shas]
+    return ExternalDeployment(
+        provider_event_id=event_id,
+        started_at=_BASE,
+        change_failure=change_failure,
+        remediation_type=remediation_type,
+        commits=commits,
+    )
+
+
+def test_cfr_by_origin_per_commit_join():
+    """Each commit on each evaluated deploy gets bucketed by its origin."""
+    data = ExternalDORAData(
+        deployments=[
+            # AI deploy that failed
+            _deploy_with_commits(
+                event_id="d1", change_failure=True, commit_shas=["ai1", "ai2"],
+            ),
+            # AI deploy that succeeded
+            _deploy_with_commits(
+                event_id="d2", change_failure=False, commit_shas=["ai3"],
+            ),
+            # Human deploy that failed
+            _deploy_with_commits(
+                event_id="d3", change_failure=True, commit_shas=["h1"],
+            ),
+            # Human deploys that succeeded
+            _deploy_with_commits(
+                event_id="d4", change_failure=False, commit_shas=["h2", "h3"],
+            ),
+            _deploy_with_commits(
+                event_id="d5", change_failure=False, commit_shas=["h4"],
+            ),
+        ]
+    )
+    origin_map = {
+        "ai1": "AI_ASSISTED", "ai2": "AI_ASSISTED", "ai3": "AI_ASSISTED",
+        "h1": "HUMAN", "h2": "HUMAN", "h3": "HUMAN", "h4": "HUMAN",
+    }
+    result = analyze_dora_real(data, origin_map=origin_map)
+    assert result.cfr_by_origin is not None
+
+    ai = result.cfr_by_origin["AI_ASSISTED"]
+    assert ai["failed"] == 2 and ai["evaluated"] == 3  # ai1, ai2 failed; ai3 ok
+    assert round(ai["cfr"], 3) == round(2 / 3, 3)
+
+    h = result.cfr_by_origin["HUMAN"]
+    assert h["failed"] == 1 and h["evaluated"] == 4  # h1 failed; h2/h3/h4 ok
+    assert h["cfr"] == 0.25
+
+
+def test_cfr_by_origin_skips_unknown_commits_but_reports_coverage():
+    """Commits not in origin_map are excluded from origin buckets; org-wide coverage drops."""
+    data = ExternalDORAData(
+        deployments=[
+            _deploy_with_commits(
+                event_id="d1",
+                change_failure=True,
+                commit_shas=["known", "unknown_a"],
+            ),
+            _deploy_with_commits(
+                event_id="d2",
+                change_failure=False,
+                commit_shas=["unknown_b"],
+            ),
+        ]
+    )
+    origin_map = {"known": "AI_ASSISTED"}
+    result = analyze_dora_real(data, origin_map=origin_map)
+
+    # Per-origin bucket carries only attributable commits, no coverage_pct.
+    assert result.cfr_by_origin == {
+        "AI_ASSISTED": {"failed": 1, "evaluated": 1, "cfr": 1.0},
+    }
+    # Coverage is org-wide: 1 known / (1 known + 2 unknown).
+    assert result.cfr_by_origin_coverage_pct == round(1 / 3 * 100, 1)
+
+
+def test_full_attribution_reports_100_pct_coverage():
+    """No unknowns → coverage is 100%."""
+    data = ExternalDORAData(
+        deployments=[
+            _deploy_with_commits(
+                event_id="d1", change_failure=False, commit_shas=["a", "b"],
+            ),
+        ]
+    )
+    result = analyze_dora_real(
+        data, origin_map={"a": "HUMAN", "b": "HUMAN"},
+    )
+    assert result.cfr_by_origin_coverage_pct == 100.0
+
+
+def test_coverage_pct_is_none_without_origin_map():
+    """Without origin_map, coverage is undefined."""
+    data = ExternalDORAData(
+        deployments=[_deploy_with_commits(event_id="d1", change_failure=False, commit_shas=["x"])]
+    )
+    assert analyze_dora_real(data).cfr_by_origin_coverage_pct is None
+
+
+def test_rollback_rate_by_origin_filters_on_remediation():
+    """rollback_rate_by_origin filters failed deploys by remediation_type='rollback'."""
+    data = ExternalDORAData(
+        deployments=[
+            _deploy_with_commits(
+                event_id="d1", change_failure=True,
+                commit_shas=["ai1"], remediation_type="rollback",
+            ),
+            _deploy_with_commits(
+                event_id="d2", change_failure=True,
+                commit_shas=["ai2"], remediation_type="hotfix",
+            ),
+            _deploy_with_commits(
+                event_id="d3", change_failure=True,
+                commit_shas=["h1", "h2"], remediation_type="rollback",
+            ),
+        ]
+    )
+    origin_map = {
+        "ai1": "AI_ASSISTED", "ai2": "AI_ASSISTED",
+        "h1": "HUMAN", "h2": "HUMAN",
+    }
+    result = analyze_dora_real(data, origin_map=origin_map)
+    assert result.rollback_rate_by_origin == {
+        "AI_ASSISTED": {"rollbacks": 1, "failed": 2, "rollback_rate": 0.5},
+        "HUMAN": {"rollbacks": 2, "failed": 2, "rollback_rate": 1.0},
+    }
+
+
+def test_by_origin_none_without_origin_map():
+    """Without origin_map, by-origin breakdowns are absent."""
+    data = ExternalDORAData(
+        deployments=[
+            _deploy_with_commits(
+                event_id="d1", change_failure=True, commit_shas=["x"],
+            ),
+        ]
+    )
+    result = analyze_dora_real(data)  # no origin_map
+    assert result.cfr_by_origin is None
+    assert result.rollback_rate_by_origin is None
