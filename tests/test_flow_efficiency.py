@@ -29,6 +29,7 @@ def _pr(
     first_commit_offset_hours: float = -2.0,
     review_offsets_hours: list[float] | None = None,
     review_states: list[str] | None = None,
+    review_authors: list[str] | None = None,
     extra_commit_offsets_hours: list[float] | None = None,
     state: str = "merged",
 ) -> PullRequest:
@@ -44,9 +45,10 @@ def _pr(
     reviews: list[PRReview] = []
     offsets = review_offsets_hours or []
     states = review_states or ["COMMENTED"] * len(offsets)
-    for off, st in zip(offsets, states):
+    authors = review_authors or ["reviewer"] * len(offsets)
+    for off, st, author in zip(offsets, states, authors):
         reviews.append(PRReview(
-            author="reviewer",
+            author=author,
             state=st,
             submitted_at=_BASE + timedelta(hours=off),
         ))
@@ -240,6 +242,50 @@ def test_by_origin_uses_majority_rule():
     assert result is not None
     assert "AI_ASSISTED" in result.flow_efficiency_by_origin
     assert "HUMAN" in result.flow_efficiency_by_origin
+
+
+# ---------------------------------------------------------------------------
+# Bot reviewer filter
+# ---------------------------------------------------------------------------
+
+
+def test_bot_only_reviews_treat_pr_as_no_reviews():
+    """Vercel/dependabot reviews on PR-open shouldn't anchor first_review_at."""
+    pr = _pr(
+        first_commit_offset_hours=-1,
+        opened_offset_hours=0,
+        review_offsets_hours=[0.0],  # instant bot review
+        review_states=["COMMENTED"],
+        review_authors=["vercel[bot]"],
+        merged_offset_hours=10,
+    )
+    phases = compute_pr_phases(pr)
+    assert phases is not None
+    # Bot review filtered out → falls into no-reviews branch
+    assert phases.had_first_review is False
+    assert phases.awaiting_first_review == 10 * 3600
+    assert phases.in_review_active == 0
+    assert phases.in_review_wait == 0
+    assert phases.awaiting_merge == 0
+
+
+def test_mixed_bot_and_human_reviews_use_human_for_anchor():
+    """Human review at 6h anchors first_review_at; bot review at 0h is ignored."""
+    pr = _pr(
+        first_commit_offset_hours=-1,
+        opened_offset_hours=0,
+        review_offsets_hours=[0.0, 6.0, 8.0],
+        review_states=["COMMENTED", "COMMENTED", "APPROVED"],
+        review_authors=["dependabot[bot]", "alice", "alice"],
+        merged_offset_hours=10,
+    )
+    phases = compute_pr_phases(pr, active_threshold_hours=4)
+    assert phases is not None
+    # awaiting_first_review = open (0) → human first review (6) = 6h
+    assert phases.awaiting_first_review == 6 * 3600
+    assert phases.had_first_review is True
+    # in_review: [6h, 8h] = 2h. The 8h approval anchors awaiting_merge.
+    assert phases.awaiting_merge == 2 * 3600
 
 
 def test_drops_pr_below_min_elapsed():

@@ -626,8 +626,18 @@ Edge cases:
 - **Instant-merge PRs** (`total_elapsed < min_elapsed_seconds`,
   default 5 min) → excluded from all aggregates so bot-driven auto-merges
   don't distort the median.
-- **Bot reviewers** (Copilot etc.) count as activity events just like
-  humans. Origin classification is by commit *author*, not reviewer.
+- **Bot reviewers are excluded from phase anchors**. Reviews authored by
+  bot accounts (regex match against the same `_BOT_AUTHOR_PATTERNS` used
+  by `origin_classifier`: `[bot]` / `-bot` suffix, plus `dependabot`,
+  `renovate`, `github-actions`, `mergify`, `vercel`, `imgbot`) do *not*
+  set `first_review_at` or `approval_at`. Without this filter, repos
+  with auto-review bots (Vercel, Dependabot, CODEOWNERS auto-approval
+  workflows) collapse the In Review phase to ~0 s and the metric reads
+  "0% active" no matter what — entirely uninformative. Bot reviews
+  *still* participate in the active/wait union heuristic as events
+  inside the In Review phase, so signal from Copilot Review is
+  preserved; only the phase-anchor timestamps drop bots. Origin
+  classification on commits is by commit *author*, not reviewer.
 
 PR origin rule (for `flow_efficiency_by_origin`):
 
