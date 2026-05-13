@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { __testing } from "@/lib/integrations/datadog/sync";
 
-const { normalizeRepoSlug, oldestStartedAt, normalizeNullableIso } = __testing;
+const {
+  normalizeRepoSlug,
+  oldestStartedAt,
+  normalizeNullableIso,
+  uniqueByKey,
+} = __testing;
 
 describe("normalizeRepoSlug", () => {
   it("returns null for empty input", () => {
@@ -83,5 +88,40 @@ describe("normalizeNullableIso", () => {
 
   it("returns null for invalid input", () => {
     expect(normalizeNullableIso("not-a-date")).toBeNull();
+  });
+});
+
+describe("uniqueByKey", () => {
+  it("keeps the first occurrence of each key, preserving order", () => {
+    const items = [
+      { id: "a", v: 1 },
+      { id: "b", v: 2 },
+      { id: "a", v: 3 }, // duplicate of "a" — dropped
+      { id: "c", v: 4 },
+      { id: "b", v: 5 }, // duplicate of "b" — dropped
+    ];
+    expect(uniqueByKey(items, (x) => x.id)).toEqual([
+      { id: "a", v: 1 },
+      { id: "b", v: 2 },
+      { id: "c", v: 4 },
+    ]);
+  });
+
+  it("handles composite keys (matches the deployment_commits PK)", () => {
+    const rows = [
+      { deployment_id: "d1", commit_sha: "abc" },
+      { deployment_id: "d1", commit_sha: "abc" }, // intra-deploy dupe
+      { deployment_id: "d2", commit_sha: "abc" }, // different deploy, kept
+    ];
+    expect(
+      uniqueByKey(rows, (r) => `${r.deployment_id}:${r.commit_sha}`),
+    ).toEqual([
+      { deployment_id: "d1", commit_sha: "abc" },
+      { deployment_id: "d2", commit_sha: "abc" },
+    ]);
+  });
+
+  it("returns an empty array on empty input", () => {
+    expect(uniqueByKey([], (x) => String(x))).toEqual([]);
   });
 });
