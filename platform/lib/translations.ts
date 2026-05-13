@@ -582,6 +582,24 @@ export const translations = {
           UNKNOWN: "Unknown",
         },
       },
+      flowEfficiency: {
+        title: "Flow Efficiency",
+        subtitle:
+          "Active vs wait time across the merged-PR lifecycle. Throughput says how much shipped; this says whether work flowed or queued.",
+        efficiencyLabel: "Active fraction",
+        ttfrLabel: "Time to first review",
+        ttfrUnit: "h",
+        phaseLegendActive: "Active",
+        phaseLegendWait: "Wait",
+        phaseLabels: {
+          coding: "Coding",
+          awaiting_first_review: "Awaiting first review",
+          in_review_active: "In review · active",
+          in_review_wait: "In review · wait",
+          awaiting_merge: "Awaiting merge",
+        },
+        byIntentTitle: "By intent",
+      },
       aiImpact: {
         title: "AI Impact",
         subtitle: "How AI-assisted code compares to human code over time",
@@ -1759,6 +1777,24 @@ export const translations = {
           CONFIG: "Config",
           UNKNOWN: "Desconhecido",
         },
+      },
+      flowEfficiency: {
+        title: "Flow Efficiency",
+        subtitle:
+          "Tempo ativo vs em espera no ciclo de vida dos PRs merged. Throughput diz quanto foi entregue; isso diz se o trabalho fluiu ou ficou em fila.",
+        efficiencyLabel: "Fração ativa",
+        ttfrLabel: "Tempo até o primeiro review",
+        ttfrUnit: "h",
+        phaseLegendActive: "Ativo",
+        phaseLegendWait: "Espera",
+        phaseLabels: {
+          coding: "Coding",
+          awaiting_first_review: "Aguardando primeiro review",
+          in_review_active: "Em review · ativo",
+          in_review_wait: "Em review · espera",
+          awaiting_merge: "Aguardando merge",
+        },
+        byIntentTitle: "Por intent",
       },
       aiImpact: {
         title: "Impacto da IA",

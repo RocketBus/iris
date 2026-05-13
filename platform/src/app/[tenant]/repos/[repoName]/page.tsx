@@ -73,6 +73,16 @@ function extractInsights(payload: Record<string, unknown> | null) {
           author_concurrency: number;
         }>
       | undefined,
+    flowEfficiencyMedian: payload.flow_efficiency_median as number | undefined,
+    flowEfficiencyByIntent: payload.flow_efficiency_by_intent as
+      | Partial<Record<string, number>>
+      | undefined,
+    timeInPhaseMedianHours: payload.time_in_phase_median_hours as
+      | Partial<Record<string, number>>
+      | undefined,
+    medianTimeToFirstReviewHours: payload.median_time_to_first_review_hours as
+      | number
+      | undefined,
   };
 }
 

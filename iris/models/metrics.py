@@ -119,6 +119,13 @@ class ReportMetrics:
     # Flow Load — WIP per ISO week (optional — None when <2 buckets emerge)
     flow_load: list[dict] | None = None
 
+    # Flow Efficiency (optional — None when no merged PR survives filters)
+    flow_efficiency_median: float | None = None
+    flow_efficiency_by_intent: dict[str, float] | None = None
+    flow_efficiency_by_origin: dict[str, float] | None = None
+    time_in_phase_median_hours: dict[str, float] | None = None
+    median_time_to_first_review_hours: float | None = None
+
     def to_dict(self) -> dict:
         d = asdict(self)
         # Exclude None fields for backward compatibility

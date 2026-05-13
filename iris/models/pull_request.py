@@ -17,6 +17,24 @@ class PRReview:
 
 
 @dataclass(frozen=True)
+class CommitRef:
+    """A reference to a commit included in a pull request.
+
+    Carries the timestamps GitHub exposes per PR commit so analyses
+    that depend on "first commit of the PR" (Flow Efficiency) don't need
+    to re-query git locally.
+
+    ``committed_at`` is the authoritative ordering field. ``authored_at``
+    is kept for completeness (when the original author timestamp differs,
+    e.g. rebased/cherry-picked work).
+    """
+
+    hash: str
+    committed_at: datetime | None = None
+    authored_at: datetime | None = None
+
+
+@dataclass(frozen=True)
 class PullRequest:
     """A pull request with metadata and review history.
 
@@ -40,4 +58,4 @@ class PullRequest:
     closed_at: datetime | None = None
     state: PRState = "merged"
     reviews: list[PRReview] = field(default_factory=list)
-    commit_hashes: list[str] = field(default_factory=list)
+    commit_refs: list[CommitRef] = field(default_factory=list)

@@ -148,6 +148,19 @@ EN = {
         "{files} unique files."
     ),
 
+    # Flow Efficiency findings
+    "finding_flow_efficiency_descriptive": (
+        "Flow Efficiency: {pct} of merged-PR lifecycle is active time "
+        "(median across {pr_count} PRs)."
+    ),
+    "finding_flow_efficiency_low": (
+        "Flow Efficiency at {pct} — wait time dominates the lifecycle. "
+        "Time to first review and queueing after approval are the usual suspects."
+    ),
+    "finding_time_to_first_review_slow": (
+        "PRs wait a median of {hours}h before the first review lands."
+    ),
+
     # Flow Load findings
     "finding_flow_load_descriptive": (
         "Flow Load: median {median_wip} PRs in flight per week "
@@ -914,6 +927,19 @@ PT_BR = {
     "finding_volume": (
         "{commits} commits analisados em "
         "{files} arquivos únicos."
+    ),
+
+    # Descobertas de Flow Efficiency
+    "finding_flow_efficiency_descriptive": (
+        "Flow Efficiency: {pct} do ciclo de vida dos PRs merged é tempo ativo "
+        "(mediana entre {pr_count} PRs)."
+    ),
+    "finding_flow_efficiency_low": (
+        "Flow Efficiency em {pct} — o tempo de espera domina o ciclo. "
+        "Tempo até o primeiro review e fila pós-aprovação são os suspeitos típicos."
+    ),
+    "finding_time_to_first_review_slow": (
+        "PRs aguardam em mediana {hours}h até o primeiro review."
     ),
 
     # Descobertas de Flow Load

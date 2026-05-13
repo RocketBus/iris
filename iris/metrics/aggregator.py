@@ -15,6 +15,7 @@ from iris.analysis.churn_detail import calculate_churn_detail, render_chain
 from iris.analysis.churn_calculator import calculate_churn
 from iris.analysis.commit_shape import analyze_commit_shapes
 from iris.analysis.fix_latency import calculate_fix_latency
+from iris.analysis.flow_efficiency import analyze_flow_efficiency
 from iris.analysis.flow_load import analyze_flow_load
 from iris.analysis.stability_map import calculate_stability_map
 from iris.analysis.intent_classifier import classify_commits
@@ -282,6 +283,33 @@ def aggregate(
                     for g in acceptance_result.by_tool
                 }
 
+    # Flow Efficiency — active vs wait decomposition of merged PR lifecycle
+    flow_efficiency_kwargs: dict = {}
+    if prs:
+        flow_efficiency_result = analyze_flow_efficiency(
+            prs,
+            commit_origin_map=origin_map,
+        )
+        if flow_efficiency_result is not None:
+            flow_efficiency_kwargs["flow_efficiency_median"] = (
+                flow_efficiency_result.flow_efficiency_median
+            )
+            flow_efficiency_kwargs["time_in_phase_median_hours"] = (
+                flow_efficiency_result.time_in_phase_median_hours
+            )
+            if flow_efficiency_result.median_time_to_first_review_hours is not None:
+                flow_efficiency_kwargs["median_time_to_first_review_hours"] = (
+                    flow_efficiency_result.median_time_to_first_review_hours
+                )
+            if flow_efficiency_result.flow_efficiency_by_intent:
+                flow_efficiency_kwargs["flow_efficiency_by_intent"] = (
+                    flow_efficiency_result.flow_efficiency_by_intent
+                )
+            if flow_efficiency_result.flow_efficiency_by_origin:
+                flow_efficiency_kwargs["flow_efficiency_by_origin"] = (
+                    flow_efficiency_result.flow_efficiency_by_origin
+                )
+
     # Flow Load — WIP per ISO week (PRs in flight + author concurrency)
     flow_load_kwargs: dict = {}
     flow_load_result = analyze_flow_load(prs or [], commits)
@@ -378,4 +406,5 @@ def aggregate(
         **timeline_kwargs,
         **pr_kwargs,
         **flow_load_kwargs,
+        **flow_efficiency_kwargs,
     )

@@ -576,7 +576,95 @@ Findings emitted by `narrative.py` (see `iris/i18n.py:finding_flow_load_*`):
 
 ---
 
-## 25. Adoption timeline (post-report, not on `ReportMetrics`)
+## 25. Flow Efficiency
+
+Decomposes the merged-PR lifecycle into four phases — Coding, Awaiting
+first review, In review, Awaiting merge — and reports the fraction that
+was *active* (event-driven work) versus *wait*. Throughput numbers alone
+say nothing about whether work is flowing or queued in a different shape.
+
+| Field | Unit | Source | Nullable when |
+|---|---|---|---|
+| `flow_efficiency_median` | float `0.0–1.0` | `analysis/flow_efficiency.py` | no merged PR survives the filters |
+| `median_time_to_first_review_hours` | float ≥ 0 | same | no merged PR had a review |
+| `time_in_phase_median_hours` | `Record<phase, hours>` | same | same as `flow_efficiency_median` |
+| `flow_efficiency_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment |
+| `flow_efficiency_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment |
+
+Phase model (5 timestamps → 4 phases per merged PR):
+
+| Phase | Start → End | Default class |
+|---|---|---|
+| Coding | `min(commit.committed_at)` → `pr.created_at` | Active |
+| Awaiting first review | `pr.created_at` → `min(review.submitted_at)` | Wait |
+| In review | `first_review` → `min(approval)` (or `merged_at` when no approval) | Mixed — heuristic |
+| Awaiting merge | `min(approval)` → `merged_at` | Wait |
+
+Active/wait heuristic for "In review":
+
+- Each event inside the phase (PR commits + reviews) marks the next
+  `active_threshold_hours` hours as **active** (default 4 h,
+  parametrizable). Intervals are unioned; the rest is **wait**.
+- Threshold is a hypothesis pending calibration with 3–5 repos.
+
+Phase keys in `time_in_phase_median_hours`:
+
+- `coding`
+- `awaiting_first_review`
+- `in_review_active`
+- `in_review_wait`
+- `awaiting_merge`
+
+Edge cases:
+
+- **PR with no reviews** → entire `pr.created_at → merged_at` window is
+  "Awaiting first review" (wait); In review and Awaiting merge are 0.
+  PR contributes to `flow_efficiency_median` but not to
+  `median_time_to_first_review_hours`.
+- **PR merged without formal approval** → "In review" extends to
+  `merged_at`; Awaiting merge is 0.
+- **Instant-merge PRs** (`total_elapsed < min_elapsed_seconds`,
+  default 5 min) → excluded from all aggregates so bot-driven auto-merges
+  don't distort the median.
+- **Bot reviewers** (Copilot etc.) count as activity events just like
+  humans. Origin classification is by commit *author*, not reviewer.
+
+PR origin rule (for `flow_efficiency_by_origin`):
+
+- PR is `AI_ASSISTED` when ≥ 50 % of its non-bot commits are
+  `AI_ASSISTED`; otherwise `HUMAN`. PRs with no classified commits are
+  excluded from the by_origin segment. Bot-authored commits are excluded
+  from both numerator and denominator. Rule is documented in
+  `flow_efficiency._pr_origin`.
+
+Privacy / ranking risk (Principle #2):
+
+- **Flow Efficiency per individual PR is computed as an intermediate but
+  never persisted**. The schema exposes only window-level aggregates.
+- **Wait time is not attributed to specific reviewers** — "awaiting
+  first review" is a property of the system, not of whoever should have
+  reviewed.
+- **Sample threshold**: by-intent/by-origin segments are emitted only
+  when the segment has ≥ `min_sample` (default 10) PRs. Below that,
+  the segment is omitted (not surfaced as "insufficient sample" — the
+  UI just shows nothing for that segment).
+- Code review checklist: confirm no endpoint or output exposes
+  efficiency per PR linked to an author.
+
+Findings emitted by `narrative.py` (see `iris/i18n.py:finding_flow_efficiency_*`):
+
+- `finding_flow_efficiency_descriptive` — always when data exists:
+  median efficiency as percent.
+- `finding_flow_efficiency_low` — when median efficiency is below
+  `FLOW_EFFICIENCY_LOW_THRESHOLD` (0.30); replaces the descriptive
+  bullet. **Threshold is a hypothesis pending calibration.**
+- `finding_time_to_first_review_slow` — when
+  `median_time_to_first_review_hours > TIME_TO_FIRST_REVIEW_SLOW_HOURS`
+  (24 h). Independent of the efficiency bullets.
+
+---
+
+## 26. Adoption timeline (post-report, not on `ReportMetrics`)
 
 When AI-assisted commits started appearing, and how the pre-adoption vs
 post-adoption metrics compare.
@@ -617,6 +705,7 @@ Confidence rules:
 | `analysis/activity_timeline.py` | `activity_timeline`, `activity_patterns` |
 | `analysis/pr_lifecycle.py` | `pr_merged_count`, `pr_median_time_to_merge_hours`, `pr_median_size_files`, `pr_median_size_lines`, `pr_review_rounds_median`, `pr_single_pass_rate` |
 | `analysis/flow_load.py` | `flow_load` |
+| `analysis/flow_efficiency.py` | `flow_efficiency_median`, `median_time_to_first_review_hours`, `time_in_phase_median_hours`, `flow_efficiency_by_intent`, `flow_efficiency_by_origin` |
 | `analysis/duplicate_detector.py` | `duplicate_block_rate`, `duplicate_block_count`, `duplicate_median_block_size`, `duplicate_by_origin`, `duplicate_by_tool` |
 | `analysis/move_detector.py` | `moved_code_pct`, `refactoring_ratio`, `move_by_origin` |
 | `analysis/code_provenance.py` | `revision_age_distribution`, `pct_revising_new_code`, `pct_revising_mature_code`, `provenance_by_origin` |
