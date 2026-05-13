@@ -59,6 +59,11 @@ _BOT_NAMES: tuple[str, ...] = (
     "pre-commit-ci",
     "imgbot",
     "mergify",
+    # AI code reviewers (third-party SaaS)
+    "kody",
+    "kody-ai",
+    # Org-specific assistants (extend per deployment)
+    "clickbus-pai",
 )
 
 # Author name patterns that indicate bot commits. Matches:
