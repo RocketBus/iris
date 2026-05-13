@@ -304,7 +304,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--verbose",
         action="store_true",
         default=False,
-        help="Show detailed debug output (e.g. author → GitHub login mapping)",
+        help=(
+            "Show detailed debug output: cumulative elapsed time after "
+            "each analysis stage (useful for diagnosing slow runs on busy "
+            "repos), plus the author → GitHub login mapping at push time."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -313,6 +317,11 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     """Run analysis on a single repository (original mode)."""
     analysis_start = time.time()
     s = get_strings(args.lang)
+
+    def _tick(label: str) -> None:
+        """Print cumulative elapsed time after a stage, when --verbose is set."""
+        if args.verbose:
+            print(f"  [+{time.time() - analysis_start:6.1f}s] {label}", flush=True)
 
     repo = os.path.abspath(args.repo_path)
     if not os.path.isdir(repo):
@@ -354,6 +363,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     with span("ingestion.commits", {"repo": repo_name, "days": args.days}):
         commits = read_commits(repo, days=args.days)
     print(s["cli_commits_found"].format(count=len(commits)))
+    _tick("commits read")
 
     if not commits:
         print(s["cli_no_commits"])
@@ -370,6 +380,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         print(s["cli_prs_found"].format(count=len(prs)))
     else:
         print(s["cli_prs_skipped"])
+    _tick("pull requests fetched")
 
     # Step 3: Classify commits by intent
     print(s["cli_classifying"], end=" ", flush=True)
@@ -378,6 +389,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     with span("analysis.aggregate", {"repo": repo_name, "commits": len(commits)}):
         metrics = aggregate(commits, churn_days=args.churn_days, prs=prs or None)
     print(s["cli_classified"].format(count=len(commits)))
+    _tick("aggregate analysis done")
 
     if metrics.fix_latency_median_hours is not None:
         print(s["cli_fix_latency_computed"].format(
@@ -439,6 +451,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         metrics = _merge_durability(metrics, durability)
     else:
         print("Durability: skipped (insufficient multi-touch files).")
+    _tick("durability (git blame) done")
 
     # Step 4d: Diff-based code quality analyses
     from iris.ingestion.diff_reader import read_commit_diffs
@@ -452,6 +465,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     with span("analysis.diffs", {"repo": repo_name}):
         commit_diffs = read_commit_diffs(repo, commits)
     print(s["cli_diffs_analyzed"].format(count=len(commit_diffs)))
+    _tick("diffs read")
 
     dup_result = detect_duplicates(commit_diffs, origin_classified, tool_map=tool_map)
     if dup_result:
@@ -485,6 +499,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         ))
     else:
         print(s["cli_provenance_none"])
+    _tick("provenance (git blame) done")
 
     # Step 4f: New code churn rate
     new_churn = calculate_new_code_churn(commits, origin_classified, tool_map=tool_map)
@@ -500,6 +515,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     metrics = _merge_quality_metrics(
         metrics, dup_result, move_result, ops_result, provenance, new_churn,
     )
+    _tick("quality metrics merged")
 
     # Step 5b: Adoption timeline detection
     adoption = None
@@ -576,6 +592,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
             print(f"Author velocity: {total} authors, {high} with high LOC/week (>1000).")
         else:
             print(f"Author velocity: {total} authors analyzed.")
+    _tick("velocity + author velocity done")
 
     # Step 6: Generate narrative
     narrative = generate_narrative(metrics, lang=args.lang, trend=trend)
@@ -599,6 +616,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         author_velocity=author_velocity,
     )
     print(s["cli_done"])
+    _tick("report written")
 
     # Record telemetry
     record_duration("iris.analysis.duration_seconds", analysis_start, {"repo": repo_name})
