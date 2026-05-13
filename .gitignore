@@ -31,5 +31,5 @@ platform/coverage/
 .husky/_/
 
 # Supabase CLI per-machine cache (project refs, pooler URLs, version files)
-supabase/.temp/
+**/supabase/.temp/
 .vercel
