@@ -45,6 +45,26 @@ def test_unknown_dash_bot_suffix_is_bot() -> None:
     assert classify_origin(_commit("some-random-bot")) is CommitOrigin.BOT
 
 
+def test_kody_ai_is_bot() -> None:
+    # kody.ai is a popular third-party AI code reviewer SaaS — its bot login
+    # has no [bot] or -bot suffix, so it needs an explicit entry.
+    assert classify_origin(_commit("kody-ai")) is CommitOrigin.BOT
+    assert classify_origin(_commit("kody")) is CommitOrigin.BOT
+
+
+def test_clickbus_pai_is_bot() -> None:
+    # ClickBus Programmer Assistant (clickbus-pai) — org-specific automation
+    # account that auto-reviews / auto-approves PRs.
+    assert classify_origin(_commit("clickbus-pai")) is CommitOrigin.BOT
+    assert classify_origin(_commit("ClickBus-PAI")) is CommitOrigin.BOT
+
+
+def test_human_with_ai_suffix_in_name_stays_human() -> None:
+    # Regression guard: don't let the kody/-pai entries accidentally match
+    # humans whose names happen to contain those substrings as fragments.
+    assert classify_origin(_commit("random-user-ai")) is CommitOrigin.HUMAN
+
+
 def test_ai_co_author_still_wins_over_bot_author() -> None:
     c = _commit("dependabot[bot]", co_authors=["copilot@users.noreply.github.com"])
     assert classify_origin(c) is CommitOrigin.AI_ASSISTED
