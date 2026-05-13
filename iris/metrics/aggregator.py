@@ -415,14 +415,17 @@ def aggregate(
         **pr_kwargs,
         **flow_load_kwargs,
         **flow_efficiency_kwargs,
-        **_dora_real_kwargs(external_data),
+        **_dora_real_kwargs(external_data, origin_map),
     )
 
 
-def _dora_real_kwargs(external_data: ExternalDORAData | None) -> dict:
+def _dora_real_kwargs(
+    external_data: ExternalDORAData | None,
+    origin_map: dict[str, str] | None,
+) -> dict:
     if external_data is None:
         return {}
-    result = analyze_dora_real(external_data)
+    result = analyze_dora_real(external_data, origin_map=origin_map)
     return {
         "dora_source": result.source,
         "dora_deployments_total": result.deployments_total,
@@ -439,4 +442,6 @@ def _dora_real_kwargs(external_data: ExternalDORAData | None) -> dict:
         "dora_lead_time_seconds_median": result.lead_time_seconds_median,
         "dora_deploy_frequency_per_day": result.deploy_frequency_per_day,
         "dora_remediation_distribution": result.remediation_distribution or None,
+        "dora_cfr_by_origin": result.cfr_by_origin,
+        "dora_rollback_rate_by_origin": result.rollback_rate_by_origin,
     }

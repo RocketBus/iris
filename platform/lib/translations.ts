@@ -282,6 +282,40 @@ export const translations = {
         fixLatency: "Fix Latency",
         newCodeChurn: "New Code Churn (2w)",
       },
+      dora: {
+        title: "DORA",
+        sourceBadge: "Datadog",
+        subtitle:
+          "Deployment metrics from {count} repositories with an active Datadog integration",
+        metrics: {
+          cfr: "Change Failure Rate",
+          mttrPerDeploy: "MTTR (per failed deploy)",
+          deployFrequency: "Deploy Frequency",
+          leadTime: "Lead Time",
+          deploymentsTotal: "Deployments",
+          deploymentsTotalHint: "{failed} failed in the window",
+          rollbackRate: "Rollback Rate",
+          rollbackRateHint: "{count} rollbacks of failed deploys",
+          pending: "Pending Evaluation",
+          pendingHint: "Datadog hasn't classified these yet",
+        },
+        correlation: {
+          title: "Change Failure Rate by Code Origin",
+          subtitle:
+            "Per-commit join of Datadog deploys to local origin classification. Requires ≥ {threshold} failed deploys for signal.",
+          cfrHeader: "CFR by origin",
+          rollbackHeader: "Rollback rate by origin",
+          cfrDenominator: "({failed} failed / {evaluated} evaluated)",
+          rollbackDenominator: "({rollbacks} of {failed} failed)",
+          insufficient:
+            "Need at least {threshold} failed deploys for the AI-vs-human comparison. Currently {actual}.",
+          origin: {
+            HUMAN: "Human",
+            AI_ASSISTED: "AI-Assisted",
+            BOT: "Bot",
+          },
+        },
+      },
       aiVsHuman: {
         title: "AI vs Human",
         subtitle: "How AI-assisted code compares across {count} repositories",
@@ -788,6 +822,12 @@ export const translations = {
             unmatchedDeployments: "Unmatched deployments",
             unmatchedDeploymentsHint:
               "Deployments whose Datadog repository slug didn't resolve to a tracked Iris repo. Verify the Iris repo's remote URL matches the Datadog repository_id.",
+            lastIncidentRegistered: "Last incident registered",
+            lastIncidentNever: "No incidents registered yet",
+            lastIncidentHint:
+              "Most recent failure event ingested {days} day(s) ago. If this number keeps growing, check whether the Datadog DORA failure feed is still active.",
+            lastIncidentNeverHint:
+              "Datadog hasn't sent a failure event for this org yet. The MTTR per-incident metric stays empty until one lands.",
           },
           disconnectDialog: {
             title: "Disconnect Datadog?",
@@ -1536,6 +1576,40 @@ export const translations = {
         fixLatency: "Latência de correção",
         newCodeChurn: "Churn de código novo (2sem)",
       },
+      dora: {
+        title: "DORA",
+        sourceBadge: "Datadog",
+        subtitle:
+          "Métricas de deploy de {count} repositórios com integração Datadog ativa",
+        metrics: {
+          cfr: "Taxa de falha em mudança",
+          mttrPerDeploy: "MTTR (por deploy com falha)",
+          deployFrequency: "Frequência de deploy",
+          leadTime: "Lead Time",
+          deploymentsTotal: "Deploys",
+          deploymentsTotalHint: "{failed} com falha na janela",
+          rollbackRate: "Taxa de rollback",
+          rollbackRateHint: "{count} rollbacks entre os deploys com falha",
+          pending: "Aguardando avaliação",
+          pendingHint: "O Datadog ainda não classificou esses deploys",
+        },
+        correlation: {
+          title: "Taxa de falha por origem do código",
+          subtitle:
+            "Junção por commit dos deploys do Datadog com a classificação local de origem. Requer ≥ {threshold} deploys com falha para gerar sinal.",
+          cfrHeader: "CFR por origem",
+          rollbackHeader: "Taxa de rollback por origem",
+          cfrDenominator: "({failed} com falha / {evaluated} avaliados)",
+          rollbackDenominator: "({rollbacks} de {failed} com falha)",
+          insufficient:
+            "São necessários pelo menos {threshold} deploys com falha para a comparação IA vs Humano. Atualmente {actual}.",
+          origin: {
+            HUMAN: "Humano",
+            AI_ASSISTED: "Assistido por IA",
+            BOT: "Bot",
+          },
+        },
+      },
       aiVsHuman: {
         title: "IA vs Humano",
         subtitle:
@@ -2051,6 +2125,12 @@ export const translations = {
             unmatchedDeployments: "Deploys não vinculados",
             unmatchedDeploymentsHint:
               "Deploys cujo slug de repositório do Datadog não correspondeu a um repositório rastreado pelo Iris. Verifique se a URL remota do repositório no Iris bate com o repository_id do Datadog.",
+            lastIncidentRegistered: "Último incidente registrado",
+            lastIncidentNever: "Nenhum incidente registrado ainda",
+            lastIncidentHint:
+              "O incidente mais recente foi ingerido há {days} dia(s). Se esse número continuar crescendo, verifique se o feed de falhas DORA do Datadog ainda está ativo.",
+            lastIncidentNeverHint:
+              "O Datadog ainda não enviou nenhum evento de falha para esta org. A métrica MTTR por incidente fica vazia até o primeiro chegar.",
           },
           disconnectDialog: {
             title: "Desconectar o Datadog?",

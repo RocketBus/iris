@@ -719,6 +719,8 @@ every `dora_*` field is null and the report's DORA section is empty.
 | `dora_lead_time_seconds_median` | seconds | same | no deploy carries `commits[].change_lead_time` |
 | `dora_deploy_frequency_per_day` | float ≥ 0 | same | `ExternalDORAData.window_from`/`window_to` not provided |
 | `dora_remediation_distribution` | `Record<remediation_type, int>` | same | no failed deploys in the window |
+| `dora_cfr_by_origin` | `Record<origin, {failed, evaluated, cfr, coverage_pct}>` | same | analysis run had no local commit-origin classification (e.g. CLI invoked without commit data) |
+| `dora_rollback_rate_by_origin` | `Record<origin, {rollbacks, failed, rollback_rate}>` | same | no failed deploys in the window or no origin map |
 
 Tri-state `change_failure`:
 
@@ -755,7 +757,7 @@ MTTR has two flavors that come from different events:
 | `analysis/pr_lifecycle.py` | `pr_merged_count`, `pr_median_time_to_merge_hours`, `pr_median_size_files`, `pr_median_size_lines`, `pr_review_rounds_median`, `pr_single_pass_rate` |
 | `analysis/flow_load.py` | `flow_load` |
 | `analysis/flow_efficiency.py` | `flow_efficiency_median`, `median_time_to_first_review_hours`, `time_in_phase_median_hours`, `flow_efficiency_by_intent`, `flow_efficiency_by_origin` |
-| `analysis/dora_real.py` | `dora_source`, `dora_deployments_total`, `dora_deployments_failed`, `dora_deployments_pending_evaluation`, `dora_incidents_total`, `dora_cfr`, `dora_mttr_per_deploy_seconds_median`, `dora_mttr_per_deploy_seconds_p90`, `dora_mttr_per_incident_seconds_median`, `dora_mttr_per_incident_seconds_p90`, `dora_rollback_rate`, `dora_rollbacks_total`, `dora_lead_time_seconds_median`, `dora_deploy_frequency_per_day`, `dora_remediation_distribution` |
+| `analysis/dora_real.py` | `dora_source`, `dora_deployments_total`, `dora_deployments_failed`, `dora_deployments_pending_evaluation`, `dora_incidents_total`, `dora_cfr`, `dora_mttr_per_deploy_seconds_median`, `dora_mttr_per_deploy_seconds_p90`, `dora_mttr_per_incident_seconds_median`, `dora_mttr_per_incident_seconds_p90`, `dora_rollback_rate`, `dora_rollbacks_total`, `dora_lead_time_seconds_median`, `dora_deploy_frequency_per_day`, `dora_remediation_distribution`, `dora_cfr_by_origin`, `dora_rollback_rate_by_origin` |
 | `analysis/duplicate_detector.py` | `duplicate_block_rate`, `duplicate_block_count`, `duplicate_median_block_size`, `duplicate_by_origin`, `duplicate_by_tool` |
 | `analysis/move_detector.py` | `moved_code_pct`, `refactoring_ratio`, `move_by_origin` |
 | `analysis/code_provenance.py` | `revision_age_distribution`, `pct_revising_new_code`, `pct_revising_mature_code`, `provenance_by_origin` |

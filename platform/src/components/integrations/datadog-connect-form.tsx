@@ -57,6 +57,10 @@ export type DatadogIntegrationStatus =
       createdAt: string;
       updatedAt: string;
       unmatchedDeploymentsCount: number;
+      /** ISO 8601 of the most recent incident registered, or null. */
+      lastIncidentAt: string | null;
+      /** Days elapsed since `lastIncidentAt` (server-computed for purity). */
+      daysSinceLastIncident: number | null;
     };
 
 interface Props {
@@ -109,6 +113,8 @@ export function DatadogConnectForm({ organizationId, initial }: Props) {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         unmatchedDeploymentsCount: 0,
+        lastIncidentAt: null,
+        daysSinceLastIncident: null,
       });
       router.refresh();
     } catch (err) {
@@ -211,6 +217,32 @@ export function DatadogConnectForm({ organizationId, initial }: Props) {
                 </dd>
               </div>
             )}
+            <div className="sm:col-span-2">
+              <dt className="text-muted-foreground">
+                {t(
+                  "settings.integrations.datadog.fields.lastIncidentRegistered",
+                )}
+              </dt>
+              <dd className="flex flex-col gap-1">
+                <span>
+                  {state.lastIncidentAt
+                    ? new Date(state.lastIncidentAt).toLocaleString()
+                    : t(
+                        "settings.integrations.datadog.fields.lastIncidentNever",
+                      )}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {state.daysSinceLastIncident !== null
+                    ? t(
+                        "settings.integrations.datadog.fields.lastIncidentHint",
+                        { days: state.daysSinceLastIncident },
+                      )
+                    : t(
+                        "settings.integrations.datadog.fields.lastIncidentNeverHint",
+                      )}
+                </span>
+              </dd>
+            </div>
           </dl>
 
           {state.lastError && (

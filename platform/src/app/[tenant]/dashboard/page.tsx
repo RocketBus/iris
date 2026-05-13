@@ -1,25 +1,26 @@
-import Link from 'next/link';
-import { notFound, redirect } from 'next/navigation';
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 
-import { getServerSession } from 'next-auth/next';
+import { getServerSession } from "next-auth/next";
 
-import { RepoList } from './repo-list';
-import { AIDeliveryTimeline } from './sections/AIDeliveryTimeline';
-import { AIvsHuman } from './sections/AIvsHuman';
-import { DeliveryQuality } from './sections/DeliveryQuality';
-import { HealthMap } from './sections/HealthMap';
-import { HyperEngineers } from './sections/HyperEngineers';
-import { IntentDistribution } from './sections/IntentDistribution';
-import { OrgPulse } from './sections/OrgPulse';
-import { OrgTimeline } from './sections/OrgTimeline';
-import { PRHealth } from './sections/PRHealth';
-import { ToolComparison } from './sections/ToolComparison';
+import { RepoList } from "./repo-list";
+import { AIDeliveryTimeline } from "./sections/AIDeliveryTimeline";
+import { AIvsHuman } from "./sections/AIvsHuman";
+import { DeliveryQuality } from "./sections/DeliveryQuality";
+import { DORAOverview } from "./sections/DORAOverview";
+import { HealthMap } from "./sections/HealthMap";
+import { HyperEngineers } from "./sections/HyperEngineers";
+import { IntentDistribution } from "./sections/IntentDistribution";
+import { OrgPulse } from "./sections/OrgPulse";
+import { OrgTimeline } from "./sections/OrgTimeline";
+import { PRHealth } from "./sections/PRHealth";
+import { ToolComparison } from "./sections/ToolComparison";
 
-import { ChangeAlert } from '@/components/charts/ChangeAlert';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { authOptions } from '@/lib/auth';
-import { computeOrgAdoption } from '@/lib/queries/adoption-timeline';
+import { ChangeAlert } from "@/components/charts/ChangeAlert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { authOptions } from "@/lib/auth";
+import { computeOrgAdoption } from "@/lib/queries/adoption-timeline";
 import {
   getOrgLatestPayloads,
   getOrgActiveContributors,
@@ -32,14 +33,15 @@ import {
   computeOrgTimeline,
   computePreviousTotals,
   computeHyperEngineers,
-} from '@/lib/queries/org-summary';
+  computeDORA,
+} from "@/lib/queries/org-summary";
 import {
   getOrgReposSummary,
   getOrgChangeDetections,
-} from '@/lib/queries/temporal';
-import { computeToolComparison } from '@/lib/queries/tool-comparison';
-import { getServerTranslation } from '@/lib/server-translation';
-import { supabaseAdmin } from '@/lib/supabase';
+} from "@/lib/queries/temporal";
+import { computeToolComparison } from "@/lib/queries/tool-comparison";
+import { getServerTranslation } from "@/lib/server-translation";
+import { supabaseAdmin } from "@/lib/supabase";
 
 export default async function OrgDashboardPage({
   params,
@@ -47,27 +49,27 @@ export default async function OrgDashboardPage({
   params: Promise<{ tenant: string }>;
 }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user) redirect('/auth/signin');
+  if (!session?.user) redirect("/auth/signin");
 
   const { tenant } = await params;
 
   const { data: org } = await supabaseAdmin
-    .from('organizations')
-    .select('id, name')
-    .eq('slug', tenant)
+    .from("organizations")
+    .select("id, name")
+    .eq("slug", tenant)
     .single();
 
   if (!org) notFound();
 
   const { data: membership } = await supabaseAdmin
-    .from('organization_members')
-    .select('role')
-    .eq('user_id', session.user.id)
-    .eq('organization_id', org.id)
+    .from("organization_members")
+    .select("role")
+    .eq("user_id", session.user.id)
+    .eq("organization_id", org.id)
     .single();
 
-  const role = membership?.role as 'owner' | 'admin' | 'member' | undefined;
-  const canSeeHyperEngineers = role === 'owner' || role === 'admin';
+  const role = membership?.role as "owner" | "admin" | "member" | undefined;
+  const canSeeHyperEngineers = role === "owner" || role === "admin";
 
   // Fetch all data in parallel
   const [repoSummaries, changes, contributorInfo] = await Promise.all([
@@ -82,12 +84,12 @@ export default async function OrgDashboardPage({
 
   // Fetch raw metrics for previous-period delta calculation
   const { data: allMetricsRaw } = await supabaseAdmin
-    .from('metrics')
+    .from("metrics")
     .select(
-      'repository_id, commits_total, pr_merged_count, ai_detection_coverage_pct',
+      "repository_id, commits_total, pr_merged_count, ai_detection_coverage_pct",
     )
-    .eq('organization_id', org.id)
-    .order('created_at', { ascending: false })
+    .eq("organization_id", org.id)
+    .order("created_at", { ascending: false })
     .limit(repoSummaries.length * 15);
 
   const previousTotals = computePreviousTotals(
@@ -108,8 +110,12 @@ export default async function OrgDashboardPage({
   const prData = computePRHealth(repoSummaries, payloads);
   const healthMapEntries = computeHealthMap(repoSummaries);
   const timelineData = computeOrgTimeline(payloads);
-  const hyperEngineers = computeHyperEngineers(payloads, contributorInfo.userMap);
+  const hyperEngineers = computeHyperEngineers(
+    payloads,
+    contributorInfo.userMap,
+  );
   const toolComparisonData = computeToolComparison(payloads);
+  const doraData = computeDORA(payloads);
   const repoNameIndex = new Map(repoSummaries.map((r) => [r.id, r.name]));
   const adoptionRows = computeOrgAdoption(payloads, repoNameIndex);
 
@@ -126,11 +132,11 @@ export default async function OrgDashboardPage({
         <Card>
           <CardContent className="flex flex-col items-center gap-4 py-12 text-center">
             <p className="max-w-md text-sm text-muted-foreground">
-              {t('connect.subtitle')}
+              {t("connect.subtitle")}
             </p>
             <Button asChild>
               <Link href={`/${tenant}/connect`}>
-                {t('connect.emptyStateLink')}
+                {t("connect.emptyStateLink")}
               </Link>
             </Button>
           </CardContent>
@@ -156,6 +162,9 @@ export default async function OrgDashboardPage({
 
       {/* Delivery quality */}
       <DeliveryQuality data={qualityData} />
+
+      {/* DORA — real metrics from a connected Datadog integration */}
+      {doraData && <DORAOverview data={doraData} />}
 
       {/* AI vs Human */}
       {aiData && <AIvsHuman data={aiData} tenantSlug={tenant} />}
