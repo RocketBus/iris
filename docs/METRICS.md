@@ -695,6 +695,45 @@ Confidence rules:
 
 ---
 
+## DORA (real) — Datadog-derived
+
+Populated when the org has an active Datadog integration and the CLI
+fetched events from `GET /api/integrations/datadog/events` for the
+analysis window. When the integration is absent or returns zero events,
+every `dora_*` field is null and the report's DORA section is empty.
+
+| Field | Unit | Source | Nullable when |
+|---|---|---|---|
+| `dora_source` | `"datadog"` | `analysis/dora_real.py` | no active integration / no events fetched |
+| `dora_deployments_total` | int ≥ 0 | same | same |
+| `dora_deployments_failed` | int ≥ 0 | same | same |
+| `dora_deployments_pending_evaluation` | int ≥ 0 | same | same |
+| `dora_incidents_total` | int ≥ 0 | same | same |
+| `dora_cfr` | float `0.0–1.0` | same | every deploy in the window is `change_failure=null` (still pending Datadog evaluation) |
+| `dora_mttr_per_deploy_seconds_median` | seconds | same | no failed deploy carries `recovery_time_sec` |
+| `dora_mttr_per_deploy_seconds_p90` | seconds | same | same |
+| `dora_mttr_per_incident_seconds_median` | seconds | same | no incident carries `time_to_restore_seconds` |
+| `dora_mttr_per_incident_seconds_p90` | seconds | same | same |
+| `dora_rollback_rate` | float `0.0–1.0` | same | no failed deploys in the window |
+| `dora_rollbacks_total` | int ≥ 0 | same | (always set when `dora_source` is) |
+| `dora_lead_time_seconds_median` | seconds | same | no deploy carries `commits[].change_lead_time` |
+| `dora_deploy_frequency_per_day` | float ≥ 0 | same | `ExternalDORAData.window_from`/`window_to` not provided |
+| `dora_remediation_distribution` | `Record<remediation_type, int>` | same | no failed deploys in the window |
+
+Tri-state `change_failure`:
+
+- Datadog evaluates each deploy and assigns `change_failure ∈ {true, false, null}`.
+- `null` means "still inside Datadog's evaluation window, no verdict yet".
+- The CFR denominator is `count(change_failure in {true, false})` — `null` is excluded.
+- Surfaced separately as `dora_deployments_pending_evaluation` so the dashboard can show *what we don't know yet*.
+
+MTTR has two flavors that come from different events:
+
+- **Per-deploy** (`dora_mttr_per_deploy_seconds_*`) — median/p90 of `recovery_time_sec` over failed deploys. Joins cleanly back to commits via `commit_sha`; this is the per-deploy lens the AI-vs-human correlation card uses (slice 5).
+- **Per-incident** (`dora_mttr_per_incident_seconds_*`) — median/p90 of `time_to_restore_seconds` over failure events. Canonical DORA-reporting number.
+
+---
+
 ## Module → fields map
 
 | Module | Fields populated |
@@ -716,6 +755,7 @@ Confidence rules:
 | `analysis/pr_lifecycle.py` | `pr_merged_count`, `pr_median_time_to_merge_hours`, `pr_median_size_files`, `pr_median_size_lines`, `pr_review_rounds_median`, `pr_single_pass_rate` |
 | `analysis/flow_load.py` | `flow_load` |
 | `analysis/flow_efficiency.py` | `flow_efficiency_median`, `median_time_to_first_review_hours`, `time_in_phase_median_hours`, `flow_efficiency_by_intent`, `flow_efficiency_by_origin` |
+| `analysis/dora_real.py` | `dora_source`, `dora_deployments_total`, `dora_deployments_failed`, `dora_deployments_pending_evaluation`, `dora_incidents_total`, `dora_cfr`, `dora_mttr_per_deploy_seconds_median`, `dora_mttr_per_deploy_seconds_p90`, `dora_mttr_per_incident_seconds_median`, `dora_mttr_per_incident_seconds_p90`, `dora_rollback_rate`, `dora_rollbacks_total`, `dora_lead_time_seconds_median`, `dora_deploy_frequency_per_day`, `dora_remediation_distribution` |
 | `analysis/duplicate_detector.py` | `duplicate_block_rate`, `duplicate_block_count`, `duplicate_median_block_size`, `duplicate_by_origin`, `duplicate_by_tool` |
 | `analysis/move_detector.py` | `moved_code_pct`, `refactoring_ratio`, `move_by_origin` |
 | `analysis/code_provenance.py` | `revision_age_distribution`, `pct_revising_new_code`, `pct_revising_mature_code`, `provenance_by_origin` |

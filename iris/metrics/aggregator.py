@@ -14,6 +14,7 @@ from iris.analysis.cascade_detector import detect_cascades
 from iris.analysis.churn_detail import calculate_churn_detail, render_chain
 from iris.analysis.churn_calculator import calculate_churn
 from iris.analysis.commit_shape import analyze_commit_shapes
+from iris.analysis.dora_real import analyze_dora_real
 from iris.analysis.fix_latency import calculate_fix_latency
 from iris.analysis.flow_efficiency import analyze_flow_efficiency
 from iris.analysis.flow_load import analyze_flow_load
@@ -35,6 +36,7 @@ from iris.analysis.fix_targeting import calculate_fix_targeting
 from iris.analysis.revert_detector import detect_reverts
 from iris.metrics.stabilization import calculate_stabilization
 from iris.models.commit import Commit
+from iris.models.external import ExternalDORAData
 from iris.models.metrics import ReportMetrics
 from iris.models.pull_request import PullRequest
 
@@ -43,6 +45,7 @@ def aggregate(
     commits: list[Commit],
     churn_days: int,
     prs: list[PullRequest] | None = None,
+    external_data: ExternalDORAData | None = None,
 ) -> ReportMetrics:
     """Run all analyses on commits and return the combined ReportMetrics.
 
@@ -50,6 +53,11 @@ def aggregate(
         commits: Commits from git_reader (sorted by date ascending).
         churn_days: Churn/stabilization window in days.
         prs: Optional list of merged PRs from github_reader.
+        external_data: Optional pre-fetched DORA events (deployments +
+            incidents) from a connected provider — currently Datadog. When
+            provided, populates the ``dora_*`` fields on ReportMetrics;
+            when None, those fields stay None and the report renders the
+            DORA section as "not available".
 
     Returns:
         ReportMetrics with all fields populated. PR fields are None
@@ -407,4 +415,28 @@ def aggregate(
         **pr_kwargs,
         **flow_load_kwargs,
         **flow_efficiency_kwargs,
+        **_dora_real_kwargs(external_data),
     )
+
+
+def _dora_real_kwargs(external_data: ExternalDORAData | None) -> dict:
+    if external_data is None:
+        return {}
+    result = analyze_dora_real(external_data)
+    return {
+        "dora_source": result.source,
+        "dora_deployments_total": result.deployments_total,
+        "dora_deployments_failed": result.deployments_failed,
+        "dora_deployments_pending_evaluation": result.deployments_pending_evaluation,
+        "dora_incidents_total": result.incidents_total,
+        "dora_cfr": result.cfr,
+        "dora_mttr_per_deploy_seconds_median": result.mttr_per_deploy_seconds_median,
+        "dora_mttr_per_deploy_seconds_p90": result.mttr_per_deploy_seconds_p90,
+        "dora_mttr_per_incident_seconds_median": result.mttr_per_incident_seconds_median,
+        "dora_mttr_per_incident_seconds_p90": result.mttr_per_incident_seconds_p90,
+        "dora_rollback_rate": result.rollback_rate,
+        "dora_rollbacks_total": result.rollbacks_total,
+        "dora_lead_time_seconds_median": result.lead_time_seconds_median,
+        "dora_deploy_frequency_per_day": result.deploy_frequency_per_day,
+        "dora_remediation_distribution": result.remediation_distribution or None,
+    }

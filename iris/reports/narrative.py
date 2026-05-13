@@ -162,6 +162,9 @@ def generate_key_findings(metrics: ReportMetrics, lang: str = "en") -> str:
     flow_findings = _flow_load_findings(metrics, s)
     findings.extend(flow_findings)
 
+    # DORA (real) — descriptive bullets when external integration delivers data
+    findings.extend(_dora_real_findings(metrics, s))
+
     # Volume context
     findings.append(s["finding_volume"].format(
         commits=metrics.commits_total,
@@ -250,6 +253,56 @@ def _flow_load_findings(metrics: ReportMetrics, s: dict) -> list[str]:
             start_wip=first,
             end_wip=last,
         ))
+    return findings
+
+
+def _dora_real_findings(metrics: ReportMetrics, s: dict) -> list[str]:
+    """Build DORA (real) findings (0-3 bullets) when external integration data is present.
+
+    Always descriptive — no thresholds yet, since 30 days of data on a new
+    integration isn't enough to calibrate "good" vs "bad" CFR/MTTR per
+    repo. The dashboard handles the visual story; narrative just states
+    the headline numbers so the report.md reader sees them.
+    """
+    if metrics.dora_source is None or metrics.dora_deployments_total is None:
+        return []
+
+    findings: list[str] = []
+
+    if metrics.dora_cfr is not None:
+        findings.append(
+            s["finding_dora_cfr_descriptive"].format(
+                cfr_pct=f"{metrics.dora_cfr:.0%}",
+                failed=metrics.dora_deployments_failed or 0,
+                evaluated=(
+                    (metrics.dora_deployments_total or 0)
+                    - (metrics.dora_deployments_pending_evaluation or 0)
+                ),
+            )
+        )
+    elif metrics.dora_deployments_pending_evaluation:
+        findings.append(
+            s["finding_dora_cfr_all_pending"].format(
+                pending=metrics.dora_deployments_pending_evaluation,
+            )
+        )
+
+    if metrics.dora_mttr_per_deploy_seconds_median is not None:
+        findings.append(
+            s["finding_dora_mttr_descriptive"].format(
+                hours=metrics.dora_mttr_per_deploy_seconds_median / 3600.0,
+                failed=metrics.dora_deployments_failed or 0,
+            )
+        )
+
+    if metrics.dora_rollback_rate is not None and metrics.dora_rollback_rate > 0:
+        findings.append(
+            s["finding_dora_rollback_rate"].format(
+                pct=f"{metrics.dora_rollback_rate:.0%}",
+                rollbacks=metrics.dora_rollbacks_total or 0,
+            )
+        )
+
     return findings
 
 
