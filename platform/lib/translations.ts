@@ -735,6 +735,33 @@ export const translations = {
     settings: {
       title: "Organization Settings",
       subtitle: "Manage your organization settings and preferences",
+      integrations: {
+        title: "Integrations",
+        subtitle:
+          "Connect external systems to bring deploy and incident data into the analysis.",
+        footnote:
+          "Coming soon. More providers will appear here as they're built out.",
+        status: {
+          notConnected: "Not connected",
+          connected: "Connected",
+          error: "Error",
+        },
+        providers: {
+          datadog: {
+            name: "Datadog",
+            description:
+              "Pull deployments and incidents from Datadog's DORA Metrics API.",
+            detail:
+              "Once connected, Iris will sync deployment and failure events daily and use them to compute real Change Failure Rate and MTTR alongside the git-derived estimates.",
+          },
+        },
+        detail: {
+          backLink: "Back to integrations",
+          comingSoonTitle: "Coming soon",
+          comingSoonDescription:
+            "Connection flow, credentials, and sync configuration land in upcoming releases.",
+        },
+      },
       dangerZone: "Danger Zone",
       deleteOrganizationDescription:
         "Irreversible and destructive actions for this organization",
@@ -1935,6 +1962,33 @@ export const translations = {
     settings: {
       title: "Configurações da Organização",
       subtitle: "Gerencie as configurações e preferências da sua organização",
+      integrations: {
+        title: "Integrações",
+        subtitle:
+          "Conecte sistemas externos para trazer dados de deploy e incidentes para a análise.",
+        footnote:
+          "Em breve. Novos providers aparecerão aqui conforme forem implementados.",
+        status: {
+          notConnected: "Não conectada",
+          connected: "Conectada",
+          error: "Erro",
+        },
+        providers: {
+          datadog: {
+            name: "Datadog",
+            description:
+              "Puxe deployments e incidentes da DORA Metrics API do Datadog.",
+            detail:
+              "Conectado, o Iris vai sincronizar eventos de deploy e falha diariamente e usá-los para calcular Change Failure Rate e MTTR reais junto com os estimados derivados do git.",
+          },
+        },
+        detail: {
+          backLink: "Voltar para integrações",
+          comingSoonTitle: "Em breve",
+          comingSoonDescription:
+            "Fluxo de conexão, credenciais e configuração de sincronização chegam nas próximas releases.",
+        },
+      },
       dangerZone: "Zona de Perigo",
       deleteOrganizationDescription:
         "Ações irreversíveis e destrutivas para esta organização",
