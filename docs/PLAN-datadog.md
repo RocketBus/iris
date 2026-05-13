@@ -322,129 +322,82 @@ Once these are answered, PR 1 can ship.
 
 ---
 
-## 8. Revision (2026-05-13) — DORA API is write-only
+## 8. Revision (2026-05-13) — list endpoint is POST-with-body, not GET
 
 The original §1 picked **DORA Metrics API v2 (read endpoints)** as the
-source for raw deployment and failure events. That was wrong. Empirical
-probing against Datadog US1 (`/api/v2/dora/deployment`,
-`/deployments`, `/incident`, `/incidents`, `/failure`, `/failures`,
-`/metrics`) returns 404 on every read attempt. Datadog's DORA endpoints
-are POST-only: callers **submit** events to populate the DORA dashboard;
-there is no GET surface for "list deployments" or "list failures" as
-raw events.
+source for raw deployment and failure events. That was directionally
+correct. An earlier draft of this section claimed the API was
+write-only based on GET probes that returned 404 — that conclusion was
+wrong. Datadog's list-with-filters endpoints accept POST with a JSON
+body (the filter object doesn't fit cleanly as URL query params),
+which is a known but non-REST-standard pattern. Re-probing with POST:
 
-Slice 1 (UI skeleton) was unaffected — it doesn't talk to Datadog yet.
-Slices 3-5 (ingestion + engine + dashboard) need a different data
-source.
+```
+POST /api/v2/dora/deployments (no auth, valid body shape) → HTTP 401
+POST /api/v2/dora/failures    (no auth, valid body shape) → HTTP 401
+GET  /api/v2/dora/deployments/test-id (no auth)           → HTTP 401
+```
 
-### What Datadog actually exposes for reading
+401 (not 404) means the endpoints exist and reject only for missing
+auth — confirming the original §1 plan. The 404s observed earlier were
+Datadog returning "no GET handler at this path" instead of HTTP 405
+Method Not Allowed.
 
-| Surface | Endpoint | Shape | Useful for |
-|---|---|---|---|
-| **Metrics API** | `POST /api/v1/query` | Time-series buckets over `dora.*` metric names (`dora.lead_time`, `dora.deploy_frequency`, `dora.change_failure_rate`, `dora.recovery_time`) | DORA aggregates — but no per-event detail, no commit linkage |
-| **Events API** | `GET /api/v1/events?start&end&sources` | Raw events with `source`, `tags`, free-text `text`/`title` | Deployment events when customer wires Datadog's GitHub/GitLab/APM integrations |
-| **Incidents API** | `GET /api/v2/incidents` | Incident records with `severity`, `created_at`, `resolved_at` | Real incident data — **only if Datadog Incident Management is enabled** on the customer's org |
-| **APM deployment tracking** | `GET /api/v1/events?sources=apm` (or service-specific filters) | `service.deployment.started`, `service.deployment.completed` events | Deployment events when customer uses APM deployment tracking |
+Slice 1 (UI skeleton) was unaffected. The rest of the original plan
+stands; only the HTTP verb and request shape change for the list calls.
 
-None of these is a clean "raw DORA events" pipe. The data shape depends
-on **what the customer wired into Datadog**:
+### The four endpoints that matter
 
-- Customer with APM Deployment Tracking → Events API gives deployments
-- Customer with Datadog Incident Management → Incidents API gives failures
-- Customer with only DORA dashboards (submitting via POST DORA API) → only
-  aggregated Metrics API; no per-event detail readable
-- Customer with PagerDuty/Sentry feeding Datadog → Events API gives
-  whatever those integrations emit
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/v2/dora/deployments` | POST | List deployment events with filters (`from`, `to`, `query`, `limit`, `sort`). Body wraps the filters under `data.attributes`, `data.type = "dora_deployments_list_request"`. |
+| `/api/v2/dora/failures` | POST | List failure/incident events with the same filter shape; `data.type = "dora_failures_list_request"`. |
+| `/api/v2/dora/deployments/{id}` | GET | Single deployment detail (used to enrich a row on demand). |
+| `/api/v2/dora/failures/{id}` | GET | Single failure detail. |
 
-### Revised options
+Each deployment event exposes — per Datadog's published reference —
+`service`, `team`, `env`, `version`, `repository_id`, `change_failure`
+(bool), `recovery_time`, `avg_change_lead_time`, commit count, and the
+constituent lead-time stages (review, merge, time-to-deploy). That's
+more than enough to populate `external_deployments` with commit-linked
+detail and to compute per-origin CFR — the original correlation card
+goal in §7 #4 is back on the table.
 
-**Option A — Aggregates only (Metrics API)**
+**One real caveat carried over** from the doc you shared: DORA event
+retention on Datadog is **2 years**. Initial backfill window is fine
+inside that envelope (the §7 default was 30 days); we shouldn't try to
+go further back than 24 months on first sync.
 
-Query `dora.*` time-series via `POST /api/v1/query`. Get real DORA
-values that match what the customer sees on their own DORA dashboard.
+### Impact on the rest of the plan
 
-*Pros:* one well-defined endpoint; works for any customer with DORA
-configured on Datadog regardless of which integrations they use.
+- **§1 row 1** ("DORA Metrics API v2 (read endpoints)") — the spirit
+  stays, but the wording was off. Read = `POST .../deployments` and
+  `POST .../failures` (list with body filters) plus `GET .../{id}`
+  (single record). Treat those as the canonical read surface.
+- **§3 schemas** — no change. `external_deployments` and
+  `external_incidents` were modeled on the same fields the DORA event
+  payload provides.
+- **§4 PR breakdown** — no slice changes. Slice 3 stays one chunk.
+- **§7 decision #4** — "CFR by code origin" is feasible after all;
+  keep as the first correlation card.
+- **§7 decision #6** introduced in the earlier (incorrect) draft of
+  this §8 — drop it. There's no A/B/C choice; we go with the
+  Option B / "raw events" path that was the original intent.
 
-*Cons:* no per-event detail. We cannot attribute incidents to specific
-commits → the proposed "CFR by code origin" correlation card (decision
-#4) becomes impossible at this layer. We'd only be able to compare
-*window-level* CFR Datadog-reported vs Iris-estimated, not split by
-origin.
+### Validation status
 
-**Option B — Raw events from Events + Incidents APIs**
+The two probe runs (GET → 404, POST → 401) confirm endpoints exist.
+The dev keys provided in this session returned 403 on
+`/api/v1/validate` so we don't yet have a happy-path response to
+inspect — but the doc and the structural probes agree, and the user
+provided a concrete `curl` example that matches the request shape
+documented above. Before slice 3 starts (raw event ingestion), we need
+working keys to:
 
-Query `/api/v1/events` (deployments) and `/api/v2/incidents`
-(failures) directly. Get commit-linked detail when the customer's setup
-allows it.
-
-*Pros:* preserves per-commit attribution → CFR-by-origin correlation
-remains feasible.
-
-*Cons:* depends heavily on customer setup. A customer who only uses
-DORA-API-POST submission (no APM, no Incident Management) gets nothing
-useful. Schema varies by source — Events API returns free-text fields
-that we'd have to parse to recover commit SHAs.
-
-**Option C — Hybrid (recommended)**
-
-Both sources, layered:
-
-1. **Metrics API** always-on for window-level DORA aggregates. This is
-   what gets the "Datadog" badge on the dashboard cards.
-2. **Events API + Incidents API** opportunistic. When the customer's
-   setup provides linkable events (commit SHA in tags or text), we
-   populate `external_deployments` / `external_incidents` and enable
-   the per-origin correlation card. When it doesn't, we fall back to
-   "estimated" for the correlation but keep the Metrics API aggregates.
-
-The connection-time validation should:
-- Validate the API/App key pair (any `/api/v1/validate`-equivalent or a
-  cheap Metrics query).
-- Probe each surface (Metrics, Events, Incidents) and surface to the
-  customer **what we'll be able to compute** based on their setup. The
-  detail page becomes a checklist: "Datadog connection ✓ · DORA
-  aggregates ✓ · Deployment events ✗ · Incident detail ✓".
-
-### Impact on PR breakdown
-
-- **Slice 1** (shipped): unchanged.
-- **Slice 2**: drop "DORA read endpoint" wording from the connect/test
-  flow; the validation call becomes a Metrics API ping
-  (`POST /api/v1/query` with a trivial query like
-  `from=now-1m,to=now,query=avg:datadog.estimated_usage.events.ingested{*}`).
-  Connect-time UX surfaces the per-surface availability checklist.
-- **Slice 3**: split into 3a (Metrics API ingestion) + 3b (Events +
-  Incidents opportunistic ingestion). Each surface gets its own sync
-  function with its own idempotency story.
-- **Slice 4**: aggregator reads from `external_metrics_*` (new — Metrics
-  API aggregates) and from `external_deployments` / `external_incidents`
-  (Option B path). Falls back to estimated gracefully.
-- **Slice 5**: dashboard cards add the "Datadog · aggregate only" vs
-  "Datadog · full attribution" distinction. The CFR-by-origin
-  correlation card hides when no commit-linked events are available.
-
-### Decisions that still need user input
-
-The five in §7 still apply. **Adding one more:**
-
-6. **Surface preference** for slice 3. Pick A / B / C above. The PLAN
-   recommends C (hybrid) but it's the most complex; A is the simplest
-   useful product. B alone is risky because it depends on customer
-   setup nobody can verify before connection.
-
-### Why this isn't validated end-to-end
-
-The dev keys provided didn't authenticate against US1 or EU (`/api/v1/
-validate` returned 403 for both). The endpoint probes returned 404
-without needing auth, which is enough evidence to know the DORA
-endpoints don't exist for GET — but everything in §8.2 ("What Datadog
-actually exposes for reading") is doc-derived, not endpoint-confirmed.
-Before slice 3 starts, we need working keys to:
-
-- Confirm the Metrics API `dora.*` series exist for the customer's org
-  (some require billing tier or DORA setup; not free for everyone).
-- Confirm what `source` values the Events API actually returns for
-  this customer (depends on which Datadog integrations are wired up).
-- Confirm Incident Management is enabled (it's a paid Datadog
-  product).
+- Run a real `POST /api/v2/dora/deployments` and confirm the response
+  envelope shape matches what the schema in §3 expects.
+- Confirm pagination cursor field name and behavior on real responses
+  (the doc's `attributes.next_token` vs an envelope-level cursor — the
+  exact spelling has changed between API versions before).
+- Decide whether `query` should default to `*` or to `env:production`
+  when the customer hasn't customized it.
