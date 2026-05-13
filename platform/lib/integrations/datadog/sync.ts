@@ -78,8 +78,8 @@ export async function syncOrganization(
 
     if (loadErr) throw new Error(`load integration: ${loadErr.message}`);
     if (!integration) throw new Error("integration row not found");
-    if (integration.status !== "active") {
-      throw new Error(`integration status is ${integration.status}`);
+    if (integration.status === "disconnected") {
+      throw new Error("integration is disconnected");
     }
     if (!integration.credentials_encrypted) {
       throw new Error("integration has no credentials (disconnected?)");
@@ -196,6 +196,29 @@ export function normalizeRepoSlug(
   return s || null;
 }
 
+/**
+ * Return the first occurrence of each item keyed by `idFn`.
+ *
+ * §9.5 of the plan doc: DORA list endpoints have inclusive `to`
+ * boundaries, so the last event of one page reappears as the first
+ * event of the next. The UNIQUE constraint on `(provider,
+ * provider_event_id)` catches that across separate statements, but
+ * Postgres rejects duplicate conflict keys *within* a single upsert
+ * with "ON CONFLICT DO UPDATE command cannot affect row a second
+ * time". We dedupe in memory before the upsert.
+ */
+function uniqueByKey<T>(items: T[], keyFn: (t: T) => string): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of items) {
+    const key = keyFn(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
 async function fetchAllDeployments(
   creds: DatadogCredentials,
   from: string,
@@ -223,7 +246,7 @@ async function fetchAllDeployments(
       toTs = nextTs;
     }
   }
-  return events;
+  return uniqueByKey(events, (e) => e.id);
 }
 
 async function fetchAllFailures(
@@ -251,7 +274,7 @@ async function fetchAllFailures(
       toTs = nextTs;
     }
   }
-  return events;
+  return uniqueByKey(events, (e) => e.id);
 }
 
 function oldestStartedAt<T>(batch: T[], pick: (e: T) => string): string | null {
@@ -382,17 +405,26 @@ async function persistDeploymentCommits(
     }
   }
 
-  if (commitRows.length === 0) return 0;
+  // Same Postgres constraint as the deployments upsert — dedupe the
+  // composite (deployment_id, commit_sha) PK before sending. A single
+  // deploy whose `attributes.commits[]` contains the same sha twice
+  // would otherwise crash the whole sync.
+  const dedupedCommitRows = uniqueByKey(
+    commitRows,
+    (r) => `${r.deployment_id}:${r.commit_sha}`,
+  );
+
+  if (dedupedCommitRows.length === 0) return 0;
 
   const { error } = await supabase
     .from("external_deployment_commits")
-    .upsert(commitRows, {
+    .upsert(dedupedCommitRows, {
       onConflict: "deployment_id,commit_sha",
       ignoreDuplicates: false,
     });
 
   if (error) throw new Error(`upsert deployment commits: ${error.message}`);
-  return commitRows.length;
+  return dedupedCommitRows.length;
 }
 
 async function persistFailures(
@@ -459,4 +491,5 @@ export const __testing = {
   normalizeRepoSlug,
   oldestStartedAt,
   normalizeNullableIso,
+  uniqueByKey,
 };

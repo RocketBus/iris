@@ -25,10 +25,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
+  // Pick up both healthy and errored integrations. The sync routine
+  // flips status to `active` on a successful run and back to `error` on
+  // failure, so retrying errored rows is what makes the integration
+  // self-heal from transient failures (Datadog rate limits, network
+  // blips, post-deploy schema fixes, etc.) without a manual nudge.
   const { data: integrations, error } = await supabaseAdmin
     .from("org_integrations")
     .select("organization_id, provider")
-    .eq("status", "active");
+    .in("status", ["active", "error"]);
 
   if (error) {
     logger.error("cron list integrations failed", { error: error.message });
