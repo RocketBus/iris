@@ -5,6 +5,10 @@ import { ArrowLeft } from "lucide-react";
 import { getServerSession } from "next-auth/next";
 
 import {
+  DatadogConnectForm,
+  type DatadogIntegrationStatus,
+} from "@/components/integrations/datadog-connect-form";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -51,6 +55,34 @@ export default async function IntegrationProviderPage({
     redirect(`/${tenant}/dashboard`);
   }
 
+  let initial: DatadogIntegrationStatus = { status: "not_connected" };
+  if (provider === "datadog") {
+    const { data } = await supabaseAdmin
+      .from("org_integrations")
+      .select(
+        "status, config, last_sync_at, last_error, created_at, updated_at",
+      )
+      .eq("organization_id", org.id)
+      .eq("provider", "datadog")
+      .maybeSingle();
+
+    if (data) {
+      const config = (data.config ?? {}) as {
+        site?: string;
+        apiKeyMask?: string;
+      };
+      initial = {
+        status: data.status as "active" | "error" | "disconnected",
+        site: config.site ?? null,
+        apiKeyMask: config.apiKeyMask ?? null,
+        lastSyncAt: data.last_sync_at,
+        lastError: data.last_error,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Link
@@ -70,21 +102,25 @@ export default async function IntegrationProviderPage({
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            {t("settings.integrations.detail.comingSoonTitle")}
-          </CardTitle>
-          <CardDescription>
-            {t("settings.integrations.detail.comingSoonDescription")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            {t(`settings.integrations.providers.${provider}.detail`)}
-          </p>
-        </CardContent>
-      </Card>
+      {provider === "datadog" ? (
+        <DatadogConnectForm organizationId={org.id} initial={initial} />
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {t("settings.integrations.detail.comingSoonTitle")}
+            </CardTitle>
+            <CardDescription>
+              {t("settings.integrations.detail.comingSoonDescription")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-muted-foreground">
+              {t(`settings.integrations.providers.${provider}.detail`)}
+            </p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
