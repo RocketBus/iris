@@ -179,6 +179,35 @@ def _merge_quality_metrics(metrics, dup_result, move_result, ops_result, provena
     return ReportMetrics(**{k: v for k, v in d.items()})
 
 
+def _fetch_external_dora_if_available(commits, days: int):
+    """Pull DORA events from the platform when the user is logged in.
+
+    Best-effort: any failure (no auth, no integration, network error)
+    falls through with None so the analysis still ships without the
+    dora_* metrics. The window matches the commit-analysis window so
+    deploys can be joined to commits by commit_sha downstream.
+    """
+    try:
+        from iris.platform.config import get_auth
+        from iris.ingestion.external_reader import fetch_external_dora
+    except ImportError:
+        return None
+
+    auth = get_auth()
+    if not auth:
+        return None
+    server_url, token = auth
+
+    now = datetime.now(timezone.utc)
+    window_from = now - timedelta(days=days)
+    return fetch_external_dora(
+        server_url=server_url,
+        token=token,
+        window_from=window_from,
+        window_to=now,
+    )
+
+
 def _is_git_repo(path: str) -> bool:
     """Check if path contains a .git directory."""
     return os.path.isdir(os.path.join(path, ".git"))
@@ -385,9 +414,20 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     # Step 3: Classify commits by intent
     print(s["cli_classifying"], end=" ", flush=True)
 
+    # Optional: pull DORA events from a connected platform integration
+    # (Datadog) so the aggregator can populate the dora_* metrics.
+    external_data = None
+    if will_push:
+        external_data = _fetch_external_dora_if_available(commits, args.days)
+
     # Step 4: Analyze and aggregate metrics
     with span("analysis.aggregate", {"repo": repo_name, "commits": len(commits)}):
-        metrics = aggregate(commits, churn_days=args.churn_days, prs=prs or None)
+        metrics = aggregate(
+            commits,
+            churn_days=args.churn_days,
+            prs=prs or None,
+            external_data=external_data,
+        )
     print(s["cli_classified"].format(count=len(commits)))
     _tick("aggregate analysis done")
 

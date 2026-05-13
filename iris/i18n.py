@@ -173,6 +173,24 @@ EN = {
         "on new work; revisit alongside merged-feature throughput."
     ),
 
+    # DORA (real) findings — populated only when external integration data is present
+    "finding_dora_cfr_descriptive": (
+        "Change Failure Rate (Datadog): {cfr_pct} "
+        "({failed} failed / {evaluated} evaluated deployments)."
+    ),
+    "finding_dora_cfr_all_pending": (
+        "{pending} deployments are still pending Datadog change-failure "
+        "evaluation — CFR will firm up once they settle."
+    ),
+    "finding_dora_mttr_descriptive": (
+        "Median time to recovery (per failed deploy): {hours:.1f}h "
+        "across {failed} failed deployments."
+    ),
+    "finding_dora_rollback_rate": (
+        "{pct} of failed deployments were resolved via rollback "
+        "({rollbacks} of the failed deploys in the window)."
+    ),
+
     # PR findings
     "finding_pr_volume": (
         "{count} PRs merged in this period with a "
@@ -952,6 +970,24 @@ PT_BR = {
         "WIP de features cresceu de {start_wip} para {end_wip} PRs/semana "
         "no período — o paralelismo de engenharia está se ampliando em "
         "trabalho novo; cruze com o throughput de features merged."
+    ),
+
+    # Descobertas DORA (real) — populadas apenas quando há integração externa ativa
+    "finding_dora_cfr_descriptive": (
+        "Change Failure Rate (Datadog): {cfr_pct} "
+        "({failed} falhas em {evaluated} deploys avaliados)."
+    ),
+    "finding_dora_cfr_all_pending": (
+        "{pending} deploys ainda estão pendentes de avaliação de falha pelo "
+        "Datadog — o CFR vai se consolidar quando eles forem classificados."
+    ),
+    "finding_dora_mttr_descriptive": (
+        "Mediana do tempo de recuperação (por deploy com falha): {hours:.1f}h "
+        "em {failed} deploys com falha."
+    ),
+    "finding_dora_rollback_rate": (
+        "{pct} dos deploys com falha foram resolvidos via rollback "
+        "({rollbacks} dos deploys com falha na janela)."
     ),
 
     # Descobertas de PR

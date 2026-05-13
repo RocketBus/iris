@@ -262,6 +262,25 @@ export interface ReportMetrics {
   };
   median_time_to_first_review_hours?: number;
 
+  // DORA (real) — populated when the org has an active Datadog integration
+  // and the engine fetched events for the analysis window. Every field
+  // here is optional; `dora_source` is the canonical "is there data?" flag.
+  dora_source?: "datadog";
+  dora_deployments_total?: number;
+  dora_deployments_failed?: number;
+  dora_deployments_pending_evaluation?: number;
+  dora_incidents_total?: number;
+  dora_cfr?: number; // 0.0–1.0
+  dora_mttr_per_deploy_seconds_median?: number;
+  dora_mttr_per_deploy_seconds_p90?: number;
+  dora_mttr_per_incident_seconds_median?: number;
+  dora_mttr_per_incident_seconds_p90?: number;
+  dora_rollback_rate?: number; // 0.0–1.0
+  dora_rollbacks_total?: number;
+  dora_lead_time_seconds_median?: number;
+  dora_deploy_frequency_per_day?: number;
+  dora_remediation_distribution?: Record<string, number>;
+
   // PR lifecycle
   pr_merged_count?: number;
   pr_median_time_to_merge_hours?: number;

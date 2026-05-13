@@ -126,6 +126,25 @@ class ReportMetrics:
     time_in_phase_median_hours: dict[str, float] | None = None
     median_time_to_first_review_hours: float | None = None
 
+    # DORA (real) — populated only when external Datadog events were fetched
+    # for this run. None across the board when the org has no active Datadog
+    # integration. ``dora_source`` is "datadog" when populated, None otherwise.
+    dora_source: str | None = None
+    dora_deployments_total: int | None = None
+    dora_deployments_failed: int | None = None
+    dora_deployments_pending_evaluation: int | None = None
+    dora_incidents_total: int | None = None
+    dora_cfr: float | None = None
+    dora_mttr_per_deploy_seconds_median: float | None = None
+    dora_mttr_per_deploy_seconds_p90: float | None = None
+    dora_mttr_per_incident_seconds_median: float | None = None
+    dora_mttr_per_incident_seconds_p90: float | None = None
+    dora_rollback_rate: float | None = None
+    dora_rollbacks_total: int | None = None
+    dora_lead_time_seconds_median: float | None = None
+    dora_deploy_frequency_per_day: float | None = None
+    dora_remediation_distribution: dict[str, int] | None = None
+
     def to_dict(self) -> dict:
         d = asdict(self)
         # Exclude None fields for backward compatibility
