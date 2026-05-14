@@ -488,7 +488,7 @@ function FlowEfficiencyCard({
                     key={key}
                     className={cn(
                       "h-full",
-                      isActive ? "bg-signal-green" : "bg-muted-foreground/40",
+                      isActive ? "bg-signal-green" : "bg-signal-yellow",
                     )}
                     style={{ width: `${pct}%` }}
                     title={`${phaseLabels[key] ?? key}: ${hours.toFixed(1)}h`}
@@ -502,7 +502,7 @@ function FlowEfficiencyCard({
                 {legendActive}
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="inline-block size-2 rounded-full bg-muted-foreground/40" />
+                <span className="inline-block size-2 rounded-full bg-signal-yellow" />
                 {legendWait}
               </span>
             </div>
@@ -522,7 +522,7 @@ function FlowEfficiencyCard({
                           "inline-block size-2 rounded-full",
                           FLOW_EFF_ACTIVE_PHASES.has(key)
                             ? "bg-signal-green"
-                            : "bg-muted-foreground/40",
+                            : "bg-signal-yellow",
                         )}
                       />
                       {phaseLabels[key] ?? key}
