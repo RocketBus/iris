@@ -213,15 +213,15 @@ def _is_git_repo(path: str) -> bool:
     return os.path.isdir(os.path.join(path, ".git"))
 
 
-def _repo_name_from_remote(repo_path: str) -> str | None:
-    """Extract repository name from git remote origin URL.
+def _git_remote_url(repo_path: str) -> str | None:
+    """Return the raw `origin` remote URL for ``repo_path`` (or None).
 
-    Supports HTTPS, SSH, and other common formats:
-      git@github.com:org/repo-name.git  →  repo-name
-      https://github.com/org/repo.git   →  repo
-      git@gitlab.com:group/sub/repo.git →  repo
+    Used both by ``_repo_name_from_remote`` (parses out the repo name)
+    and by the push path (needs the full URL so the platform can
+    normalize it against the Datadog `repository_id` for DORA event
+    matching).
     """
-    import subprocess, re
+    import subprocess
     try:
         result = subprocess.run(
             ["git", "-C", repo_path, "remote", "get-url", "origin"],
@@ -230,7 +230,19 @@ def _repo_name_from_remote(repo_path: str) -> str | None:
         url = result.stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
+    return url or None
 
+
+def _repo_name_from_remote(repo_path: str) -> str | None:
+    """Extract repository name from git remote origin URL.
+
+    Supports HTTPS, SSH, and other common formats:
+      git@github.com:org/repo-name.git  →  repo-name
+      https://github.com/org/repo.git   →  repo
+      git@gitlab.com:group/sub/repo.git →  repo
+    """
+    import re
+    url = _git_remote_url(repo_path)
     if not url:
         return None
 
@@ -782,7 +794,13 @@ def _run_single_repo(args: argparse.Namespace) -> None:
                 print(f"  {u['name']:<30} {status}")
             print()
         with span("push", {"repo": repo_name}):
-            _push_after_analysis(metrics_path, repo_name, args.days, active_users=active_users)
+            _push_after_analysis(
+                metrics_path,
+                repo_name,
+                args.days,
+                repo_path=ctx.repo_path,
+                active_users=active_users,
+            )
         record_counter("iris.push.success", 1, {"repo": repo_name})
         shutil.rmtree(tmp_out, ignore_errors=True)
     else:
@@ -1016,6 +1034,11 @@ def _run_push(argv: list[str]) -> None:
         else:
             repo_name = basename.replace(".json", "")
 
+    # Opportunistic remote_url detection — cwd may or may not be a repo
+    # for a standalone `iris push <file>`. When it is, sending it lets
+    # the platform populate `repositories.remote_url` for DORA matching.
+    remote_url = _git_remote_url(os.getcwd())
+
     print(f"Pushing to {server}...")
     print(f"Repository: {repo_name}")
 
@@ -1025,6 +1048,7 @@ def _run_push(argv: list[str]) -> None:
             token=token,
             repository=repo_name,
             metrics_path=metrics_path,
+            remote_url=remote_url,
             cli_version=VERSION,
         )
         print(f"Push successful.")
@@ -1039,6 +1063,7 @@ def _push_after_analysis(
     metrics_path: str,
     repo_name: str,
     window_days: int,
+    repo_path: str | None = None,
     active_users: list | None = None,
 ) -> None:
     """Push metrics to platform after analysis."""
@@ -1052,6 +1077,12 @@ def _push_after_analysis(
 
     server, token = auth
     github_user = get_github_user()
+    # Send the git remote URL so the platform can normalize it against
+    # external DORA event `dd_repository_id` for per-repo matching.
+    # Without this, `repositories.remote_url` stays NULL and the
+    # Datadog sync ingests all of this repo's deploys with
+    # `repository_id = NULL`.
+    remote_url = _git_remote_url(repo_path) if repo_path else None
     print(f"\nPushing to {server}...", end=" ", flush=True)
 
     try:
@@ -1061,6 +1092,7 @@ def _push_after_analysis(
             repository=repo_name,
             metrics_path=metrics_path,
             window_days=window_days,
+            remote_url=remote_url,
             github_user=github_user,
             active_users=active_users,
             cli_version=VERSION,

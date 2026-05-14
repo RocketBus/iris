@@ -155,6 +155,75 @@ export async function syncOrganization(
   }
 }
 
+/**
+ * Backfill `repository_id` on existing `external_deployments` rows
+ * that were ingested before their repo was registered in Iris (or
+ * before `repositories.remote_url` was populated). The sync routine
+ * only matches at insertion time; without this step, rows persist with
+ * `repository_id = null` and the per-repo DORA view stays empty.
+ *
+ * Idempotent: never overwrites an already-set `repository_id`; only
+ * affects rows where the match exists *right now*.
+ */
+export async function rematchUnlinkedDeployments(
+  supabase: SupabaseClient,
+  organizationId: string,
+): Promise<{ matched: number; checked: number }> {
+  const repoLookup = await loadRepoLookup(supabase, organizationId);
+  if (repoLookup.byNormalizedSlug.size === 0) {
+    return { matched: 0, checked: 0 };
+  }
+
+  const PAGE = 1000;
+  const UPDATE_CHUNK = 100;
+  let offset = 0;
+  let matched = 0;
+  let checked = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("external_deployments")
+      .select("id, dd_repository_id")
+      .eq("organization_id", organizationId)
+      .eq("provider", PROVIDER)
+      .is("repository_id", null)
+      .not("dd_repository_id", "is", null)
+      .range(offset, offset + PAGE - 1);
+    if (error) throw new Error(`rematch list: ${error.message}`);
+    if (!data || data.length === 0) break;
+
+    checked += data.length;
+
+    const updatesByRepoId = new Map<string, string[]>();
+    for (const row of data) {
+      const normalized = normalizeRepoSlug(row.dd_repository_id);
+      if (!normalized) continue;
+      const repoId = repoLookup.byNormalizedSlug.get(normalized);
+      if (!repoId) continue;
+      const bucket = updatesByRepoId.get(repoId) ?? [];
+      bucket.push(row.id);
+      updatesByRepoId.set(repoId, bucket);
+    }
+
+    for (const [repoId, depIds] of updatesByRepoId) {
+      for (let i = 0; i < depIds.length; i += UPDATE_CHUNK) {
+        const chunk = depIds.slice(i, i + UPDATE_CHUNK);
+        const { error: upErr } = await supabase
+          .from("external_deployments")
+          .update({ repository_id: repoId })
+          .in("id", chunk);
+        if (upErr) throw new Error(`rematch update: ${upErr.message}`);
+        matched += chunk.length;
+      }
+    }
+
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+
+  return { matched, checked };
+}
+
 async function loadRepoLookup(
   supabase: SupabaseClient,
   organizationId: string,

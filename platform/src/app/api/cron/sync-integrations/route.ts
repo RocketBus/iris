@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { logger } from "@/lib/debug";
-import { syncOrganization } from "@/lib/integrations/datadog/sync";
+import {
+  rematchUnlinkedDeployments,
+  syncOrganization,
+} from "@/lib/integrations/datadog/sync";
 import { supabaseAdmin } from "@/lib/supabase";
 
 // The cron loops sequentially across active integrations; allow it to
@@ -17,6 +20,8 @@ interface PerOrgOutcome {
   commitsUpserted?: number;
   failuresUpserted?: number;
   unmatchedDeployments?: number;
+  /** Rows whose `repository_id` flipped from null to a repo this run. */
+  rematched?: number;
   error?: string;
 }
 
@@ -58,16 +63,37 @@ export async function GET(request: NextRequest) {
         ok: false,
         error: result.error,
       });
-    } else {
-      outcomes.push({
+      continue;
+    }
+
+    // After a successful sync, retroactively match deploys that landed
+    // with `repository_id = null` (e.g. ingested before their repo was
+    // registered, or before `repositories.remote_url` was populated by
+    // the CLI). Failure here doesn't fail the whole run — sync results
+    // are independent.
+    let rematched = 0;
+    try {
+      const rematch = await rematchUnlinkedDeployments(
+        supabaseAdmin,
+        integration.organization_id,
+      );
+      rematched = rematch.matched;
+    } catch (err) {
+      logger.warn("cron rematch failed", {
         organizationId: integration.organization_id,
-        ok: true,
-        deploymentsUpserted: result.deploymentsUpserted,
-        commitsUpserted: result.commitsUpserted,
-        failuresUpserted: result.failuresUpserted,
-        unmatchedDeployments: result.unmatchedDeployments,
+        error: err instanceof Error ? err.message : String(err),
       });
     }
+
+    outcomes.push({
+      organizationId: integration.organization_id,
+      ok: true,
+      deploymentsUpserted: result.deploymentsUpserted,
+      commitsUpserted: result.commitsUpserted,
+      failuresUpserted: result.failuresUpserted,
+      unmatchedDeployments: result.unmatchedDeployments,
+      rematched,
+    });
   }
 
   const succeeded = outcomes.filter((o) => o.ok).length;
