@@ -158,7 +158,7 @@ export default async function OrgDashboardPage({
       </div>
 
       {/* Change detection alerts */}
-      <ChangeAlert changes={changes} />
+      <ChangeAlert changes={changes} tenantSlug={tenant} />
 
       {/* Org pulse hero cards */}
       {hasData && <OrgPulse data={pulseData} />}
