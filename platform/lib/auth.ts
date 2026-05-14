@@ -4,6 +4,7 @@ import GitHubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
 import { v4 as uuidv4 } from "uuid";
 
+import { logAuditEvent } from "./audit-logger";
 import {
   debugAuth,
   debugDatabase,
@@ -710,6 +711,8 @@ export const authOptions = {
           isNewUser,
         });
       }
+
+      await auditSignInEvent({ user, account, isNewUser });
     },
     async error(message: unknown) {
       const eventError = (message as { error?: unknown })?.error ?? message;
@@ -775,6 +778,57 @@ export const authOptions = {
 };
 
 // Helper functions for authentication
+
+async function auditSignInEvent({
+  user,
+  account,
+  isNewUser,
+}: {
+  user: { id?: string | null; email?: string | null } | null | undefined;
+  account: { provider?: string | null } | null | undefined;
+  isNewUser?: boolean;
+}) {
+  try {
+    if (!user?.email) return;
+
+    const { data: dbUser } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("email", user.email)
+      .single();
+
+    if (!dbUser?.id) return;
+
+    const { data: memberships } = await supabaseAdmin
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", dbUser.id)
+      .eq("status", "active");
+
+    if (!memberships || memberships.length === 0) return;
+
+    const provider = account?.provider ?? "credentials";
+
+    for (const membership of memberships) {
+      if (isNewUser) {
+        await logAuditEvent({
+          organizationId: membership.organization_id,
+          actorId: dbUser.id,
+          action: "user.signed_up",
+          metadata: { provider, method: "oauth" },
+        });
+      }
+      await logAuditEvent({
+        organizationId: membership.organization_id,
+        actorId: dbUser.id,
+        action: "user.signed_in",
+        metadata: { provider, is_new_user: !!isNewUser },
+      });
+    }
+  } catch (error) {
+    logError(error, "auditSignInEvent");
+  }
+}
 
 export async function ensureAutoAcceptedDomainMembership(
   userId: string,

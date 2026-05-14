@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { v4 as uuidv4 } from "uuid";
 
+import { logAuditEvent } from "@/lib/audit-logger";
 import { createUser } from "@/lib/auth";
 import { debugApi, logError, RequestTimer } from "@/lib/debug";
 import { sendVerificationEmail } from "@/lib/email";
@@ -116,10 +117,11 @@ export async function POST(request: NextRequest) {
     // ownership, so the separate verification step would just be friction
     // and it also breaks the sign-in that runs right after signup.
     let autoVerified = false;
+    let auditableInvite: { id: string; organization_id: string } | null = null;
     if (typeof inviteToken === "string" && inviteToken.length > 0) {
       const { data: invite } = await supabaseAdmin
         .from("invitations")
-        .select("id, email, expires_at")
+        .select("id, email, expires_at, organization_id")
         .eq("token", inviteToken)
         .single();
 
@@ -129,6 +131,10 @@ export async function POST(request: NextRequest) {
         new Date(invite.expires_at) > new Date()
       ) {
         autoVerified = true;
+        auditableInvite = {
+          id: invite.id,
+          organization_id: invite.organization_id,
+        };
         debugApi("Signup invite token validated, auto-verifying email", {
           email,
           inviteId: invite.id,
@@ -193,6 +199,20 @@ export async function POST(request: NextRequest) {
       debugApi("Verification email sent", {
         to: email,
         emailTimeMs: emailEndTime - emailStartTime,
+      });
+    }
+
+    if (auditableInvite) {
+      await logAuditEvent({
+        organizationId: auditableInvite.organization_id,
+        actorId: user.id,
+        action: "user.signed_up",
+        metadata: {
+          provider: "credentials",
+          method: "invite",
+          invite_id: auditableInvite.id,
+        },
+        request,
       });
     }
 
