@@ -15,7 +15,6 @@ import type {
   HealthMapEntry,
   OrgTimelineWeek,
   HyperEngineer,
-  OrgDORA,
 } from "@/types/org-summary";
 import type { RepoSummary } from "@/types/temporal";
 
@@ -811,116 +810,8 @@ export function computeHyperEngineers(
     .sort((a, b) => b.repos - a.repos);
 }
 
-// ---------------------------------------------------------------------------
-// DORA (real) — Datadog-derived aggregation across the org's repos
-// ---------------------------------------------------------------------------
-
-const _DORA_ORIGINS: Array<"HUMAN" | "AI_ASSISTED" | "BOT"> = [
-  "HUMAN",
-  "AI_ASSISTED",
-  "BOT",
-];
-
-export function computeDORA(
-  payloads: Map<string, ReportMetrics>,
-): OrgDORA | null {
-  const withData = [...payloads.values()].filter(
-    (p) => p.dora_source === "datadog",
-  );
-  if (withData.length === 0) return null;
-
-  let deploymentsTotal = 0;
-  let deploymentsFailed = 0;
-  let deploymentsPendingEvaluation = 0;
-  let incidentsTotal = 0;
-  let rollbacksTotal = 0;
-  let deployFrequencyPerDay: number | null = null;
-
-  const mttrDeploys: number[] = [];
-  const mttrIncidents: number[] = [];
-  const leadTimes: number[] = [];
-
-  const failedByOrigin: Record<string, number> = {};
-  const evaluatedByOrigin: Record<string, number> = {};
-  const rollbacksByOriginAcc: Record<string, number> = {};
-  const failedByOriginForRollback: Record<string, number> = {};
-
-  for (const p of withData) {
-    deploymentsTotal += p.dora_deployments_total ?? 0;
-    deploymentsFailed += p.dora_deployments_failed ?? 0;
-    deploymentsPendingEvaluation += p.dora_deployments_pending_evaluation ?? 0;
-    incidentsTotal += p.dora_incidents_total ?? 0;
-    rollbacksTotal += p.dora_rollbacks_total ?? 0;
-
-    if (typeof p.dora_mttr_per_deploy_seconds_median === "number") {
-      mttrDeploys.push(p.dora_mttr_per_deploy_seconds_median);
-    }
-    if (typeof p.dora_mttr_per_incident_seconds_median === "number") {
-      mttrIncidents.push(p.dora_mttr_per_incident_seconds_median);
-    }
-    if (typeof p.dora_lead_time_seconds_median === "number") {
-      leadTimes.push(p.dora_lead_time_seconds_median);
-    }
-    if (typeof p.dora_deploy_frequency_per_day === "number") {
-      deployFrequencyPerDay =
-        (deployFrequencyPerDay ?? 0) + p.dora_deploy_frequency_per_day;
-    }
-
-    for (const origin of _DORA_ORIGINS) {
-      const entry = p.dora_cfr_by_origin?.[origin];
-      if (entry) {
-        failedByOrigin[origin] = (failedByOrigin[origin] ?? 0) + entry.failed;
-        evaluatedByOrigin[origin] =
-          (evaluatedByOrigin[origin] ?? 0) + entry.evaluated;
-      }
-      const rb = p.dora_rollback_rate_by_origin?.[origin];
-      if (rb) {
-        rollbacksByOriginAcc[origin] =
-          (rollbacksByOriginAcc[origin] ?? 0) + rb.rollbacks;
-        failedByOriginForRollback[origin] =
-          (failedByOriginForRollback[origin] ?? 0) + rb.failed;
-      }
-    }
-  }
-
-  const evaluated = deploymentsTotal - deploymentsPendingEvaluation;
-  const cfr = evaluated > 0 ? deploymentsFailed / evaluated : null;
-  const rollbackRate =
-    deploymentsFailed > 0 ? rollbacksTotal / deploymentsFailed : null;
-
-  return {
-    reposWithData: withData.length,
-    deploymentsTotal,
-    deploymentsFailed,
-    deploymentsPendingEvaluation,
-    incidentsTotal,
-    cfr,
-    rollbacksTotal,
-    rollbackRate,
-    mttrPerDeploySecondsMedian: _median(mttrDeploys),
-    mttrPerIncidentSecondsMedian: _median(mttrIncidents),
-    leadTimeSecondsMedian: _median(leadTimes),
-    deployFrequencyPerDay,
-    cfrByOrigin: _DORA_ORIGINS.flatMap((origin) => {
-      const evaluated = evaluatedByOrigin[origin] ?? 0;
-      const failed = failedByOrigin[origin] ?? 0;
-      if (evaluated === 0) return [];
-      return [{ origin, failed, evaluated, cfr: failed / evaluated }];
-    }),
-    rollbackRateByOrigin: _DORA_ORIGINS.flatMap((origin) => {
-      const failed = failedByOriginForRollback[origin] ?? 0;
-      const rollbacks = rollbacksByOriginAcc[origin] ?? 0;
-      if (failed === 0) return [];
-      return [{ origin, rollbacks, failed, rollbackRate: rollbacks / failed }];
-    }),
-  };
-}
-
-function _median(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 === 0
-    ? (sorted[mid - 1] + sorted[mid]) / 2
-    : sorted[mid];
-}
+// DORA aggregation moved to `lib/queries/dora.ts` — it reads directly
+// from the `external_*` tables now. The old per-payload sum here was
+// multiplying counts by the number of repos that had pushed (because
+// every payload carried the same org-wide event slice). See
+// `computeOrgDORA` and `computeRepoDORA` for the replacements.

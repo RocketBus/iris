@@ -702,6 +702,17 @@ fetched events from `GET /api/integrations/datadog/events` for the
 analysis window. When the integration is absent or returns zero events,
 every `dora_*` field is null and the report's DORA section is empty.
 
+> **Note on dashboard consumption.** The platform dashboard does NOT
+> aggregate the `dora_*` fields across per-repo payloads — every
+> payload carries the same org-wide event slice from the endpoint, so
+> summing them inflates counts by the number of repos. The dashboard
+> queries `external_deployments` and `external_incidents` directly
+> (`lib/queries/dora.ts`) for the org-wide and per-repo views. The
+> only payload-derived `dora_*` fields the dashboard still reads are
+> `dora_cfr_by_origin` and `dora_rollback_rate_by_origin`, which need
+> the per-commit origin classification that can't be reproduced
+> server-side.
+
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
 | `dora_source` | `"datadog"` | `analysis/dora_real.py` | no active integration / no events fetched |

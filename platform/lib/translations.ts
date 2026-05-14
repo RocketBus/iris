@@ -286,7 +286,7 @@ export const translations = {
         title: "DORA",
         sourceBadge: "Datadog",
         subtitle:
-          "Deployment metrics from {count} repositories with an active Datadog integration",
+          "Deployment metrics for the org over the last 30 days, sourced directly from Datadog.",
         metrics: {
           cfr: "Change Failure Rate",
           mttrPerDeploy: "MTTR (per failed deploy)",
@@ -517,6 +517,13 @@ export const translations = {
           revertRate: "Revert Rate",
           churnEvents: "Churn Events",
           commits: "Commits",
+        },
+        dora: {
+          title: "DORA",
+          subtitle:
+            "Deployment metrics scoped to this repository over the last {days} days.",
+          incidentDisclaimer:
+            "MTTR by incident isn't shown per-repo — Datadog failure events don't carry repository attribution, so any per-repo number would be a misleading copy of the org-wide one. See the dashboard for the incident-level view.",
         },
         activeContributors: "Active Contributors",
         contributorsCount: "{count} contributor in the last analysis window",
@@ -1583,7 +1590,7 @@ export const translations = {
         title: "DORA",
         sourceBadge: "Datadog",
         subtitle:
-          "Métricas de deploy de {count} repositórios com integração Datadog ativa",
+          "Métricas de deploy da organização nos últimos 30 dias, vindas diretamente do Datadog.",
         metrics: {
           cfr: "Taxa de falha em mudança",
           mttrPerDeploy: "MTTR (por deploy com falha)",
@@ -1819,6 +1826,13 @@ export const translations = {
           revertRate: "Taxa de revert",
           churnEvents: "Eventos de churn",
           commits: "Commits",
+        },
+        dora: {
+          title: "DORA",
+          subtitle:
+            "Métricas de deploy deste repositório nos últimos {days} dias.",
+          incidentDisclaimer:
+            "MTTR por incidente não aparece per-repo — os eventos de falha do Datadog não carregam atribuição de repositório, então qualquer número per-repo seria uma cópia enganosa do org-wide. Veja a visão de incidentes no dashboard.",
         },
         activeContributors: "Contribuidores ativos",
         contributorsCount: "{count} contribuidor na última janela de análise",

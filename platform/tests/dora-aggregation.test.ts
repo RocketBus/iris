@@ -1,7 +1,30 @@
 import { describe, expect, it } from "vitest";
 
-import { computeDORA } from "@/lib/queries/org-summary";
+import { __testing } from "@/lib/queries/dora";
 import type { ReportMetrics } from "@/types/metrics";
+
+const { deployDerivedMetrics, aggregateCfrByOriginFromPayloads, median } =
+  __testing;
+
+function deploy(over: {
+  id?: string;
+  change_failure?: boolean | null;
+  recovery_time_sec?: number | null;
+  remediation_type?: string | null;
+  started_at?: string;
+}) {
+  // Note: `change_failure` can legitimately be null (tri-state). Use the
+  // `in` check rather than `??` so the caller's explicit null isn't
+  // coerced to the default `false`.
+  return {
+    id: over.id ?? "d1",
+    change_failure:
+      "change_failure" in over ? (over.change_failure ?? null) : false,
+    recovery_time_sec: over.recovery_time_sec ?? null,
+    remediation_type: over.remediation_type ?? null,
+    started_at: over.started_at ?? "2026-04-01T00:00:00Z",
+  };
+}
 
 function payload(over: Partial<ReportMetrics>): ReportMetrics {
   return {
@@ -17,66 +40,90 @@ function payload(over: Partial<ReportMetrics>): ReportMetrics {
   } as ReportMetrics;
 }
 
-describe("computeDORA", () => {
-  it("returns null when no payload carries dora_source", () => {
-    const payloads = new Map<string, ReportMetrics>();
-    payloads.set("r1", payload({}));
-    payloads.set("r2", payload({}));
-    expect(computeDORA(payloads)).toBeNull();
+describe("deployDerivedMetrics", () => {
+  it("excludes pending deploys from the CFR denominator", () => {
+    const deployments = [
+      ...Array.from({ length: 8 }, (_, i) =>
+        deploy({ id: `ok-${i}`, change_failure: false }),
+      ),
+      deploy({ id: "f1", change_failure: true, recovery_time_sec: 600 }),
+      deploy({ id: "f2", change_failure: true, recovery_time_sec: 1200 }),
+      deploy({ id: "p1", change_failure: null }),
+      deploy({ id: "p2", change_failure: null }),
+    ];
+    const m = deployDerivedMetrics(deployments, [], 30);
+    expect(m.deploymentsTotal).toBe(12);
+    expect(m.deploymentsFailed).toBe(2);
+    expect(m.deploymentsPendingEvaluation).toBe(2);
+    expect(m.cfr).toBe(0.2); // 2 / 10 evaluated
   });
 
-  it("aggregates deploys, failures, and pending across repos", () => {
+  it("returns null CFR when every deploy is pending", () => {
+    const deployments = Array.from({ length: 5 }, (_, i) =>
+      deploy({ id: `p-${i}`, change_failure: null }),
+    );
+    const m = deployDerivedMetrics(deployments, [], 30);
+    expect(m.deploymentsPendingEvaluation).toBe(5);
+    expect(m.cfr).toBeNull();
+  });
+
+  it("computes rollback rate over failed deploys only", () => {
+    const deployments = [
+      deploy({ id: "f1", change_failure: true, remediation_type: "rollback" }),
+      deploy({ id: "f2", change_failure: true, remediation_type: "rollback" }),
+      deploy({ id: "f3", change_failure: true, remediation_type: "hotfix" }),
+      deploy({ id: "f4", change_failure: true, remediation_type: null }),
+    ];
+    const m = deployDerivedMetrics(deployments, [], 30);
+    expect(m.rollbacksTotal).toBe(2);
+    expect(m.rollbackRate).toBe(0.5);
+  });
+
+  it("returns null rollback rate when there are no failures", () => {
+    const m = deployDerivedMetrics(
+      [deploy({ id: "ok-1", change_failure: false })],
+      [],
+      30,
+    );
+    expect(m.rollbackRate).toBeNull();
+  });
+
+  it("computes deploy frequency over the supplied window", () => {
+    const deployments = Array.from({ length: 30 }, (_, i) =>
+      deploy({ id: `d-${i}` }),
+    );
+    const m = deployDerivedMetrics(deployments, [], 10);
+    expect(m.deployFrequencyPerDay).toBe(3);
+  });
+
+  it("computes median lead time from the commits rows", () => {
+    const m = deployDerivedMetrics(
+      [deploy({})],
+      [
+        { change_lead_time: 3600 },
+        { change_lead_time: 7200 },
+        { change_lead_time: null },
+        { change_lead_time: 1800 },
+      ],
+      30,
+    );
+    expect(m.leadTimeSecondsMedian).toBe(3600);
+  });
+});
+
+describe("aggregateCfrByOriginFromPayloads", () => {
+  it("returns empty arrays when no payloads carry dora_source=datadog", () => {
+    const result = aggregateCfrByOriginFromPayloads(new Map());
+    expect(result.cfrByOrigin).toEqual([]);
+    expect(result.rollbackRateByOrigin).toEqual([]);
+  });
+
+  it("sums per-origin counts across repo payloads and recomputes the rate", () => {
     const payloads = new Map<string, ReportMetrics>();
     payloads.set(
       "r1",
       payload({
         dora_source: "datadog",
-        dora_deployments_total: 30,
-        dora_deployments_failed: 3,
-        dora_deployments_pending_evaluation: 2,
-        dora_incidents_total: 4,
-        dora_rollbacks_total: 1,
-      }),
-    );
-    payloads.set(
-      "r2",
-      payload({
-        dora_source: "datadog",
-        dora_deployments_total: 10,
-        dora_deployments_failed: 1,
-        dora_deployments_pending_evaluation: 0,
-        dora_incidents_total: 1,
-        dora_rollbacks_total: 0,
-      }),
-    );
-
-    const dora = computeDORA(payloads);
-    expect(dora).not.toBeNull();
-    if (!dora) return;
-
-    expect(dora.reposWithData).toBe(2);
-    expect(dora.deploymentsTotal).toBe(40);
-    expect(dora.deploymentsFailed).toBe(4);
-    expect(dora.deploymentsPendingEvaluation).toBe(2);
-    expect(dora.incidentsTotal).toBe(5);
-    expect(dora.rollbacksTotal).toBe(1);
-
-    // CFR: 4 failed / (40 - 2 pending) evaluated = 4/38
-    expect(dora.cfr).toBeCloseTo(4 / 38, 5);
-    // Rollback rate: 1 / 4
-    expect(dora.rollbackRate).toBeCloseTo(0.25, 5);
-  });
-
-  it("aggregates CFR-by-origin counts across repos", () => {
-    const payloads = new Map<string, ReportMetrics>();
-    payloads.set(
-      "r1",
-      payload({
-        dora_source: "datadog",
-        dora_deployments_total: 10,
-        dora_deployments_failed: 2,
-        dora_deployments_pending_evaluation: 0,
-        dora_incidents_total: 0,
         dora_cfr_by_origin: {
           AI_ASSISTED: { failed: 2, evaluated: 5, cfr: 0.4 },
           HUMAN: { failed: 0, evaluated: 5, cfr: 0 },
@@ -87,10 +134,6 @@ describe("computeDORA", () => {
       "r2",
       payload({
         dora_source: "datadog",
-        dora_deployments_total: 10,
-        dora_deployments_failed: 1,
-        dora_deployments_pending_evaluation: 0,
-        dora_incidents_total: 0,
         dora_cfr_by_origin: {
           AI_ASSISTED: { failed: 0, evaluated: 3, cfr: 0 },
           HUMAN: { failed: 1, evaluated: 7, cfr: 1 / 7 },
@@ -98,12 +141,9 @@ describe("computeDORA", () => {
       }),
     );
 
-    const dora = computeDORA(payloads);
-    expect(dora).not.toBeNull();
-    if (!dora) return;
-
-    const ai = dora.cfrByOrigin.find((r) => r.origin === "AI_ASSISTED");
-    const h = dora.cfrByOrigin.find((r) => r.origin === "HUMAN");
+    const { cfrByOrigin } = aggregateCfrByOriginFromPayloads(payloads);
+    const ai = cfrByOrigin.find((r) => r.origin === "AI_ASSISTED");
+    const h = cfrByOrigin.find((r) => r.origin === "HUMAN");
     expect(ai).toEqual({
       origin: "AI_ASSISTED",
       failed: 2,
@@ -118,31 +158,43 @@ describe("computeDORA", () => {
     });
   });
 
-  it("skips repos without dora_source even if other dora_* fields slipped through", () => {
+  it("ignores payloads without dora_source set", () => {
     const payloads = new Map<string, ReportMetrics>();
     payloads.set(
       "r1",
       payload({
         dora_source: "datadog",
-        dora_deployments_total: 5,
-        dora_deployments_failed: 0,
-        dora_deployments_pending_evaluation: 0,
-        dora_incidents_total: 0,
+        dora_cfr_by_origin: {
+          AI_ASSISTED: { failed: 1, evaluated: 2, cfr: 0.5 },
+        },
       }),
     );
-    // r2 has stray dora_* without dora_source — must be ignored entirely.
     payloads.set(
       "r2",
       payload({
-        dora_deployments_total: 999,
-        dora_deployments_failed: 999,
+        // stray dora_* without dora_source — ignored
+        dora_cfr_by_origin: {
+          AI_ASSISTED: { failed: 99, evaluated: 99, cfr: 1 },
+        },
       }),
     );
+    const { cfrByOrigin } = aggregateCfrByOriginFromPayloads(payloads);
+    expect(cfrByOrigin).toEqual([
+      { origin: "AI_ASSISTED", failed: 1, evaluated: 2, cfr: 0.5 },
+    ]);
+  });
+});
 
-    const dora = computeDORA(payloads);
-    expect(dora).not.toBeNull();
-    if (!dora) return;
-    expect(dora.reposWithData).toBe(1);
-    expect(dora.deploymentsTotal).toBe(5);
+describe("median", () => {
+  it("returns null for empty input", () => {
+    expect(median([])).toBeNull();
+  });
+
+  it("averages the middle two for even-length input", () => {
+    expect(median([1, 2, 3, 4])).toBe(2.5);
+  });
+
+  it("picks the middle for odd-length input (after sort)", () => {
+    expect(median([1, 5, 3])).toBe(3);
   });
 });
