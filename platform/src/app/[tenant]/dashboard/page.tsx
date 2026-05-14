@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { authOptions } from "@/lib/auth";
 import { computeOrgAdoption } from "@/lib/queries/adoption-timeline";
+import { computeOrgDORA } from "@/lib/queries/dora";
 import {
   getOrgLatestPayloads,
   getOrgActiveContributors,
@@ -33,7 +34,6 @@ import {
   computeOrgTimeline,
   computePreviousTotals,
   computeHyperEngineers,
-  computeDORA,
 } from "@/lib/queries/org-summary";
 import {
   getOrgReposSummary,
@@ -115,7 +115,10 @@ export default async function OrgDashboardPage({
     contributorInfo.userMap,
   );
   const toolComparisonData = computeToolComparison(payloads);
-  const doraData = computeDORA(payloads);
+  const doraData = await computeOrgDORA(supabaseAdmin, org.id, {
+    windowDays: 30,
+    payloads,
+  });
   const repoNameIndex = new Map(repoSummaries.map((r) => [r.id, r.name]));
   const adoptionRows = computeOrgAdoption(payloads, repoNameIndex);
 

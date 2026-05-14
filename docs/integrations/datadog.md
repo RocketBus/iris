@@ -116,9 +116,10 @@ DD payload (JSONB), and the linked commits with their
 
 | Surface | Data |
 |---|---|
-| Dashboard "DORA" section | Org-wide CFR, MTTR (per failed deploy), deploy frequency, lead time, rollback rate, pending-evaluation count. Each card shows a "Datadog" badge so it's clear the number is real, not estimated. |
-| Dashboard "Change Failure Rate by Code Origin" card | AI-vs-human CFR comparison from the per-commit join. Hidden until the org has ≥ 10 failed deploys in the window. |
-| Per-repo report (`report.md`) | Descriptive bullets in *Key Findings*: CFR, MTTR, rollback rate. Numbers are also in the JSON payload as `dora_*` fields. |
+| Dashboard "DORA" section | Org-wide CFR, MTTR (per failed deploy + per incident), deploy frequency, lead time, rollback rate, pending-evaluation count. **Aggregated directly from the `external_*` tables** — single source of truth, no double-counting. |
+| Dashboard "Change Failure Rate by Code Origin" card | AI-vs-human CFR comparison from the per-commit join. Comes from the engine payloads (`dora_cfr_by_origin`) because the join requires local origin classification. Hidden until the org has ≥ 10 failed deploys in the window. |
+| Repo detail "DORA" section (`/[tenant]/repos/[repoName]`) | Per-repo CFR, MTTR-per-deploy, deploy frequency, lead time, rollback rate. Same query as the dashboard but filtered by `repository_id`. **No MTTR-per-incident** — Datadog failures don't carry repository attribution, so any per-repo number would be a misleading copy of the org-wide value. |
+| Per-repo report (`report.md`) | Descriptive bullets in *Key Findings*: CFR, MTTR, rollback rate. Numbers are also in the JSON payload as `dora_*` fields. The payload is informational; the dashboard reads from tables. |
 | Integration detail page | `last_sync_at`, `last_error`, unmatched-deployments count (DD slugs that didn't resolve to a tracked Iris repo), and "last incident registered X days ago" — the latter is the §9.8 silent-decay guard. |
 
 ---

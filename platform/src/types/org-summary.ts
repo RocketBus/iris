@@ -126,11 +126,15 @@ export interface OrgTimelineWeek {
 }
 
 /**
- * DORA (real) aggregated across the org's repos. Populated only when at
- * least one repo's latest run carries `dora_source === "datadog"`.
- * Counts are summed; rates are weighted by the number of evaluated
- * deployments contributing to each repo's value (mirrors the engine's
- * per-commit semantics — each evaluated deploy is one unit of weight).
+ * DORA (real) aggregated org-wide from the `external_*` tables.
+ *
+ * Counts and percentile-based aggregates come from a single query against
+ * `external_deployments` and `external_incidents` — single source of
+ * truth, no double-counting across per-repo payloads. The two
+ * `_by_origin` fields are the exception: they're engine-derived (need
+ * the per-commit join against local origin classification) and
+ * accumulated from the latest payload of every repo with a successful
+ * push under an active integration.
  */
 export interface OrgDORA {
   reposWithData: number;
@@ -138,16 +142,18 @@ export interface OrgDORA {
   deploymentsFailed: number;
   deploymentsPendingEvaluation: number;
   incidentsTotal: number;
-  /** 0.0–1.0 weighted by evaluated deploys; null if denominator is zero. */
+  /** 0.0–1.0. Failed / evaluated (excludes pending). */
   cfr: number | null;
   rollbacksTotal: number;
-  /** 0.0–1.0 weighted by failed deploys; null if no failures. */
+  /** 0.0–1.0. Rollbacks / failed deploys. */
   rollbackRate: number | null;
-  /** Seconds; median across repos that report a value. */
+  /** Seconds. Median of `recovery_time_sec` over failed deploys. */
   mttrPerDeploySecondsMedian: number | null;
+  /** Seconds. Median of `time_to_restore_seconds` over incident events. */
   mttrPerIncidentSecondsMedian: number | null;
+  /** Seconds. Median across every commit on every deploy in the window. */
   leadTimeSecondsMedian: number | null;
-  /** Deploys per day, summed across repos (each repo's window contributes). */
+  /** Deploys per calendar day across the queried window. */
   deployFrequencyPerDay: number | null;
   /** Per-origin CFR aggregation across the org. */
   cfrByOrigin: Array<{
@@ -163,4 +169,26 @@ export interface OrgDORA {
     failed: number;
     rollbackRate: number;
   }>;
+}
+
+/**
+ * DORA (real) scoped to a single repository.
+ *
+ * Computed from `external_deployments` filtered by `repository_id`.
+ * Incident-derived MTTR is intentionally omitted: Datadog failures
+ * don't carry repository attribution, so any per-repo MTTR-per-incident
+ * would be a misleading copy of the org-wide number.
+ */
+export interface RepoDORA {
+  /** Inclusive window size used to compute these metrics. */
+  windowDays: number;
+  deploymentsTotal: number;
+  deploymentsFailed: number;
+  deploymentsPendingEvaluation: number;
+  cfr: number | null;
+  mttrPerDeploySecondsMedian: number | null;
+  rollbacksTotal: number;
+  rollbackRate: number | null;
+  leadTimeSecondsMedian: number | null;
+  deployFrequencyPerDay: number | null;
 }

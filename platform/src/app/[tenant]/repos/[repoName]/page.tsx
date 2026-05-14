@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth/next";
 
 import { RepoCharts } from "./charts";
+import { DORARepoCard } from "./dora-card";
 import { GitHubAvatar } from "./github-avatar";
 import { InvestmentHotspots } from "./investment-hotspots";
 
@@ -11,6 +12,7 @@ import { ChangeAlert } from "@/components/charts/ChangeAlert";
 import { MetricCard } from "@/components/charts/MetricCard";
 import { authOptions } from "@/lib/auth";
 import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
+import { computeRepoDORA } from "@/lib/queries/dora";
 import { computeInvestmentHotspots } from "@/lib/queries/invest-here";
 import {
   getRepoTimeSeries,
@@ -123,10 +125,11 @@ export default async function RepoDetailPage({
     .single();
   if (!repo) notFound();
 
-  const [timeSeries, payload, aiImpact] = await Promise.all([
+  const [timeSeries, payload, aiImpact, repoDORA] = await Promise.all([
     getRepoTimeSeries(supabaseAdmin, repo.id),
     getRepoLatestPayload(supabaseAdmin, repo.id),
     getRepoAITimeSeries(supabaseAdmin, repo.id),
+    computeRepoDORA(supabaseAdmin, org.id, repo.id, { windowDays: 30 }),
   ]);
 
   const insights = extractInsights(payload);
@@ -244,6 +247,8 @@ export default async function RepoDetailPage({
         insights={insights}
         aiImpact={aiImpact}
       />
+
+      {repoDORA && <DORARepoCard data={repoDORA} />}
 
       <AdoptionTimelineCard summary={adoptionSummary} compact />
 

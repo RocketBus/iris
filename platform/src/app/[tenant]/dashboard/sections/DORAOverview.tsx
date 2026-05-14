@@ -29,7 +29,6 @@ interface Props {
 
 export function DORAOverview({ data }: Props) {
   const { t } = useTranslation();
-  if (data.reposWithData === 0) return null;
 
   const showCorrelation =
     data.deploymentsFailed >= MIN_FAILED_FOR_CORRELATION &&
@@ -47,7 +46,7 @@ export function DORAOverview({ data }: Props) {
             </Badge>
           </h2>
           <p className="text-sm text-muted-foreground">
-            {t("dashboard.dora.subtitle", { count: data.reposWithData })}
+            {t("dashboard.dora.subtitle")}
           </p>
         </div>
       </div>
