@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
   }
 
   const deploymentIds = (deployments ?? []).map((d) => d.id);
-  let commits: Array<{
+  const commits: Array<{
     deployment_id: string;
     commit_sha: string;
     commit_timestamp: string | null;
@@ -135,24 +135,37 @@ export async function GET(request: NextRequest) {
     change_lead_time: number | null;
     time_to_deploy: number | null;
   }> = [];
-  if (deploymentIds.length > 0) {
+  // PostgREST serializes `.in()` into the request URL as
+  // `?deployment_id=in.(uuid1,uuid2,…)`. Each UUID is ~38 chars including
+  // the comma, so the URL grows ~38 bytes per id. Supabase's proxy
+  // typically rejects requests beyond ~8 KB; with the per-org deploy
+  // count crossing 1000 (real customer hit this on a 30-day window),
+  // a single `.in()` blew through that limit and the proxy returned a
+  // 500 with no payload. Chunk into batches of 100 ids (~3.8 KB each)
+  // to stay comfortably under the ceiling.
+  const COMMIT_CHUNK_SIZE = 100;
+  for (let i = 0; i < deploymentIds.length; i += COMMIT_CHUNK_SIZE) {
+    const chunk = deploymentIds.slice(i, i + COMMIT_CHUNK_SIZE);
     const { data: commitRows, error: commitsError } = await supabaseAdmin
       .from("external_deployment_commits")
       .select(
         "deployment_id, commit_sha, commit_timestamp, author_email, author_canonical_email, is_bot, change_lead_time, time_to_deploy",
       )
-      .in("deployment_id", deploymentIds);
+      .in("deployment_id", chunk);
 
     if (commitsError) {
-      logger.error("integrations/datadog/events: load commits", {
+      logger.error("integrations/datadog/events: load commits chunk", {
         error: commitsError.message,
+        chunkSize: chunk.length,
+        offset: i,
+        totalIds: deploymentIds.length,
       });
       return NextResponse.json(
         { error: "Failed to load deployment commits" },
         { status: 500 },
       );
     }
-    commits = commitRows ?? [];
+    if (commitRows) commits.push(...commitRows);
   }
 
   const commitsByDeploymentId = new Map<string, typeof commits>();
