@@ -402,7 +402,13 @@ const FLOW_EFF_PHASE_ORDER = [
   "awaiting_merge",
 ] as const;
 
-const FLOW_EFF_ACTIVE_PHASES = new Set<string>(["coding", "in_review_active"]);
+const FLOW_EFF_PHASE_COLORS: Record<string, string> = {
+  coding: "bg-signal-green",
+  awaiting_first_review: "bg-signal-yellow",
+  in_review_active: "bg-signal-purple",
+  in_review_wait: "bg-signal-red",
+  awaiting_merge: "bg-signal-gray",
+};
 
 function FlowEfficiencyCard({
   median,
@@ -414,8 +420,6 @@ function FlowEfficiencyCard({
   efficiencyLabel,
   ttfrLabel,
   ttfrUnit,
-  legendActive,
-  legendWait,
   phaseLabels,
   byIntentTitle,
   intentLabels,
@@ -429,8 +433,6 @@ function FlowEfficiencyCard({
   efficiencyLabel: string;
   ttfrLabel: string;
   ttfrUnit: string;
-  legendActive: string;
-  legendWait: string;
   phaseLabels: Record<string, string>;
   byIntentTitle: string;
   intentLabels: Record<string, string>;
@@ -482,29 +484,18 @@ function FlowEfficiencyCard({
                 const hours = timeInPhase[key] ?? 0;
                 if (hours === 0) return null;
                 const pct = (hours / totalHours) * 100;
-                const isActive = FLOW_EFF_ACTIVE_PHASES.has(key);
                 return (
                   <div
                     key={key}
                     className={cn(
                       "h-full",
-                      isActive ? "bg-signal-green" : "bg-signal-yellow",
+                      FLOW_EFF_PHASE_COLORS[key] ?? "bg-muted-foreground/40",
                     )}
                     style={{ width: `${pct}%` }}
                     title={`${phaseLabels[key] ?? key}: ${hours.toFixed(1)}h`}
                   />
                 );
               })}
-            </div>
-            <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block size-2 rounded-full bg-signal-green" />
-                {legendActive}
-              </span>
-              <span className="flex items-center gap-1.5">
-                <span className="inline-block size-2 rounded-full bg-signal-yellow" />
-                {legendWait}
-              </span>
             </div>
             <div className="grid gap-1 text-xs">
               {FLOW_EFF_PHASE_ORDER.map((key) => {
@@ -520,9 +511,8 @@ function FlowEfficiencyCard({
                       <span
                         className={cn(
                           "inline-block size-2 rounded-full",
-                          FLOW_EFF_ACTIVE_PHASES.has(key)
-                            ? "bg-signal-green"
-                            : "bg-signal-yellow",
+                          FLOW_EFF_PHASE_COLORS[key] ??
+                            "bg-muted-foreground/40",
                         )}
                       />
                       {phaseLabels[key] ?? key}
@@ -1064,8 +1054,6 @@ export function RepoCharts({
             efficiencyLabel={t("repoCharts.flowEfficiency.efficiencyLabel")}
             ttfrLabel={t("repoCharts.flowEfficiency.ttfrLabel")}
             ttfrUnit={t("repoCharts.flowEfficiency.ttfrUnit")}
-            legendActive={t("repoCharts.flowEfficiency.phaseLegendActive")}
-            legendWait={t("repoCharts.flowEfficiency.phaseLegendWait")}
             phaseLabels={{
               coding: t("repoCharts.flowEfficiency.phaseLabels.coding"),
               awaiting_first_review: t(

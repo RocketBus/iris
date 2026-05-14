@@ -630,8 +630,6 @@ export const translations = {
         efficiencyLabel: "Active fraction",
         ttfrLabel: "Time to first review",
         ttfrUnit: "h",
-        phaseLegendActive: "Active",
-        phaseLegendWait: "Wait",
         phaseLabels: {
           coding: "Coding",
           awaiting_first_review: "Awaiting first review",
@@ -1939,8 +1937,6 @@ export const translations = {
         efficiencyLabel: "Fração ativa",
         ttfrLabel: "Tempo até o primeiro review",
         ttfrUnit: "h",
-        phaseLegendActive: "Ativo",
-        phaseLegendWait: "Espera",
         phaseLabels: {
           coding: "Coding",
           awaiting_first_review: "Aguardando primeiro review",
