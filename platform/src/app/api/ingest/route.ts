@@ -13,7 +13,11 @@ export const maxDuration = 60;
  */
 const ingestSchema = z.object({
   repository: z.string().min(1),
-  remote_url: z.string().url().optional(),
+  // Accept any non-empty string — git remote URLs come in shapes that
+  // Zod's `.url()` rejects (most notably the SSH `git@host:org/repo.git`
+  // form, which has no scheme). The value is informational metadata
+  // normalized via `normalizeRepoSlug` downstream; we don't fetch it.
+  remote_url: z.string().min(1).optional(),
   window_days: z.number().int().positive().default(90),
   cli_version: z.string().optional(),
   github_user: z.string().optional(),
