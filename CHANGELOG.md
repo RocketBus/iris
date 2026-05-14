@@ -4,6 +4,72 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.0.7 — Datadog integration: post-launch fixes (2026-05-13)
+
+Five fixes that landed after the v1.0.6 cut, surfaced as the customer's
+real Datadog integration came online. Each one was a different layer of
+the same store → read → match pipeline.
+
+### Fixed
+
+- **`credentials_encrypted` column type** (#44). The column was modeled
+  as `BYTEA` in slice 2, but the application stored and read it as a
+  base64 string from the encrypt/decrypt RPCs. supabase-js returns
+  `BYTEA` as `\x<hex>` (Postgres' default escape format), which then
+  broke `decode(..., 'base64')` inside `decrypt_credentials` with
+  `invalid symbol "\" found while decoding base64 sequence`. Migration
+  `018` switches the column to `TEXT` and recovers existing rows via
+  `convert_from(..., 'UTF8')` — no reconnect required.
+- **DORA event dedup before upsert + cron retries errored
+  integrations** (#45). The pagination boundary event reappears on
+  each iteration (§9.5 of the plan); Postgres rejects duplicate
+  conflict keys *within* a single upsert with "ON CONFLICT DO UPDATE
+  command cannot affect row a second time". Introduces a `uniqueByKey`
+  helper and applies it to deployments, failures, and deployment
+  commits. The cron also now picks up integrations in `status: 'error'`
+  so transient failures self-heal on the next run instead of stalling.
+- **Chunked commits lookup at the events endpoint** (#46). The
+  `/api/integrations/datadog/events` route fanned out the commits
+  query with a single `.in("deployment_id", ids)`. PostgREST
+  serializes that into the URL; ~1000+ deploys blew past Supabase's
+  proxy URL limit and the call returned 500 with no payload. Batches
+  the IN clause into chunks of 100 ids.
+- **Dashboard org-wide DORA was 6× inflated + per-repo DORA section
+  added** (#47). The CLI fetches DORA events org-wide, so every
+  per-repo payload carried the same slice of the universe under
+  `dora_*` and summing across them multiplied counts by the number of
+  repos that had pushed. New `platform/lib/queries/dora.ts` queries
+  `external_*` tables directly; org-wide and per-repo aggregations
+  differ only in whether they filter by `repository_id`. Repo detail
+  page (`/[tenant]/repos/[repoName]`) gains a new `<DORARepoCard>`
+  with CFR, MTTR-per-deploy, deploy frequency, lead time, rollback
+  rate. MTTR-per-incident is intentionally omitted at the repo level
+  because Datadog failures don't carry repository attribution.
+- **CLI sends `remote_url` + cron backfills unmatched deploys** (#48).
+  `_push_after_analysis` and `_run_push` both omitted the `remote_url`
+  parameter when calling `push_metrics`, so `repositories.remote_url`
+  stayed NULL even after `iris . --push`. Without that, the cron's
+  slug match (`dd_repository_id` ↔ `remote_url`) always failed and
+  every deploy landed with `repository_id = null`. The CLI now
+  detects via `git remote get-url origin` and passes the URL through.
+  New `rematchUnlinkedDeployments(supabase, orgId)` runs after each
+  successful cron sync and retroactively fills `repository_id` on
+  existing rows whose slug now resolves to a known repo.
+
+### Chore
+
+- **Gitignore broaden** (#43, missed by the v1.0.6 squash). The
+  `supabase/.temp/` pattern only matched the repo root; the actual
+  cache lives at `platform/supabase/.temp/`. Switched to
+  `**/supabase/.temp/`.
+
+No schema changes are user-visible. Upgrade path: `iris upgrade` on the
+CLI, apply migration `018` on the platform's Supabase, optionally
+trigger the cron manually to backfill existing unmatched rows in one
+shot.
+
+---
+
 ## v1.0.6 — Datadog DORA integration (2026-05-13)
 
 Stage 3 opens: Iris can now consume a customer's DORA event stream from
