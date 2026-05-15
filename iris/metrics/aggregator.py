@@ -17,6 +17,7 @@ from iris.analysis.commit_shape import analyze_commit_shapes
 from iris.analysis.dora_real import analyze_dora_real
 from iris.analysis.fix_latency import calculate_fix_latency
 from iris.analysis.flow_efficiency import analyze_flow_efficiency
+from iris.analysis.open_pr_aging import analyze_open_pr_aging, now_utc
 from iris.analysis.flow_load import analyze_flow_load
 from iris.analysis.stability_map import calculate_stability_map
 from iris.analysis.intent_classifier import classify_commits
@@ -318,6 +319,40 @@ def aggregate(
                     flow_efficiency_result.flow_efficiency_by_origin
                 )
 
+    # Open PR Aging — snapshot of stuck inventory (non-draft, non-bot)
+    open_pr_aging_kwargs: dict = {}
+    if prs:
+        aging_result = analyze_open_pr_aging(
+            prs,
+            now=now_utc(),
+            commit_origin_map=origin_map,
+        )
+        if aging_result is not None:
+            open_pr_aging_kwargs["open_pr_count"] = aging_result.open_pr_count
+            open_pr_aging_kwargs["median_open_pr_age_days"] = (
+                aging_result.median_open_pr_age_days
+            )
+            open_pr_aging_kwargs["p90_open_pr_age_days"] = (
+                aging_result.p90_open_pr_age_days
+            )
+            open_pr_aging_kwargs["stale_open_pr_pct"] = (
+                aging_result.stale_open_pr_pct
+            )
+            open_pr_aging_kwargs["very_stale_open_pr_pct"] = (
+                aging_result.very_stale_open_pr_pct
+            )
+            open_pr_aging_kwargs["abandonment_risk_pct"] = (
+                aging_result.abandonment_risk_pct
+            )
+            if aging_result.median_open_pr_age_by_intent:
+                open_pr_aging_kwargs["median_open_pr_age_by_intent"] = (
+                    aging_result.median_open_pr_age_by_intent
+                )
+            if aging_result.stale_open_pr_pct_by_origin:
+                open_pr_aging_kwargs["stale_open_pr_pct_by_origin"] = (
+                    aging_result.stale_open_pr_pct_by_origin
+                )
+
     # Flow Load — WIP per ISO week (PRs in flight + author concurrency)
     flow_load_kwargs: dict = {}
     flow_load_result = analyze_flow_load(prs or [], commits)
@@ -415,6 +450,7 @@ def aggregate(
         **pr_kwargs,
         **flow_load_kwargs,
         **flow_efficiency_kwargs,
+        **open_pr_aging_kwargs,
         **_dora_real_kwargs(external_data, origin_map),
     )
 

@@ -42,6 +42,15 @@ TIME_TO_FIRST_REVIEW_SLOW_HOURS = 24.0
 # Threshold is a hypothesis pending calibration with 3-5 repos.
 FLOW_LOAD_FEATURE_GROWTH_MULTIPLIER = 1.5
 FLOW_LOAD_FEATURE_GROWTH_MIN_ABSOLUTE = 2
+# Open PR Aging — fraction of open PRs stale (≥14d inactive) above this
+# triggers the backlog-pressure finding. Hypothesis pending calibration.
+OPEN_PR_STALE_PCT_THRESHOLD = 0.30
+# Fraction of open PRs with ≥60d inactivity above this triggers the
+# abandonment finding.
+OPEN_PR_ABANDONMENT_PCT_THRESHOLD = 0.15
+# Gap in stale_open_pr_pct between AI_ASSISTED and HUMAN origin (in
+# percentage points) that triggers the AI-vs-human gap finding.
+OPEN_PR_ORIGIN_GAP_PP = 0.20
 
 # Maps ChangeIntent values to i18n interpretation keys
 _INTENT_INTERPRETATION_KEYS = {
@@ -162,6 +171,9 @@ def generate_key_findings(metrics: ReportMetrics, lang: str = "en") -> str:
     flow_findings = _flow_load_findings(metrics, s)
     findings.extend(flow_findings)
 
+    # Open PR Aging — stuck-inventory pressure + abandonment + origin gap
+    findings.extend(_open_pr_aging_findings(metrics, s))
+
     # DORA (real) — descriptive bullets when external integration delivers data
     findings.extend(_dora_real_findings(metrics, s))
 
@@ -253,6 +265,62 @@ def _flow_load_findings(metrics: ReportMetrics, s: dict) -> list[str]:
             start_wip=first,
             end_wip=last,
         ))
+    return findings
+
+
+def _open_pr_aging_findings(metrics: ReportMetrics, s: dict) -> list[str]:
+    """Build Open PR Aging findings (0-3 bullets).
+
+    - Descriptive bullet when ``open_pr_count`` is present.
+    - Backlog-pressure bullet when ``stale_open_pr_pct`` crosses
+      ``OPEN_PR_STALE_PCT_THRESHOLD``.
+    - Abandonment bullet when ``abandonment_risk_pct`` crosses
+      ``OPEN_PR_ABANDONMENT_PCT_THRESHOLD``.
+    - AI-vs-human gap bullet when the by_origin spread crosses
+      ``OPEN_PR_ORIGIN_GAP_PP``.
+    """
+    if metrics.open_pr_count is None or metrics.open_pr_count == 0:
+        return []
+
+    findings: list[str] = []
+    findings.append(
+        s["finding_open_pr_aging_descriptive"].format(
+            count=metrics.open_pr_count,
+            median_age=metrics.median_open_pr_age_days or 0.0,
+        )
+    )
+
+    if (
+        metrics.stale_open_pr_pct is not None
+        and metrics.stale_open_pr_pct >= OPEN_PR_STALE_PCT_THRESHOLD
+    ):
+        findings.append(
+            s["finding_open_pr_aging_stale"].format(
+                pct=f"{metrics.stale_open_pr_pct:.0%}",
+            )
+        )
+
+    if (
+        metrics.abandonment_risk_pct is not None
+        and metrics.abandonment_risk_pct >= OPEN_PR_ABANDONMENT_PCT_THRESHOLD
+    ):
+        findings.append(
+            s["finding_open_pr_aging_abandonment"].format(
+                pct=f"{metrics.abandonment_risk_pct:.0%}",
+            )
+        )
+
+    by_origin = metrics.stale_open_pr_pct_by_origin or {}
+    ai = by_origin.get("AI_ASSISTED")
+    human = by_origin.get("HUMAN")
+    if ai is not None and human is not None and (ai - human) >= OPEN_PR_ORIGIN_GAP_PP:
+        findings.append(
+            s["finding_open_pr_aging_origin_gap"].format(
+                ai_pct=f"{ai:.0%}",
+                human_pct=f"{human:.0%}",
+            )
+        )
+
     return findings
 
 

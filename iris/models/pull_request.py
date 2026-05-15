@@ -57,5 +57,6 @@ class PullRequest:
     merged_at: datetime | None = None
     closed_at: datetime | None = None
     state: PRState = "merged"
+    is_draft: bool = False
     reviews: list[PRReview] = field(default_factory=list)
     commit_refs: list[CommitRef] = field(default_factory=list)
