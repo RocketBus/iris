@@ -173,6 +173,24 @@ EN = {
         "on new work; revisit alongside merged-feature throughput."
     ),
 
+    # Open PR Aging findings — snapshot of stuck inventory
+    "finding_open_pr_aging_descriptive": (
+        "Open PRs: {count} non-draft, non-bot PRs still open "
+        "(median age {median_age} days)."
+    ),
+    "finding_open_pr_aging_stale": (
+        "{pct} of open PRs have had no review or commit in 2+ weeks — "
+        "backlog pressure on review capacity."
+    ),
+    "finding_open_pr_aging_abandonment": (
+        "{pct} of open PRs have had no activity in 2+ months — "
+        "likely abandoned; consider closing to reduce noise."
+    ),
+    "finding_open_pr_aging_origin_gap": (
+        "AI-assisted PRs go stale more often than human ones "
+        "({ai_pct} vs {human_pct}) — generation outpaces review."
+    ),
+
     # DORA (real) findings — populated only when external integration data is present
     "finding_dora_cfr_descriptive": (
         "Change Failure Rate (Datadog): {cfr_pct} "
@@ -970,6 +988,24 @@ PT_BR = {
         "WIP de features cresceu de {start_wip} para {end_wip} PRs/semana "
         "no período — o paralelismo de engenharia está se ampliando em "
         "trabalho novo; cruze com o throughput de features merged."
+    ),
+
+    # Descobertas Open PR Aging — snapshot do inventário represado
+    "finding_open_pr_aging_descriptive": (
+        "PRs abertos: {count} PRs (sem drafts e sem bots) ainda abertos "
+        "(idade mediana {median_age} dias)."
+    ),
+    "finding_open_pr_aging_stale": (
+        "{pct} dos PRs abertos estão sem review nem commit há 2+ semanas — "
+        "pressão de backlog sobre a capacidade de review."
+    ),
+    "finding_open_pr_aging_abandonment": (
+        "{pct} dos PRs abertos estão sem atividade há 2+ meses — "
+        "provavelmente abandonados; considere fechar para reduzir ruído."
+    ),
+    "finding_open_pr_aging_origin_gap": (
+        "PRs AI-assisted ficam parados com mais frequência que PRs humanos "
+        "({ai_pct} vs {human_pct}) — geração supera a velocidade de review."
     ),
 
     # Descobertas DORA (real) — populadas apenas quando há integração externa ativa

@@ -126,6 +126,17 @@ class ReportMetrics:
     time_in_phase_median_hours: dict[str, float] | None = None
     median_time_to_first_review_hours: float | None = None
 
+    # Open PR Aging — snapshot of stuck inventory (optional — None when no
+    # non-draft, non-bot open PR exists at coletion time).
+    open_pr_count: int | None = None
+    median_open_pr_age_days: float | None = None
+    p90_open_pr_age_days: float | None = None
+    stale_open_pr_pct: float | None = None
+    very_stale_open_pr_pct: float | None = None
+    abandonment_risk_pct: float | None = None
+    median_open_pr_age_by_intent: dict[str, float] | None = None
+    stale_open_pr_pct_by_origin: dict[str, float] | None = None
+
     # DORA (real) — populated only when external Datadog events were fetched
     # for this run. None across the board when the org has no active Datadog
     # integration. ``dora_source`` is "datadog" when populated, None otherwise.

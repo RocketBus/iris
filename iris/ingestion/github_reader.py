@@ -72,11 +72,11 @@ def is_gh_available() -> bool:
 # (`oid + committedDate + authoredDate` only) via
 # `_fetch_commit_refs_by_pr_graphql`.
 _PR_FIELDS_BASIC = (
-    "number,title,createdAt,mergedAt,closedAt,state,"
+    "number,title,createdAt,mergedAt,closedAt,state,isDraft,"
     "additions,deletions,changedFiles,author"
 )
 _PR_FIELDS_FULL = (
-    "number,title,createdAt,mergedAt,closedAt,state,"
+    "number,title,createdAt,mergedAt,closedAt,state,isDraft,"
     "additions,deletions,changedFiles,author,reviews,commits"
 )
 
@@ -393,6 +393,7 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
         merged_at=merged_at,
         closed_at=closed_at,
         state=state,
+        is_draft=bool(raw.get("isDraft", False)),
         additions=raw.get("additions", 0),
         deletions=raw.get("deletions", 0),
         changed_files=raw.get("changedFiles", 0),
@@ -443,6 +444,7 @@ def _parse_pull_requests(
             merged_at=merged_at,
             closed_at=closed_at,
             state=state,
+            is_draft=bool(raw.get("isDraft", False)),
             additions=raw.get("additions", 0),
             deletions=raw.get("deletions", 0),
             changed_files=raw.get("changedFiles", 0),

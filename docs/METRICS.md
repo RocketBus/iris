@@ -674,7 +674,84 @@ Findings emitted by `narrative.py` (see `iris/i18n.py:finding_flow_efficiency_*`
 
 ---
 
-## 26. Adoption timeline (post-report, not on `ReportMetrics`)
+## 26. Open PR Aging
+
+Snapshot of the **currently open** PRs at run time: how old are they,
+and how long since each one had any significant activity? Complements
+Flow Load (WIP per window) and Flow Efficiency (active/wait of
+*merged* PRs) — neither sees PRs that linger or never merge. Modelo
+mental: Flow Load = "quanto trabalho simultâneo passou pelo time?";
+Flow Efficiency = "do trabalho que saiu, foi eficiente?"; Open PR
+Aging = "do trabalho que ainda não saiu, está represado?".
+
+| Field | Unit | Source | Nullable when |
+|---|---|---|---|
+| `open_pr_count` | int | `analysis/open_pr_aging.py` | no eligible open PR (all drafts/bots) |
+| `median_open_pr_age_days` | float ≥ 0 | same | same |
+| `p90_open_pr_age_days` | float ≥ 0 | same | same |
+| `stale_open_pr_pct` | float `0.0–1.0` | same | same |
+| `very_stale_open_pr_pct` | float `0.0–1.0` | same | same |
+| `abandonment_risk_pct` | float `0.0–1.0` | same | same |
+| `median_open_pr_age_by_intent` | `Record<intent, days>` | same | < `min_sample` (default 5) PRs in segment |
+| `stale_open_pr_pct_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map`, or < `min_sample` PRs in segment |
+
+Per-PR signals (intermediate, **never persisted**):
+
+- `age_days = floor((now - pr.created_at).days)`
+- `days_since_last_activity = floor((now - last_activity_at).days)` where
+  `last_activity_at = max(pr.created_at, latest review.submitted_at,
+  latest commit_refs.committed_at)`. GitHub's `updatedAt` is **not**
+  used — labels, assignees and other low-signal touches bump it and
+  would mask genuine inactivity.
+
+Filtering before aggregation:
+
+- **Drafts** (`pr.is_draft == True`) are excluded — drafts are
+  intentionally long-running.
+- **Bot-authored PRs** are excluded via `_BOT_AUTHOR_PATTERNS`
+  (single source of truth in `origin_classifier`). Dependabot,
+  Renovate, etc. waiting on triage isn't "stuck work".
+
+Staleness thresholds (constants at the top of `open_pr_aging.py`,
+hypothesis pending calibration with 3–5 repos):
+
+| Bucket | Threshold |
+|---|---|
+| `stale_open_pr_pct` | `days_since_last_activity ≥ 14` |
+| `very_stale_open_pr_pct` | `≥ 30` |
+| `abandonment_risk_pct` | `≥ 60` |
+
+PR origin rule (for `stale_open_pr_pct_by_origin`): same 50% rule as
+Flow Efficiency — PR is `AI_ASSISTED` when ≥ 50 % of its non-bot
+commits are `AI_ASSISTED`, otherwise `HUMAN`; PRs with no classified
+commits are excluded from the segment.
+
+Privacy / ranking risk (Principle #2):
+
+- Per-PR ages/staleness are computed as intermediates and never
+  exposed in the schema or UI.
+- Quebras secundárias are by **intent** and **origin of the work** —
+  never by author. The PR-level booleans/ages have no name field.
+- `min_sample = 5` keeps small segments (e.g. `AI_LED` with N=1)
+  from implicitly identifying an individual.
+
+Findings emitted by `narrative.py` (see `iris/i18n.py:finding_open_pr_aging_*`):
+
+- `finding_open_pr_aging_descriptive` — always when `open_pr_count > 0`:
+  count + median age.
+- `finding_open_pr_aging_stale` — when
+  `stale_open_pr_pct ≥ OPEN_PR_STALE_PCT_THRESHOLD` (0.30).
+  **Threshold is a hypothesis pending calibration.**
+- `finding_open_pr_aging_abandonment` — when
+  `abandonment_risk_pct ≥ OPEN_PR_ABANDONMENT_PCT_THRESHOLD` (0.15).
+- `finding_open_pr_aging_origin_gap` — when
+  `stale_open_pr_pct_by_origin["AI_ASSISTED"] − [...]["HUMAN"]
+  ≥ OPEN_PR_ORIGIN_GAP_PP` (0.20). "AI-assisted PRs go stale more
+  often than human ones."
+
+---
+
+## 27. Adoption timeline (post-report, not on `ReportMetrics`)
 
 When AI-assisted commits started appearing, and how the pre-adoption vs
 post-adoption metrics compare.
