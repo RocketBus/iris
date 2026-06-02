@@ -13,7 +13,10 @@ const PUBLIC_ROUTES = new Set([
   '/deck',
 ]);
 
-const PUBLIC_PREFIXES = ['/cli/', '/me/'];
+// Note: /me/* is authenticated (self-only) and renders its own TenantNavbar
+// via src/app/me/layout.tsx — it must NOT be treated as public here, otherwise
+// the visitor navbar shows on a logged-in page (issue #71).
+const PUBLIC_PREFIXES = ['/cli/'];
 
 const HIDDEN_PREFIXES = [
   '/auth',
