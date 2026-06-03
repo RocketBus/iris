@@ -54,7 +54,7 @@ export default async function PersonalAIUsagePage({
     });
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-28 lg:pt-44">
+    <div className="mx-auto max-w-5xl space-y-8">
       <header className="space-y-2">
         <h1 className="text-2xl font-bold">{t("meAiUsage.title")}</h1>
         <p className="text-sm text-muted-foreground">
