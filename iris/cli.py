@@ -15,7 +15,7 @@ from iris.models.context import AnalysisContext
 from iris.reports.narrative import generate_narrative
 from iris.reports.writer import write_output
 
-VERSION = "v1.1.0"
+VERSION = "v1.2.0"
 
 
 def _merge_durability(metrics, durability):

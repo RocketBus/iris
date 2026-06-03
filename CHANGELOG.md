@@ -8,6 +8,36 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.2.0 — Merge Strategy detection + mergeCommit ingestion (2026-06-03)
+
+### Added
+
+- **Merge Strategy metric** (#76). New engine module
+  `analysis/merge_strategy_detector.py` classifies each repository's
+  dominant merge strategy (`merge` / `squash` / `rebase` / `mixed` /
+  `unknown`) from its merged PRs, and emits `merge_strategy`,
+  `merge_strategy_dominant_share`, and a `commit_metrics_reliable` flag
+  (False for squash/mixed, where collapsing commits makes per-commit
+  metrics approximate). Classification combines merge-commit ground truth
+  (parent count), commit-ref presence in `main`, and the GitHub squash
+  `(#N)` subject stamp. Strictly per-repository — no author axis.
+- Wired through the full chain: schema, aggregator, report writer (Merge
+  Strategy section), narrative finding, i18n (en + pt-br), TypeScript
+  types, platform UI (repo-detail reliability badge + compare-table
+  column), ingest route, migration `019`, and `docs/METRICS.md`.
+
+### Changed
+
+- **PR ingestion** (#75) now captures `merge_commit_sha` +
+  `merge_commit_parent_count` on `PullRequest` and `subject` on
+  `CommitRef`. `github_reader` adds `mergeCommit` to the gh field lists
+  and fetches `mergeCommit{oid parents{totalCount}}` plus per-commit
+  `messageHeadline` via the light GraphQL enrichment pass. The data is
+  the ground-truth enabler for Merge Strategy detection; backward
+  compatible (fields default to `None` / `""`).
+
+---
+
 ## v1.1.0 — Human Review Coverage + sortable compare table (2026-05-29)
 
 ### Added
