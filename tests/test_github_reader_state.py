@@ -18,6 +18,8 @@ from iris.ingestion.github_reader import (
     _PR_FIELDS_BASIC,
     _PR_FIELDS_FULL,
     _infer_state,
+    _parse_commit_refs,
+    _parse_merge_commit,
     _parse_pull_requests,
 )
 
@@ -147,3 +149,57 @@ def test_pr_fields_basic_excludes_commits():
 def test_pr_fields_full_includes_commits():
     """FULL is only used for small windows where the explosion doesn't trigger."""
     assert "commits" in _PR_FIELDS_FULL.split(",")
+
+
+def test_pr_fields_include_merge_commit():
+    """mergeCommit is cheap (single {oid}) — safe in both field lists."""
+    assert "mergeCommit" in _PR_FIELDS_BASIC.split(",")
+    assert "mergeCommit" in _PR_FIELDS_FULL.split(",")
+
+
+# ---------------------------------------------------------------------------
+# Merge-commit + commit-subject parsing (issue #75)
+# ---------------------------------------------------------------------------
+
+
+def test_parse_merge_commit_gh_shape_has_no_parent_count():
+    # gh's JSON `mergeCommit` field supplies only the oid.
+    assert _parse_merge_commit({"oid": "abc123"}) == ("abc123", None)
+
+
+def test_parse_merge_commit_graphql_shape_has_parent_count():
+    raw = {"oid": "abc123", "parents": {"totalCount": 2}}
+    assert _parse_merge_commit(raw) == ("abc123", 2)
+
+
+def test_parse_merge_commit_absent_or_null():
+    assert _parse_merge_commit(None) == (None, None)
+    assert _parse_merge_commit({}) == (None, None)
+
+
+def test_parse_commit_refs_captures_subject():
+    refs = _parse_commit_refs(
+        [{"oid": "deadbeef", "messageHeadline": "feat: ship it (#10)"}]
+    )
+    assert refs[0].hash == "deadbeef"
+    assert refs[0].subject == "feat: ship it (#10)"
+
+
+def test_parse_commit_refs_subject_defaults_empty():
+    refs = _parse_commit_refs([{"oid": "deadbeef"}])
+    assert refs[0].subject == ""
+
+
+def test_parse_pull_requests_populates_merge_commit_fields():
+    raw = _raw(5, created_offset_days=-10, merged_offset_days=-2, state="MERGED")
+    raw["mergeCommit"] = {"oid": "landed123", "parents": {"totalCount": 1}}
+    prs = _parse_pull_requests([raw], _SINCE)
+    assert prs[0].merge_commit_sha == "landed123"
+    assert prs[0].merge_commit_parent_count == 1
+
+
+def test_parse_pull_requests_merge_commit_absent_is_none():
+    raw = _raw(6, created_offset_days=-10, state="OPEN")
+    prs = _parse_pull_requests([raw], _SINCE)
+    assert prs[0].merge_commit_sha is None
+    assert prs[0].merge_commit_parent_count is None

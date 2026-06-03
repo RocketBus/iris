@@ -132,7 +132,7 @@ export async function getOrgReposSummary(
   const { data: allMetrics } = await supabase
     .from("metrics")
     .select(
-      "repository_id, created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
+      "repository_id, created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable",
     )
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
@@ -181,6 +181,8 @@ export async function getOrgReposSummary(
       pr_single_pass_rate: latest?.pr_single_pass_rate ?? null,
       fix_latency_median_hours: latest?.fix_latency_median_hours ?? null,
       cascade_rate: latest?.cascade_rate ?? null,
+      merge_strategy: latest?.merge_strategy ?? null,
+      commit_metrics_reliable: latest?.commit_metrics_reliable ?? null,
       stabilization_delta: delta,
       health: classifyHealth(stabilization),
       sparkline,

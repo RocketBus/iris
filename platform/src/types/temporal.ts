@@ -33,6 +33,11 @@ export interface RepoSummary {
   pr_single_pass_rate: number | null;
   fix_latency_median_hours: number | null;
   cascade_rate: number | null;
+  // Merge strategy + per-commit reliability flag (null when not classified).
+  // When commit_metrics_reliable is false (squash/mixed), per-commit columns
+  // for this repo are approximate.
+  merge_strategy: string | null;
+  commit_metrics_reliable: boolean | null;
   // Delta vs previous run
   stabilization_delta: number | null;
   // Health classification
@@ -72,7 +77,9 @@ export interface ChangeDetection {
 }
 
 /** Health classification thresholds. */
-export function classifyHealth(stabilization: number | null): RepoSummary["health"] {
+export function classifyHealth(
+  stabilization: number | null,
+): RepoSummary["health"] {
   if (stabilization === null) return "unknown";
   if (stabilization >= 0.6) return "healthy";
   if (stabilization >= 0.4) return "warning";
@@ -82,9 +89,13 @@ export function classifyHealth(stabilization: number | null): RepoSummary["healt
 /** Health indicator emoji. */
 export function healthIndicator(health: RepoSummary["health"]): string {
   switch (health) {
-    case "healthy": return "green";
-    case "warning": return "yellow";
-    case "critical": return "red";
-    default: return "gray";
+    case "healthy":
+      return "green";
+    case "warning":
+      return "yellow";
+    case "critical":
+      return "red";
+    default:
+      return "gray";
   }
 }

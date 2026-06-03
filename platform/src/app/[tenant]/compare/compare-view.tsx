@@ -176,6 +176,35 @@ function MetricStat({
   );
 }
 
+// Categorical merge-strategy cell. Amber + a ⚠ marker when squash/mixed makes
+// per-commit metrics approximate; muted otherwise. Hidden when unclassified.
+function MergeStrategyCell({
+  strategy,
+  reliable,
+  unreliableTitle,
+}: {
+  strategy: string | null;
+  reliable: boolean | null;
+  unreliableTitle: string;
+}) {
+  if (!strategy || strategy === "unknown")
+    return <td className="px-3 py-2 text-muted-foreground">{"—"}</td>;
+
+  const unreliable = reliable === false;
+  return (
+    <td
+      className={cn(
+        "px-3 py-2 font-mono text-sm",
+        unreliable ? "text-signal-yellow" : "text-muted-foreground",
+      )}
+      title={unreliable ? unreliableTitle : undefined}
+    >
+      {strategy}
+      {unreliable ? " ⚠" : ""}
+    </td>
+  );
+}
+
 export function CompareView({ repos }: CompareViewProps) {
   const { t } = useTranslation();
   const [sort, setSort] = useState<SortState>({
@@ -311,6 +340,7 @@ export function CompareView({ repos }: CompareViewProps) {
                     onSort={handleSort}
                   />
                 )}
+                <th className="pb-2 px-3">{t("compare.columns.merge")}</th>
                 <th className="pb-2 px-3">{t("compare.columns.trend")}</th>
                 <SortableHeader
                   label={t("compare.columns.health")}
@@ -360,6 +390,13 @@ export function CompareView({ repos }: CompareViewProps) {
                           : "—"}
                       </td>
                     )}
+                    <MergeStrategyCell
+                      strategy={repo.merge_strategy}
+                      reliable={repo.commit_metrics_reliable}
+                      unreliableTitle={t(
+                        "repos.detail.mergeStrategy.unreliableTooltip",
+                      )}
+                    />
                     <td className="px-3 py-2">
                       <Sparkline data={repo.sparkline} />
                     </td>
@@ -475,6 +512,24 @@ export function CompareView({ repos }: CompareViewProps) {
                         format="rate"
                       />
                     )}
+                    {repo.merge_strategy &&
+                      repo.merge_strategy !== "unknown" && (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-xs text-muted-foreground">
+                            {t("compare.columns.merge")}
+                          </span>
+                          <span
+                            className={cn(
+                              "font-mono text-sm",
+                              repo.commit_metrics_reliable === false &&
+                                "text-signal-yellow",
+                            )}
+                          >
+                            {repo.merge_strategy}
+                            {repo.commit_metrics_reliable === false ? " ⚠" : ""}
+                          </span>
+                        </div>
+                      )}
                   </div>
 
                   <div className="border-t border-border/60 pt-2">

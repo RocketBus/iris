@@ -183,6 +183,9 @@ def generate_key_findings(metrics: ReportMetrics, lang: str = "en") -> str:
     # Open PR Aging — stuck-inventory pressure + abandonment + origin gap
     findings.extend(_open_pr_aging_findings(metrics, s))
 
+    # Merge Strategy — reliability caveat when squash/mixed erodes commit signal
+    findings.extend(_merge_strategy_findings(metrics, s))
+
     # DORA (real) — descriptive bullets when external integration delivers data
     findings.extend(_dora_real_findings(metrics, s))
 
@@ -382,6 +385,33 @@ def _open_pr_aging_findings(metrics: ReportMetrics, s: dict) -> list[str]:
         )
 
     return findings
+
+
+def _merge_strategy_findings(metrics: ReportMetrics, s: dict) -> list[str]:
+    """Build Merge Strategy findings (0-1 bullet).
+
+    Stays silent when the strategy is ``unknown`` (insufficient PRs to
+    classify — we never invent one). Emits a reliability caveat when
+    squash/mixed erodes per-commit signal, else a one-line descriptive
+    note that history is preserved.
+    """
+    if metrics.merge_strategy is None or metrics.merge_strategy == "unknown":
+        return []
+
+    share = metrics.merge_strategy_dominant_share
+    share_str = f"{share:.0%}" if share is not None else "—"
+
+    if metrics.commit_metrics_reliable is False:
+        return [
+            s["finding_merge_strategy_unreliable"].format(
+                strategy=metrics.merge_strategy, share=share_str,
+            )
+        ]
+    return [
+        s["finding_merge_strategy_descriptive"].format(
+            strategy=metrics.merge_strategy, share=share_str,
+        )
+    ]
 
 
 def _dora_real_findings(metrics: ReportMetrics, s: dict) -> list[str]:

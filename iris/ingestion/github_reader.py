@@ -71,13 +71,18 @@ def is_gh_available() -> bool:
 # commits secondary pass uses a custom light GraphQL query
 # (`oid + committedDate + authoredDate` only) via
 # `_fetch_commit_refs_by_pr_graphql`.
+#
+# `mergeCommit` IS in both lists: gh exposes it cheaply as a single
+# `{oid}` node (no heavy author connections), so it never threatens the
+# GraphQL budget. It supplies `merge_commit_sha`; the merge commit's
+# parent count is only available via the light GraphQL pass below.
 _PR_FIELDS_BASIC = (
     "number,title,createdAt,mergedAt,closedAt,state,isDraft,"
-    "additions,deletions,changedFiles,author"
+    "additions,deletions,changedFiles,author,mergeCommit"
 )
 _PR_FIELDS_FULL = (
     "number,title,createdAt,mergedAt,closedAt,state,isDraft,"
-    "additions,deletions,changedFiles,author,reviews,commits"
+    "additions,deletions,changedFiles,author,mergeCommit,reviews,commits"
 )
 
 # Maximum PRs to fetch in a single gh call. Larger requests with the reviews
@@ -117,11 +122,19 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> list[dict]:
     if prs is None:
         return []
 
-    commits_by_pr = _fetch_commit_refs_by_pr_graphql(
+    enrichment_by_pr = _fetch_pr_enrichment_graphql(
         nwo, gh_state, min(limit, _BATCH_SIZE),
     )
     for pr in prs:
-        pr["commits"] = commits_by_pr.get(pr["number"], [])
+        enrich = enrichment_by_pr.get(pr["number"], {})
+        pr["commits"] = enrich.get("commits", [])
+        # GraphQL carries the merge commit's parent count, which gh's
+        # `mergeCommit` JSON field omits — prefer it when present so
+        # `merge_commit_parent_count` is populated on the common (busy-repo)
+        # path. The gh-supplied `{oid}` stays as the fallback.
+        merge_commit = enrich.get("mergeCommit")
+        if merge_commit:
+            pr["mergeCommit"] = merge_commit
 
     reviews_prs = _gh_pr_list(nwo, "number,reviews", min(limit, _BATCH_SIZE), gh_state)
     if reviews_prs:
@@ -149,8 +162,9 @@ query($owner:String!,$name:String!,$states:[PullRequestState!]!,$cursor:String){
       pageInfo{endCursor hasNextPage}
       nodes{
         number
+        mergeCommit{oid parents{totalCount}}
         commits(first:100){
-          nodes{commit{oid committedDate authoredDate}}
+          nodes{commit{oid messageHeadline committedDate authoredDate}}
         }
       }
     }
@@ -166,23 +180,27 @@ _GH_STATE_TO_GRAPHQL = {
 }
 
 
-def _fetch_commit_refs_by_pr_graphql(
+def _fetch_pr_enrichment_graphql(
     nwo: str,
     gh_state: str,
     max_prs: int,
-) -> dict[int, list[dict]]:
-    """Map PR number → light commit dicts via paginated GraphQL.
+) -> dict[int, dict]:
+    """Map PR number → enrichment dict via paginated GraphQL.
 
     Why this exists: `gh pr list --json commits` is unusable on busy
     repos — gh's default commit subtree pulls `commit.authors.user.
     {id,login,email,name}`, which explodes the 500K-nodes GraphQL budget
     even at small page sizes. This helper asks only for the fields the
-    rest of the pipeline actually needs (oid + the two datetimes).
+    rest of the pipeline actually needs: per-commit oid + subject + the
+    two datetimes, plus the PR's merge commit (oid + parent count, the
+    ground-truth signal for Merge Strategy detection).
 
-    Returns ``{pr_number → [{"oid": ..., "committedDate": ...,
-    "authoredDate": ...}, ...]}``. Per-PR commit cap is 100 (the gh API
-    `first:` ceiling); PRs with more commits than that lose the older
-    entries — documented limitation that the caller should be aware of.
+    Returns ``{pr_number → {"commits": [{"oid", "messageHeadline",
+    "committedDate", "authoredDate"}, ...], "mergeCommit": {"oid",
+    "parents": {"totalCount"}} | None}}``. Per-PR commit cap is 100 (the
+    gh API `first:` ceiling); PRs with more commits than that lose the
+    older entries — documented limitation that the caller should be aware
+    of.
 
     Best-effort: returns whatever it has collected so far on any error.
     """
@@ -195,10 +213,10 @@ def _fetch_commit_refs_by_pr_graphql(
     if graphql_state is None:
         return {}
 
-    refs_by_pr: dict[int, list[dict]] = {}
+    by_pr: dict[int, dict] = {}
     end_cursor: str | None = None
 
-    while len(refs_by_pr) < max_prs:
+    while len(by_pr) < max_prs:
         args = [
             "gh", "api", "graphql",
             "-f", "query=" + _COMMITS_GRAPHQL_QUERY,
@@ -214,12 +232,12 @@ def _fetch_commit_refs_by_pr_graphql(
                 args, capture_output=True, text=True, check=True,
             )
         except (subprocess.CalledProcessError, FileNotFoundError):
-            return refs_by_pr
+            return by_pr
 
         try:
             data = json.loads(result.stdout)
         except json.JSONDecodeError:
-            return refs_by_pr
+            return by_pr
 
         page = (
             data.get("data", {})
@@ -228,7 +246,7 @@ def _fetch_commit_refs_by_pr_graphql(
             if data.get("data") else None
         )
         if not page:
-            return refs_by_pr
+            return by_pr
 
         for node in page.get("nodes", []):
             number = node.get("number")
@@ -242,21 +260,25 @@ def _fetch_commit_refs_by_pr_graphql(
                     continue
                 commits.append({
                     "oid": oid,
+                    "messageHeadline": commit.get("messageHeadline"),
                     "committedDate": commit.get("committedDate"),
                     "authoredDate": commit.get("authoredDate"),
                 })
-            refs_by_pr[number] = commits
-            if len(refs_by_pr) >= max_prs:
-                return refs_by_pr
+            by_pr[number] = {
+                "commits": commits,
+                "mergeCommit": node.get("mergeCommit"),
+            }
+            if len(by_pr) >= max_prs:
+                return by_pr
 
         info = page.get("pageInfo", {}) or {}
         if not info.get("hasNextPage"):
-            return refs_by_pr
+            return by_pr
         end_cursor = info.get("endCursor")
         if not end_cursor:
-            return refs_by_pr
+            return by_pr
 
-    return refs_by_pr
+    return by_pr
 
 
 def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] | None:
@@ -381,6 +403,9 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
 
     reviews = _parse_reviews(raw.get("reviews", []))
     commit_refs = _parse_commit_refs(raw.get("commits", []))
+    merge_commit_sha, merge_commit_parent_count = _parse_merge_commit(
+        raw.get("mergeCommit")
+    )
 
     author = raw.get("author", {})
     author_login = author.get("login", "") if isinstance(author, dict) else ""
@@ -399,6 +424,8 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
         changed_files=raw.get("changedFiles", 0),
         reviews=reviews,
         commit_refs=commit_refs,
+        merge_commit_sha=merge_commit_sha,
+        merge_commit_parent_count=merge_commit_parent_count,
     )
 
 
@@ -432,6 +459,9 @@ def _parse_pull_requests(
 
         reviews = _parse_reviews(raw.get("reviews", []))
         commit_refs = _parse_commit_refs(raw.get("commits", []))
+        merge_commit_sha, merge_commit_parent_count = _parse_merge_commit(
+            raw.get("mergeCommit")
+        )
 
         author = raw.get("author", {})
         author_login = author.get("login", "") if isinstance(author, dict) else ""
@@ -450,6 +480,8 @@ def _parse_pull_requests(
             changed_files=raw.get("changedFiles", 0),
             reviews=reviews,
             commit_refs=commit_refs,
+            merge_commit_sha=merge_commit_sha,
+            merge_commit_parent_count=merge_commit_parent_count,
         ))
         seen.add(number)
 
@@ -502,11 +534,11 @@ def _parse_reviews(raw_reviews: list[dict]) -> list[PRReview]:
 
 
 def _parse_commit_refs(raw_commits: list[dict]) -> list[CommitRef]:
-    """Parse commit refs (oid + timestamps) from gh JSON commits field.
+    """Parse commit refs (oid + subject + timestamps) from gh JSON commits.
 
-    gh exposes ``committedDate`` and ``authoredDate`` per commit in the
-    PR's commit list. Both are optional in the JSON; ``hash`` is the
-    only required field.
+    gh exposes ``messageHeadline``, ``committedDate`` and ``authoredDate``
+    per commit in the PR's commit list. All three are optional in the
+    JSON; ``hash`` is the only required field.
     """
     refs: list[CommitRef] = []
     for raw in raw_commits:
@@ -519,8 +551,29 @@ def _parse_commit_refs(raw_commits: list[dict]) -> list[CommitRef]:
             hash=oid,
             committed_at=_parse_datetime(committed) if committed else None,
             authored_at=_parse_datetime(authored) if authored else None,
+            subject=raw.get("messageHeadline") or "",
         ))
     return refs
+
+
+def _parse_merge_commit(raw_merge_commit: object) -> tuple[str | None, int | None]:
+    """Extract (sha, parent_count) from a gh/GraphQL ``mergeCommit`` node.
+
+    Returns ``(None, None)`` when the PR was not merged or the field is
+    absent. ``parent_count`` is only present on the GraphQL path
+    (``parents.totalCount``); gh's JSON ``mergeCommit`` supplies just the
+    oid, so it comes back None there.
+    """
+    if not isinstance(raw_merge_commit, dict):
+        return None, None
+    sha = raw_merge_commit.get("oid") or None
+    parents = raw_merge_commit.get("parents")
+    parent_count = None
+    if isinstance(parents, dict):
+        total = parents.get("totalCount")
+        if isinstance(total, int):
+            parent_count = total
+    return sha, parent_count
 
 
 def _parse_datetime(date_str: str) -> datetime:

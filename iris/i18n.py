@@ -210,6 +210,32 @@ EN = {
         "({ai_pct} vs {human_pct}) — generation outpaces review."
     ),
 
+    # Merge Strategy — per-repo classification + commit-reliability flag
+    "section_merge_strategy": "Merge Strategy",
+    "merge_strategy_intro": (
+        "How PRs land on the default branch, classified from merged PRs. "
+        "Squash and mixed repos collapse commits, so per-commit metrics "
+        "(commit counts, bursts, cascades, AI attribution) are approximate."
+    ),
+    "metric_merge_strategy": "Dominant strategy",
+    "metric_merge_strategy_dominant_share": "Dominant share",
+    "metric_commit_metrics_reliable": "Per-commit metrics reliable",
+    "value_reliable": "Yes",
+    "value_not_reliable": "No",
+    "merge_strategy_unreliable_caveat": (
+        "This repo collapses commits on merge — treat per-commit metrics "
+        "(commit shape, cascades, AI detection coverage) as approximate."
+    ),
+    "finding_merge_strategy_descriptive": (
+        "Merge strategy: PRs land via {strategy} ({share} of merged PRs) — "
+        "per-commit history is preserved."
+    ),
+    "finding_merge_strategy_unreliable": (
+        "Merge strategy: this repo merges via {strategy} ({share} of merged "
+        "PRs), collapsing commits — per-commit metrics (counts, bursts, AI "
+        "attribution) are approximate for this repo."
+    ),
+
     # DORA (real) findings — populated only when external integration data is present
     "finding_dora_cfr_descriptive": (
         "Change Failure Rate (Datadog): {cfr_pct} "
@@ -1044,6 +1070,34 @@ PT_BR = {
     "finding_open_pr_aging_origin_gap": (
         "PRs AI-assisted ficam parados com mais frequência que PRs humanos "
         "({ai_pct} vs {human_pct}) — geração supera a velocidade de review."
+    ),
+
+    # Merge Strategy — classificação por repo + flag de confiabilidade por-commit
+    "section_merge_strategy": "Estratégia de Merge",
+    "merge_strategy_intro": (
+        "Como os PRs aterrissam na branch padrão, classificado a partir dos "
+        "PRs mergeados. Repos squash e mixed colapsam commits, então métricas "
+        "por-commit (contagem de commits, bursts, cascades, atribuição de IA) "
+        "são aproximadas."
+    ),
+    "metric_merge_strategy": "Estratégia dominante",
+    "metric_merge_strategy_dominant_share": "Parcela dominante",
+    "metric_commit_metrics_reliable": "Métricas por-commit confiáveis",
+    "value_reliable": "Sim",
+    "value_not_reliable": "Não",
+    "merge_strategy_unreliable_caveat": (
+        "Este repo colapsa commits no merge — trate métricas por-commit "
+        "(formato de commit, cascades, cobertura de detecção de IA) como "
+        "aproximadas."
+    ),
+    "finding_merge_strategy_descriptive": (
+        "Estratégia de merge: PRs aterrissam via {strategy} ({share} dos PRs "
+        "mergeados) — o histórico por-commit é preservado."
+    ),
+    "finding_merge_strategy_unreliable": (
+        "Estratégia de merge: este repo faz merge via {strategy} ({share} dos "
+        "PRs mergeados), colapsando commits — métricas por-commit (contagem, "
+        "bursts, atribuição de IA) são aproximadas para este repo."
     ),
 
     # Descobertas DORA (real) — populadas apenas quando há integração externa ativa

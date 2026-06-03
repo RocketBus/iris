@@ -10,6 +10,7 @@ import { InvestmentHotspots } from "./investment-hotspots";
 import { AdoptionTimelineCard } from "@/components/charts/AdoptionTimelineCard";
 import { ChangeAlert } from "@/components/charts/ChangeAlert";
 import { MetricCard } from "@/components/charts/MetricCard";
+import { Badge } from "@/components/ui/badge";
 import { authOptions } from "@/lib/auth";
 import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
 import { computeRepoDORA } from "@/lib/queries/dora";
@@ -98,6 +99,13 @@ function extractInsights(payload: Record<string, unknown> | null) {
       payload.human_review_coverage_by_origin_of_pr as
         | Partial<Record<string, number>>
         | undefined,
+    mergeStrategy: payload.merge_strategy as string | undefined,
+    mergeStrategyDominantShare: payload.merge_strategy_dominant_share as
+      | number
+      | undefined,
+    commitMetricsReliable: payload.commit_metrics_reliable as
+      | boolean
+      | undefined,
   };
 }
 
@@ -212,7 +220,27 @@ export default async function RepoDetailPage({
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-mono text-2xl font-bold">{repo.name}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="font-mono text-2xl font-bold">{repo.name}</h1>
+          {insights.mergeStrategy &&
+            insights.mergeStrategy !== "unknown" &&
+            (insights.commitMetricsReliable === false ? (
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                title={t("repos.detail.mergeStrategy.unreliableTooltip")}
+              >
+                {t("repos.detail.mergeStrategy.label")}:{" "}
+                {insights.mergeStrategy} ·{" "}
+                {t("repos.detail.mergeStrategy.unreliable")}
+              </Badge>
+            ) : (
+              <Badge variant="secondary">
+                {t("repos.detail.mergeStrategy.label")}:{" "}
+                {insights.mergeStrategy}
+              </Badge>
+            ))}
+        </div>
         {repo.remote_url && (
           <p className="text-sm text-muted-foreground">{repo.remote_url}</p>
         )}

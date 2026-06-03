@@ -152,6 +152,15 @@ class ReportMetrics:
     median_open_pr_age_by_intent: dict[str, float] | None = None
     stale_open_pr_pct_by_origin: dict[str, float] | None = None
 
+    # Merge Strategy — per-repo classification of how PRs land
+    # (optional — None when no merged PR data is available). When the
+    # strategy is squash/mixed, ``commit_metrics_reliable`` is False to
+    # flag that per-commit metrics for this repo are approximate (squash
+    # collapses N commits into 1). Strictly per-repository — no author axis.
+    merge_strategy: str | None = None  # merge|squash|rebase|mixed|unknown
+    merge_strategy_dominant_share: float | None = None  # 0.0–1.0
+    commit_metrics_reliable: bool | None = None
+
     # DORA (real) — populated only when external Datadog events were fetched
     # for this run. None across the board when the org has no active Datadog
     # integration. ``dora_source`` is "datadog" when populated, None otherwise.

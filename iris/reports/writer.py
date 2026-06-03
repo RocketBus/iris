@@ -885,6 +885,33 @@ def write_report_md(
         ])
         lines.extend(pr_rows)
 
+    # Merge Strategy section (conditional — only when PR data classified it)
+    if metrics.merge_strategy is not None:
+        lines.extend([
+            f"## {s['section_merge_strategy']}",
+            f"",
+            f"> {s['merge_strategy_intro']}",
+            f"",
+            f"| {s['table_metric']} | {s['table_value']} |",
+            f"|---|---|",
+            f"| {s['metric_merge_strategy']} | {metrics.merge_strategy} |",
+        ])
+        if metrics.merge_strategy_dominant_share is not None:
+            lines.append(
+                f"| {s['metric_merge_strategy_dominant_share']} | "
+                f"{metrics.merge_strategy_dominant_share:.0%} |"
+            )
+        reliable_label = (
+            s["value_not_reliable"]
+            if metrics.commit_metrics_reliable is False
+            else s["value_reliable"]
+        )
+        lines.append(f"| {s['metric_commit_metrics_reliable']} | {reliable_label} |")
+        lines.append("")
+        if metrics.commit_metrics_reliable is False:
+            lines.append(f"> ⚠️ {s['merge_strategy_unreliable_caveat']}")
+            lines.append("")
+
     # Delivery Velocity section (conditional — only when enough commits)
     if velocity is not None:
         lines.extend([

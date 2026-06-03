@@ -551,6 +551,13 @@ export const translations = {
           churnEvents: "Churn Events",
           commits: "Commits",
         },
+        mergeStrategy: {
+          label: "Merge",
+          reliable: "Per-commit metrics reliable",
+          unreliable: "Per-commit metrics approximate",
+          unreliableTooltip:
+            "This repo collapses commits on merge (squash/mixed), so commit-level metrics (commit shape, cascades, AI detection coverage) are approximate.",
+        },
         dora: {
           title: "DORA",
           subtitle:
@@ -1276,6 +1283,7 @@ export const translations = {
         churn: "Churn",
         commits: "Commits",
         ai: "AI%",
+        merge: "Merge",
         trend: "Trend",
         health: "Health",
       },
@@ -1901,6 +1909,13 @@ export const translations = {
           revertRate: "Taxa de revert",
           churnEvents: "Eventos de churn",
           commits: "Commits",
+        },
+        mergeStrategy: {
+          label: "Merge",
+          reliable: "Métricas por-commit confiáveis",
+          unreliable: "Métricas por-commit aproximadas",
+          unreliableTooltip:
+            "Este repo colapsa commits no merge (squash/mixed), então métricas por-commit (formato de commit, cascades, cobertura de detecção de IA) são aproximadas.",
         },
         dora: {
           title: "DORA",
@@ -2641,6 +2656,7 @@ export const translations = {
         churn: "Churn",
         commits: "Commits",
         ai: "IA%",
+        merge: "Merge",
         trend: "Tendência",
         health: "Saúde",
       },
