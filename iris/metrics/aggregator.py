@@ -5,6 +5,7 @@ It calls each analysis module and combines results into the final metrics
 schema (see `iris.models.metrics.ReportMetrics`).
 """
 
+import logging
 from dataclasses import asdict
 
 from iris.analysis.acceptance_rate import calculate_acceptance_rate
@@ -18,6 +19,7 @@ from iris.analysis.dora_real import analyze_dora_real
 from iris.analysis.fix_latency import calculate_fix_latency
 from iris.analysis.flow_efficiency import analyze_flow_efficiency
 from iris.analysis.human_review_coverage import analyze_human_review_coverage
+from iris.analysis.merge_strategy_detector import detect_merge_strategy
 from iris.analysis.open_pr_aging import analyze_open_pr_aging, now_utc
 from iris.analysis.flow_load import analyze_flow_load
 from iris.analysis.stability_map import calculate_stability_map
@@ -41,6 +43,8 @@ from iris.models.commit import Commit
 from iris.models.external import ExternalDORAData
 from iris.models.metrics import ReportMetrics
 from iris.models.pull_request import PullRequest
+
+logger = logging.getLogger(__name__)
 
 
 def aggregate(
@@ -377,6 +381,28 @@ def aggregate(
                     aging_result.stale_open_pr_pct_by_origin
                 )
 
+    # Merge Strategy — per-repo classification of how PRs land + the
+    # commit_metrics_reliable flag (False for squash/mixed). Crosses merged
+    # PR ground truth (merge_commit_parent_count) and commit_refs with the
+    # local main history. Strictly per-repository — no author axis.
+    merge_strategy_kwargs: dict = {}
+    if prs:
+        merge_strategy_result = detect_merge_strategy(prs, commits)
+        merge_strategy_kwargs["merge_strategy"] = merge_strategy_result.merge_strategy
+        merge_strategy_kwargs["commit_metrics_reliable"] = (
+            merge_strategy_result.commit_metrics_reliable
+        )
+        if merge_strategy_result.dominant_share is not None:
+            merge_strategy_kwargs["merge_strategy_dominant_share"] = (
+                merge_strategy_result.dominant_share
+            )
+        if merge_strategy_result.merge_strategy == "unknown" and merge_strategy_result.reason:
+            logger.info(
+                "Merge strategy unknown: %s (distribution: %s)",
+                merge_strategy_result.reason,
+                merge_strategy_result.distribution,
+            )
+
     # Flow Load — WIP per ISO week (PRs in flight + author concurrency)
     flow_load_kwargs: dict = {}
     flow_load_result = analyze_flow_load(prs or [], commits)
@@ -486,6 +512,7 @@ def aggregate(
         **flow_efficiency_kwargs,
         **human_review_coverage_kwargs,
         **open_pr_aging_kwargs,
+        **merge_strategy_kwargs,
         **_dora_real_kwargs(external_data, origin_map),
     )
 

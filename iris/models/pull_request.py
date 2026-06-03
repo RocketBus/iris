@@ -27,11 +27,17 @@ class CommitRef:
     ``committed_at`` is the authoritative ordering field. ``authored_at``
     is kept for completeness (when the original author timestamp differs,
     e.g. rebased/cherry-picked work).
+
+    ``subject`` is the commit's message headline (``messageHeadline`` from
+    the GitHub API). It enables matching the GitHub squash default subject
+    pattern ``(#<number>)`` used by Merge Strategy detection. Empty string
+    when the field was not fetched (backward-compatible).
     """
 
     hash: str
     committed_at: datetime | None = None
     authored_at: datetime | None = None
+    subject: str = ""
 
 
 @dataclass(frozen=True)
@@ -60,3 +66,12 @@ class PullRequest:
     is_draft: bool = False
     reviews: list[PRReview] = field(default_factory=list)
     commit_refs: list[CommitRef] = field(default_factory=list)
+
+    # Merge-commit ground truth (optional — populated for merged PRs when the
+    # GitHub API supplies it). ``merge_commit_sha`` is the SHA of the commit
+    # that actually landed on the base branch; ``merge_commit_parent_count``
+    # is that commit's parent count (2 → a true merge commit, 1 → squash or
+    # rebase landing). Both are None for non-merged PRs or when unavailable.
+    # Consumed by Merge Strategy detection (see merge_strategy_detector.py).
+    merge_commit_sha: str | None = None
+    merge_commit_parent_count: int | None = None

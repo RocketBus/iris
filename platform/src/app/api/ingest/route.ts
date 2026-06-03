@@ -198,6 +198,14 @@ export async function POST(request: Request) {
             ((metrics as Record<string, unknown>).cascade_rate as
               | number
               | undefined) ?? null,
+          merge_strategy:
+            ((metrics as Record<string, unknown>).merge_strategy as
+              | string
+              | undefined) ?? null,
+          commit_metrics_reliable:
+            ((metrics as Record<string, unknown>).commit_metrics_reliable as
+              | boolean
+              | undefined) ?? null,
         });
 
       if (metricsError) {

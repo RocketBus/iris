@@ -836,7 +836,66 @@ Findings emitted by `narrative.py` (see `iris/i18n.py:finding_open_pr_aging_*`):
 
 ---
 
-## 28. Adoption timeline (post-report, not on `ReportMetrics`)
+## 28. Merge Strategy
+
+Per-**repository** classification of how PRs land on the default branch,
+plus a per-commit reliability flag. A repo's merge strategy decides how
+much per-commit signal survives in history: **squash** collapses N commits
+into 1 — discarding commit counts, temporal distribution, bursts, cascades,
+and (depending on GitHub config) the `Co-Authored-By` trailers AI
+attribution relies on. Comparing per-commit metrics across repos with
+different strategies compares things that aren't comparable, and can
+under-report AI adoption in squash repos.
+
+| Field | Unit | Source | Nullable when |
+|---|---|---|---|
+| `merge_strategy` | `merge\|squash\|rebase\|mixed\|unknown` | `analysis/merge_strategy_detector.py` | no PR data (`prs` empty/None) |
+| `merge_strategy_dominant_share` | float `0.0–1.0` | same | strategy is `unknown` |
+| `commit_metrics_reliable` | bool | same | no PR data |
+
+Per-PR classification (over **merged** PRs only), in confidence order:
+
+1. **Ground truth** — `merge_commit_parent_count == 2` → `merge` (true
+   merge commit). Parent count comes from PR ingestion
+   (`merge_commit_sha` + parent count, issue #75); available on the
+   GraphQL enrichment path, `None` on the gh one-shot path → falls through
+   to the heuristic.
+2. **Commit-ref presence in local `main` history** (the `commits` window):
+   - all of a PR's `commit_refs` present → `merge` (commits landed verbatim).
+   - none present → collapsed/rewritten: GitHub's squash default stamps the
+     landed subject `(#<pr-number>)` (matched against `main` subjects) →
+     `squash`; else single original commit → `squash`; else N commits, none
+     preserved → `rebase`.
+3. Ambiguous (partial presence, no `commit_refs`, no signal) → that PR is
+   `unknown` and excluded from the dominant computation.
+
+Aggregation: the dominant strategy over **classified** merged PRs.
+`dominant_share ≥ 0.8` → that strategy; below → `mixed`; fewer than
+`MIN_CLASSIFIED_PRS` (5) classified → `unknown` (reason logged, never
+invented). `commit_metrics_reliable` is `False` only for `squash`/`mixed`;
+`merge`/`rebase`/`unknown` stay `True` (we never flag what we can't
+determine).
+
+Privacy / ranking risk (Principle #2): **none by construction.** Strictly
+per-repository — a property of repo *configuration* (the merge button),
+never of people. No author axis anywhere in the output. The report/UI
+framing is "this config affects metric reliability", never "this team/dev
+does X".
+
+Finding emitted by `narrative.py` (`iris/i18n.py:finding_merge_strategy_*`):
+
+- `finding_merge_strategy_unreliable` — when `commit_metrics_reliable is
+  False` (squash/mixed): per-commit metrics are approximate for this repo.
+- `finding_merge_strategy_descriptive` — otherwise (merge/rebase): history
+  preserved. Silent when `merge_strategy == "unknown"`.
+
+Platform: indexed columns `merge_strategy` + `commit_metrics_reliable` on
+`metrics` (migration `019`) feed the compare table; the full payload
+carries `merge_strategy_dominant_share` for the repo-detail badge.
+
+---
+
+## 29. Adoption timeline (post-report, not on `ReportMetrics`)
 
 When AI-assisted commits started appearing, and how the pre-adoption vs
 post-adoption metrics compare.
@@ -936,6 +995,7 @@ By-origin attribution:
 | `analysis/pr_lifecycle.py` | `pr_merged_count`, `pr_median_time_to_merge_hours`, `pr_mean_time_to_merge_hours`, `pr_p90_time_to_merge_hours`, `pr_pct_merged_within_24h`, `pr_cycle_time_buckets`, `pr_median_size_files`, `pr_median_size_lines`, `pr_review_rounds_median`, `pr_single_pass_rate` |
 | `analysis/flow_load.py` | `flow_load` |
 | `analysis/flow_efficiency.py` | `flow_efficiency_median`, `median_time_to_first_review_hours`, `time_in_phase_median_hours`, `flow_efficiency_by_intent`, `flow_efficiency_by_origin` |
+| `analysis/merge_strategy_detector.py` | `merge_strategy`, `merge_strategy_dominant_share`, `commit_metrics_reliable` |
 | `analysis/dora_real.py` | `dora_source`, `dora_deployments_total`, `dora_deployments_failed`, `dora_deployments_pending_evaluation`, `dora_incidents_total`, `dora_cfr`, `dora_mttr_per_deploy_seconds_median`, `dora_mttr_per_deploy_seconds_p90`, `dora_mttr_per_incident_seconds_median`, `dora_mttr_per_incident_seconds_p90`, `dora_rollback_rate`, `dora_rollbacks_total`, `dora_lead_time_seconds_median`, `dora_deploy_frequency_per_day`, `dora_remediation_distribution`, `dora_cfr_by_origin`, `dora_rollback_rate_by_origin`, `dora_cfr_by_origin_coverage_pct` |
 | `analysis/duplicate_detector.py` | `duplicate_block_rate`, `duplicate_block_count`, `duplicate_median_block_size`, `duplicate_by_origin`, `duplicate_by_tool` |
 | `analysis/move_detector.py` | `moved_code_pct`, `refactoring_ratio`, `move_by_origin` |

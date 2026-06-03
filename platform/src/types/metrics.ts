@@ -269,6 +269,13 @@ export interface ReportMetrics {
   human_review_coverage_by_intent?: Partial<Record<ChangeIntent, number>>;
   human_review_coverage_by_origin_of_pr?: Partial<Record<CommitOrigin, number>>;
 
+  // Merge Strategy — per-repo classification of how PRs land on the default
+  // branch. When `commit_metrics_reliable` is false (squash/mixed), the UI
+  // flags this repo's per-commit metrics as approximate. Strictly per-repo.
+  merge_strategy?: "merge" | "squash" | "rebase" | "mixed" | "unknown";
+  merge_strategy_dominant_share?: number; // 0.0–1.0
+  commit_metrics_reliable?: boolean;
+
   // DORA (real) — populated when the org has an active Datadog integration
   // and the engine fetched events for the analysis window. Every field
   // here is optional; `dora_source` is the canonical "is there data?" flag.
