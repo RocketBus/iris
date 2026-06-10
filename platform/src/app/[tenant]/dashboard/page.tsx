@@ -38,6 +38,7 @@ import {
   computeHyperEngineers,
 } from "@/lib/queries/org-summary";
 import {
+  DEFAULT_WINDOW_DAYS,
   getOrgReposSummary,
   getOrgChangeDetections,
 } from "@/lib/queries/temporal";
@@ -84,13 +85,16 @@ export default async function OrgDashboardPage({
   const repoIds = repoSummaries.map((r) => r.id);
   const payloads = await getOrgLatestPayloads(supabaseAdmin, org.id, repoIds);
 
-  // Fetch raw metrics for previous-period delta calculation
+  // Fetch raw metrics for previous-period delta calculation. Filter by
+  // window_days so multi-window tenants (issue #80) don't compute deltas
+  // across mismatched analysis windows.
   const { data: allMetricsRaw } = await supabaseAdmin
     .from("metrics")
     .select(
       "repository_id, commits_total, pr_merged_count, ai_detection_coverage_pct",
     )
     .eq("organization_id", org.id)
+    .eq("window_days", DEFAULT_WINDOW_DAYS)
     .order("created_at", { ascending: false })
     .limit(repoSummaries.length * 15);
 

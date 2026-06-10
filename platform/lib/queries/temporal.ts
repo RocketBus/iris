@@ -15,11 +15,20 @@ import { classifyHealth } from "@/types/temporal";
 
 const SPARKLINE_POINTS = 12;
 
+/**
+ * Default lookback window in days. Mirrors the engine CLI's
+ * `iris analyze --days` default. Every read from `metrics` filters by
+ * `window_days` so a tenant ingesting multiple windows per repo (issue
+ * #80) doesn't pollute sparklines and deltas with mixed-window points.
+ */
+export const DEFAULT_WINDOW_DAYS = 90;
+
 /** Get time series for a repo (all analysis runs, ascending). */
 export async function getRepoTimeSeries(
   supabase: SupabaseClient,
   repositoryId: string,
   limit = 52,
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<TimeSeriesPoint[]> {
   const { data } = await supabase
     .from("metrics")
@@ -27,6 +36,7 @@ export async function getRepoTimeSeries(
       "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
     )
     .eq("repository_id", repositoryId)
+    .eq("window_days", windowDays)
     .order("created_at", { ascending: true })
     .limit(limit);
 
@@ -48,11 +58,13 @@ export async function getRepoTimeSeries(
 export async function getRepoLatestPayload(
   supabase: SupabaseClient,
   repositoryId: string,
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<Record<string, unknown> | null> {
   const { data } = await supabase
     .from("metrics")
     .select("payload")
     .eq("repository_id", repositoryId)
+    .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
@@ -65,11 +77,13 @@ export async function getRepoAITimeSeries(
   supabase: SupabaseClient,
   repositoryId: string,
   limit = 52,
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<AIImpactPoint[]> {
   const { data } = await supabase
     .from("metrics")
     .select("created_at, payload, ai_detection_coverage_pct")
     .eq("repository_id", repositoryId)
+    .eq("window_days", windowDays)
     .order("created_at", { ascending: true })
     .limit(limit);
 
@@ -118,6 +132,7 @@ export async function getRepoAITimeSeries(
 export async function getOrgReposSummary(
   supabase: SupabaseClient,
   organizationId: string,
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<RepoSummary[]> {
   // Query 1: all repos
   const { data: repos } = await supabase
@@ -135,6 +150,7 @@ export async function getOrgReposSummary(
       "repository_id, created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable",
     )
     .eq("organization_id", organizationId)
+    .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(repos.length * 15);
 
@@ -287,6 +303,7 @@ export function detectChanges(
 export async function getOrgChangeDetections(
   supabase: SupabaseClient,
   organizationId: string,
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<ChangeDetection[]> {
   const { data: repos } = await supabase
     .from("repositories")
@@ -304,6 +321,7 @@ export async function getOrgChangeDetections(
         "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
       )
       .eq("repository_id", repo.id)
+      .eq("window_days", windowDays)
       .order("created_at", { ascending: false })
       .limit(2);
 

@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { DEFAULT_WINDOW_DAYS } from "@/lib/queries/temporal";
 import type { ReportMetrics } from "@/types/metrics";
 import type {
   OrgPulse,
@@ -27,6 +28,7 @@ export async function getOrgLatestPayloads(
   supabase: SupabaseClient,
   organizationId: string,
   repoIds: string[],
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<Map<string, ReportMetrics>> {
   if (repoIds.length === 0) return new Map();
 
@@ -36,6 +38,7 @@ export async function getOrgLatestPayloads(
     .from("metrics")
     .select("repository_id, payload")
     .eq("organization_id", organizationId)
+    .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(repoIds.length * 2);
 
@@ -64,11 +67,13 @@ export interface OrgContributorInfo {
 export async function getOrgActiveContributors(
   supabase: SupabaseClient,
   organizationId: string,
+  windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<OrgContributorInfo> {
   const { data } = await supabase
     .from("analysis_runs")
     .select("repository_id, active_users, created_at")
     .eq("organization_id", organizationId)
+    .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(200);
 

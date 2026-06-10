@@ -6,6 +6,23 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ## Unreleased
 
+### Changed
+
+- **Pre-requisite for selectable analysis windows** (#80). The `metrics`
+  table now carries `window_days` directly (denormalized from
+  `analysis_runs`, backfilled to 90 — the engine CLI default), with
+  composite indexes on `(repository_id, window_days, created_at DESC)`
+  and the org-wide variant. Every read path that touches `metrics` or
+  `analysis_runs` (org summary, repo time series, AI time series,
+  change detection, org latest payloads, active contributors, raw
+  delta query in the dashboard, repo-detail run list, personal AI
+  usage) now filters by `window_days` so a tenant that starts
+  ingesting more than one analysis window per repo won't see 7d and
+  90d points mixed on the same sparkline. The CLI ingest route writes
+  `window_days` on the metrics row. No UI selector yet — that lands in
+  a follow-up; behavior is identical for any tenant ingesting a single
+  window.
+
 ---
 
 ## v1.2.0 — Merge Strategy detection + mergeCommit ingestion (2026-06-03)
