@@ -173,6 +173,7 @@ export async function POST(request: Request) {
           analysis_run_id: run.id,
           organization_id: tokenData.organization_id,
           repository_id: repositoryId,
+          window_days,
           payload: metrics,
           stabilization_ratio: metrics.stabilization_ratio,
           revert_rate: metrics.revert_rate,

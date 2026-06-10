@@ -6,6 +6,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { DEFAULT_WINDOW_DAYS } from "@/lib/queries/temporal";
 import type { ReportMetrics } from "@/types/metrics";
 
 export interface PerRepoUsage {
@@ -133,10 +134,13 @@ export async function getPersonalAIUsage(
   const repoIndex = new Map(repos.map((r) => [r.id, r]));
 
   // Fetch metrics across all of the user's orgs. Cap by a reasonable history.
+  // Filter by window_days so multi-window ingestion (issue #80) doesn't pull
+  // older AI footprints from a different analysis window into the same view.
   const { data: metricRows } = await supabase
     .from("metrics")
     .select("repository_id, payload, created_at, organization_id")
     .in("organization_id", orgIds)
+    .eq("window_days", DEFAULT_WINDOW_DAYS)
     .order("created_at", { ascending: false })
     .limit(orgs.length * 50);
   const metrics = (metricRows ?? []) as MetricRow[];

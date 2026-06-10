@@ -16,6 +16,7 @@ import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
 import { computeRepoDORA } from "@/lib/queries/dora";
 import { computeInvestmentHotspots } from "@/lib/queries/invest-here";
 import {
+  DEFAULT_WINDOW_DAYS,
   getRepoTimeSeries,
   getRepoLatestPayload,
   getRepoAITimeSeries,
@@ -207,6 +208,7 @@ export default async function RepoDetailPage({
       "id, commits_total, window_days, cli_version, active_users, created_at",
     )
     .eq("repository_id", repo.id)
+    .eq("window_days", DEFAULT_WINDOW_DAYS)
     .order("created_at", { ascending: false })
     .limit(20);
 
