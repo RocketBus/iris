@@ -11,12 +11,15 @@ import { AdoptionTimelineCard } from "@/components/charts/AdoptionTimelineCard";
 import { ChangeAlert } from "@/components/charts/ChangeAlert";
 import { MetricCard } from "@/components/charts/MetricCard";
 import { Badge } from "@/components/ui/badge";
+import { WindowSelector } from "@/components/WindowSelector";
 import { authOptions } from "@/lib/auth";
 import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
 import { computeRepoDORA } from "@/lib/queries/dora";
 import { computeInvestmentHotspots } from "@/lib/queries/invest-here";
 import {
-  DEFAULT_WINDOW_DAYS,
+  getAvailableWindowDays,
+  resolveWindowDays,
+  parseWindowParam,
   getRepoTimeSeries,
   getRepoLatestPayload,
   getRepoAITimeSeries,
@@ -112,13 +115,16 @@ function extractInsights(payload: Record<string, unknown> | null) {
 
 export default async function RepoDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tenant: string; repoName: string }>;
+  searchParams: Promise<{ window?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/auth/signin");
 
   const { tenant, repoName } = await params;
+  const { window: windowParam } = await searchParams;
   const decodedRepoName = decodeURIComponent(repoName);
   const { t } = await getServerTranslation();
 
@@ -147,11 +153,23 @@ export default async function RepoDetailPage({
     .single();
   if (!repo) notFound();
 
+  // Analysis window (issue #80): only offer windows that have data for this
+  // repo, then recompute every chart/metric for the chosen one.
+  const availableWindows = await getAvailableWindowDays(
+    supabaseAdmin,
+    org.id,
+    repo.id,
+  );
+  const windowDays = resolveWindowDays(
+    parseWindowParam(windowParam),
+    availableWindows,
+  );
+
   const [timeSeries, payload, aiImpact, repoDORA] = await Promise.all([
-    getRepoTimeSeries(supabaseAdmin, repo.id),
-    getRepoLatestPayload(supabaseAdmin, repo.id),
-    getRepoAITimeSeries(supabaseAdmin, repo.id),
-    computeRepoDORA(supabaseAdmin, org.id, repo.id, { windowDays: 30 }),
+    getRepoTimeSeries(supabaseAdmin, repo.id, 52, windowDays),
+    getRepoLatestPayload(supabaseAdmin, repo.id, windowDays),
+    getRepoAITimeSeries(supabaseAdmin, repo.id, 52, windowDays),
+    computeRepoDORA(supabaseAdmin, org.id, repo.id, { windowDays }),
   ]);
 
   const insights = extractInsights(payload);
@@ -208,7 +226,7 @@ export default async function RepoDetailPage({
       "id, commits_total, window_days, cli_version, active_users, created_at",
     )
     .eq("repository_id", repo.id)
-    .eq("window_days", DEFAULT_WINDOW_DAYS)
+    .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(20);
 
@@ -221,31 +239,34 @@ export default async function RepoDetailPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="font-mono text-2xl font-bold">{repo.name}</h1>
-          {insights.mergeStrategy &&
-            insights.mergeStrategy !== "unknown" &&
-            (insights.commitMetricsReliable === false ? (
-              <Badge
-                variant="outline"
-                className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                title={t("repos.detail.mergeStrategy.unreliableTooltip")}
-              >
-                {t("repos.detail.mergeStrategy.label")}:{" "}
-                {insights.mergeStrategy} ·{" "}
-                {t("repos.detail.mergeStrategy.unreliable")}
-              </Badge>
-            ) : (
-              <Badge variant="secondary">
-                {t("repos.detail.mergeStrategy.label")}:{" "}
-                {insights.mergeStrategy}
-              </Badge>
-            ))}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-mono text-2xl font-bold">{repo.name}</h1>
+            {insights.mergeStrategy &&
+              insights.mergeStrategy !== "unknown" &&
+              (insights.commitMetricsReliable === false ? (
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                  title={t("repos.detail.mergeStrategy.unreliableTooltip")}
+                >
+                  {t("repos.detail.mergeStrategy.label")}:{" "}
+                  {insights.mergeStrategy} ·{" "}
+                  {t("repos.detail.mergeStrategy.unreliable")}
+                </Badge>
+              ) : (
+                <Badge variant="secondary">
+                  {t("repos.detail.mergeStrategy.label")}:{" "}
+                  {insights.mergeStrategy}
+                </Badge>
+              ))}
+          </div>
+          {repo.remote_url && (
+            <p className="text-sm text-muted-foreground">{repo.remote_url}</p>
+          )}
         </div>
-        {repo.remote_url && (
-          <p className="text-sm text-muted-foreground">{repo.remote_url}</p>
-        )}
+        <WindowSelector windowDays={windowDays} options={availableWindows} />
       </div>
 
       <ChangeAlert changes={changes} tenantSlug={tenant} />

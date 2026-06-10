@@ -23,6 +23,65 @@ const SPARKLINE_POINTS = 12;
  */
 export const DEFAULT_WINDOW_DAYS = 90;
 
+/**
+ * Distinct analysis windows (`window_days`) that actually have ingested
+ * metrics for an org, optionally narrowed to one repo, ascending.
+ *
+ * Drives the window selector (issue #80): we only offer windows that have
+ * data so picking one never lands on an empty page, and the selector stays
+ * hidden until a tenant ingests more than one window. Returns `[]` when the
+ * org has no metrics yet. The distinct set is tiny (the CLI only produces
+ * 7/15/30/60/90), so scanning recent rows and deduplicating client-side is
+ * cheaper than a DB-side DISTINCT and is covered by the composite index.
+ */
+export async function getAvailableWindowDays(
+  supabase: SupabaseClient,
+  organizationId: string,
+  repositoryId?: string,
+): Promise<number[]> {
+  let q = supabase
+    .from("metrics")
+    .select("window_days")
+    .eq("organization_id", organizationId)
+    .order("created_at", { ascending: false })
+    .limit(2000);
+  if (repositoryId !== undefined) q = q.eq("repository_id", repositoryId);
+
+  const { data } = await q;
+
+  const windows = new Set<number>();
+  for (const row of data ?? []) {
+    if (typeof row.window_days === "number") windows.add(row.window_days);
+  }
+  return [...windows].sort((a, b) => a - b);
+}
+
+/**
+ * Resolve the effective window from a (possibly absent or invalid) request
+ * and the set of windows that have data. Prefers the request when it has
+ * data, else the default window if present, else the largest available, and
+ * finally falls back to the default so callers always get a usable number.
+ */
+export function resolveWindowDays(
+  requested: number | null | undefined,
+  available: number[],
+): number {
+  if (requested != null && available.includes(requested)) return requested;
+  if (available.includes(DEFAULT_WINDOW_DAYS)) return DEFAULT_WINDOW_DAYS;
+  if (available.length > 0) return available[available.length - 1];
+  return DEFAULT_WINDOW_DAYS;
+}
+
+/** Parse a `?window=` search param into a positive integer, or null. */
+export function parseWindowParam(
+  raw: string | string[] | undefined,
+): number | null {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 /** Get time series for a repo (all analysis runs, ascending). */
 export async function getRepoTimeSeries(
   supabase: SupabaseClient,

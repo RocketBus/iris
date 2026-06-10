@@ -20,6 +20,7 @@ import { ToolComparison } from "./sections/ToolComparison";
 import { ChangeAlert } from "@/components/charts/ChangeAlert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { WindowSelector } from "@/components/WindowSelector";
 import { authOptions } from "@/lib/auth";
 import { computeOrgAdoption } from "@/lib/queries/adoption-timeline";
 import { computeOrgDORA } from "@/lib/queries/dora";
@@ -38,7 +39,9 @@ import {
   computeHyperEngineers,
 } from "@/lib/queries/org-summary";
 import {
-  DEFAULT_WINDOW_DAYS,
+  getAvailableWindowDays,
+  resolveWindowDays,
+  parseWindowParam,
   getOrgReposSummary,
   getOrgChangeDetections,
 } from "@/lib/queries/temporal";
@@ -48,13 +51,16 @@ import { supabaseAdmin } from "@/lib/supabase";
 
 export default async function OrgDashboardPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tenant: string }>;
+  searchParams: Promise<{ window?: string }>;
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect("/auth/signin");
 
   const { tenant } = await params;
+  const { window: windowParam } = await searchParams;
 
   const { data: org } = await supabaseAdmin
     .from("organizations")
@@ -63,6 +69,14 @@ export default async function OrgDashboardPage({
     .single();
 
   if (!org) notFound();
+
+  // Analysis window (issue #80): only offer windows that have data, then
+  // recompute every section for the chosen one.
+  const availableWindows = await getAvailableWindowDays(supabaseAdmin, org.id);
+  const windowDays = resolveWindowDays(
+    parseWindowParam(windowParam),
+    availableWindows,
+  );
 
   const { data: membership } = await supabaseAdmin
     .from("organization_members")
@@ -76,14 +90,19 @@ export default async function OrgDashboardPage({
 
   // Fetch all data in parallel
   const [repoSummaries, changes, contributorInfo] = await Promise.all([
-    getOrgReposSummary(supabaseAdmin, org.id),
-    getOrgChangeDetections(supabaseAdmin, org.id),
-    getOrgActiveContributors(supabaseAdmin, org.id),
+    getOrgReposSummary(supabaseAdmin, org.id, windowDays),
+    getOrgChangeDetections(supabaseAdmin, org.id, windowDays),
+    getOrgActiveContributors(supabaseAdmin, org.id, windowDays),
   ]);
 
   // Fetch latest payloads for all repos (needs repo IDs)
   const repoIds = repoSummaries.map((r) => r.id);
-  const payloads = await getOrgLatestPayloads(supabaseAdmin, org.id, repoIds);
+  const payloads = await getOrgLatestPayloads(
+    supabaseAdmin,
+    org.id,
+    repoIds,
+    windowDays,
+  );
 
   // Fetch raw metrics for previous-period delta calculation. Filter by
   // window_days so multi-window tenants (issue #80) don't compute deltas
@@ -94,7 +113,7 @@ export default async function OrgDashboardPage({
       "repository_id, commits_total, pr_merged_count, ai_detection_coverage_pct",
     )
     .eq("organization_id", org.id)
-    .eq("window_days", DEFAULT_WINDOW_DAYS)
+    .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(repoSummaries.length * 15);
 
@@ -123,7 +142,7 @@ export default async function OrgDashboardPage({
   );
   const toolComparisonData = computeToolComparison(payloads);
   const doraData = await computeOrgDORA(supabaseAdmin, org.id, {
-    windowDays: 30,
+    windowDays,
     payloads,
   });
   const repoNameIndex = new Map(repoSummaries.map((r) => [r.id, r.name]));
@@ -157,11 +176,14 @@ export default async function OrgDashboardPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold">{org.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {repoSummaries.length} repositories
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">{org.name}</h1>
+          <p className="text-sm text-muted-foreground">
+            {repoSummaries.length} repositories
+          </p>
+        </div>
+        <WindowSelector windowDays={windowDays} options={availableWindows} />
       </div>
 
       {/* Change detection alerts */}

@@ -5,6 +5,10 @@ export const translations = {
       error: "Error",
       close: "Close",
       loading: "Loading...",
+      windowSelector: {
+        label: "Window",
+        option: "{days} days",
+      },
     },
     navigation: {
       dashboard: "Dashboard",
@@ -1353,6 +1357,10 @@ export const translations = {
       error: "Erro",
       close: "Fechar",
       loading: "Carregando...",
+      windowSelector: {
+        label: "Janela",
+        option: "{days} dias",
+      },
     },
     publicNav: {
       faq: "FAQ",

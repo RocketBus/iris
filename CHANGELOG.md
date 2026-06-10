@@ -4,7 +4,41 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
-## Unreleased
+## v1.3.0 — Selectable analysis windows (2026-06-10)
+
+### Added
+
+- **Selectable analysis windows** (#80). The org dashboard, repo detail,
+  and compare views now carry a window selector that recomputes every
+  section for the chosen analysis window. The choice rides on a
+  `?window=` search param, so it is linkable and survives a refresh. The
+  selector is data-driven — it only offers windows that actually have
+  ingested metrics and stays hidden until a tenant has more than one — so
+  single-window tenants (everyone today, on the 90d default) see no
+  change. DORA cards now follow the selected window instead of a
+  hardcoded 30 days. New `getAvailableWindowDays` / `resolveWindowDays` /
+  `parseWindowParam` helpers in `lib/queries/temporal.ts` and a shared
+  `WindowSelector` client component.
+- **Multi-window analysis is now the default** (#80). Running `iris
+  analyze` with neither `--days` nor `--windows` analyzes the recommended
+  set (`7,15,30,60,90`) instead of a single 90-day window, so the
+  platform's window selector works out of the box without anyone having to
+  learn a flag. Each window runs a full analysis (and push, when logged
+  in), writing to `{out}/{N}d/` and pushing its own `window_days`. This
+  also applies to the daily auto-push hook, which inherits the default. A
+  window with no commits is skipped without aborting the rest of the
+  batch. Escape hatches: `--days N` analyzes a single N-day window (old
+  behavior); `--windows a,b,c` picks an explicit set and overrides
+  `--days`. This is the simple loop (Open Question 1, option a) — cost is
+  roughly the sum of the per-window analyses since each re-reads git/PR
+  history; the in-memory re-cut (option b) is left as a future
+  optimization if runtime becomes a concern.
+- **`iris push` now carries `window_days`** (#80). It was hardcoding the
+  90-day default, so pushing a namespaced `out/{N}d/…-metrics.json` file
+  tagged every window as 90. It now infers the window from the `{N}d`
+  path segment and accepts an explicit `--window-days N` override. The
+  auto-push after `iris analyze` already sent the right window; this fixes
+  the standalone-push path used by the org analyze-then-push workflow.
 
 ### Changed
 

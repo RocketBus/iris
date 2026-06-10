@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import re
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -15,7 +16,12 @@ from iris.models.context import AnalysisContext
 from iris.reports.narrative import generate_narrative
 from iris.reports.writer import write_output
 
-VERSION = "v1.2.0"
+VERSION = "v1.3.0"
+
+# Analysis windows the platform's window selector (issue #80) expects.
+# Running `--windows 7,15,30,60,90` populates one snapshot per window so the
+# dashboard / repo detail / compare views can switch between periods.
+RECOMMENDED_WINDOWS = (7, 15, 30, 60, 90)
 
 
 def _merge_durability(metrics, durability):
@@ -297,8 +303,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--days",
         type=int,
-        default=90,
-        help="Lookback window in days (default: 90)",
+        default=None,
+        help=(
+            "Analyze a single lookback window of N days. When neither --days "
+            "nor --windows is given, Iris analyzes the recommended set "
+            f"({','.join(str(w) for w in RECOMMENDED_WINDOWS)}) so the "
+            "platform's window selector works out of the box."
+        ),
+    )
+    parser.add_argument(
+        "--windows",
+        default=None,
+        help=(
+            "Comma-separated lookback windows to analyze in one invocation, "
+            f"e.g. '{','.join(str(w) for w in RECOMMENDED_WINDOWS)}' (the "
+            "default when neither --days nor --windows is given). Runs a full "
+            "analysis (and push, if logged in) once per window so the "
+            "platform's window selector can compare periods. Overrides "
+            "--days. Cost is roughly N x a single run: each window re-reads "
+            "git/PR history independently."
+        ),
     )
     parser.add_argument(
         "--churn-days",
@@ -352,6 +376,51 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     return parser.parse_args(argv)
+
+
+def _parse_windows(raw: str) -> list[int]:
+    """Parse a `--windows` value into sorted, unique, positive day counts.
+
+    Exits with an error on any blank, non-integer, or non-positive entry so a
+    typo can't silently drop a window from a batch run.
+    """
+    windows: set[int] = set()
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            n = int(part)
+        except ValueError:
+            print(
+                f"Error: invalid --windows value: {part!r} (expected integers)",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if n <= 0:
+            print(f"Error: --windows values must be positive, got {n}", file=sys.stderr)
+            sys.exit(1)
+        windows.add(n)
+
+    if not windows:
+        print("Error: --windows was empty", file=sys.stderr)
+        sys.exit(1)
+
+    return sorted(windows)
+
+
+def _resolve_windows(windows_arg: str | None, days_arg: int | None) -> list[int]:
+    """Pick the analysis windows for a run.
+
+    Explicit --windows wins; an explicit --days is the single-window escape
+    hatch; omitting both analyzes the recommended set so the platform's
+    window selector (issue #80) works out of the box.
+    """
+    if windows_arg:
+        return _parse_windows(windows_arg)
+    if days_arg is not None:
+        return [days_arg]
+    return list(RECOMMENDED_WINDOWS)
 
 
 def _run_single_repo(args: argparse.Namespace) -> None:
@@ -996,6 +1065,23 @@ def _run_pr(argv: list[str]) -> None:
         print(markdown)
 
 
+def _infer_window_days(metrics_path: str, explicit: int | None) -> int:
+    """Resolve `window_days` for a standalone `iris push`.
+
+    Prefers an explicit `--window-days`, else infers from a `{N}d` path
+    segment (how `iris analyze` namespaces its output, e.g. `out/30d/`), so
+    pushing the file for a given window tags it with that window instead of
+    silently defaulting every window to 90 days. Falls back to 90.
+    """
+    if explicit is not None:
+        return explicit
+    for part in os.path.normpath(metrics_path).split(os.sep):
+        m = re.fullmatch(r"(\d+)d", part)
+        if m:
+            return int(m.group(1))
+    return 90
+
+
 def _run_push(argv: list[str]) -> None:
     """Handle `iris push [metrics.json]` subcommand."""
     from iris.platform.config import get_auth
@@ -1009,7 +1095,10 @@ def _run_push(argv: list[str]) -> None:
     server, token = auth
 
     if not argv:
-        print("Usage: iris push <metrics.json> [--repo <name>]", file=sys.stderr)
+        print(
+            "Usage: iris push <metrics.json> [--repo <name>] [--window-days <N>]",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     metrics_path = argv[0]
@@ -1023,6 +1112,18 @@ def _run_push(argv: list[str]) -> None:
         idx = argv.index("--repo")
         if idx + 1 < len(argv):
             repo_name = argv[idx + 1]
+
+    # Parse optional --window-days flag (else inferred from the {N}d/ path)
+    window_days_arg = None
+    if "--window-days" in argv:
+        idx = argv.index("--window-days")
+        if idx + 1 < len(argv):
+            try:
+                window_days_arg = int(argv[idx + 1])
+            except ValueError:
+                print("Error: --window-days must be an integer", file=sys.stderr)
+                sys.exit(1)
+    window_days = _infer_window_days(metrics_path, window_days_arg)
 
     # Infer repo name from filename if not provided
     if not repo_name:
@@ -1041,6 +1142,7 @@ def _run_push(argv: list[str]) -> None:
 
     print(f"Pushing to {server}...")
     print(f"Repository: {repo_name}")
+    print(f"Window:     {window_days}d")
 
     try:
         result = push_metrics(
@@ -1048,6 +1150,7 @@ def _run_push(argv: list[str]) -> None:
             token=token,
             repository=repo_name,
             metrics_path=metrics_path,
+            window_days=window_days,
             remote_url=remote_url,
             cli_version=VERSION,
         )
@@ -1327,9 +1430,29 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     if args.org:
-        _run_org(args)
+        runner = _run_org
     elif args.repo_path:
-        _run_single_repo(args)
+        runner = _run_single_repo
     else:
         print("Error: either repo_path or --org is required.", file=sys.stderr)
         sys.exit(1)
+
+    windows = _resolve_windows(args.windows, args.days)
+    multi = len(windows) > 1
+
+    for idx, window in enumerate(windows, start=1):
+        args.days = window
+        if not multi:
+            runner(args)
+            continue
+
+        print(f"\n=== Window {window}d ({idx}/{len(windows)}) ===\n")
+        try:
+            runner(args)
+        except SystemExit as exc:
+            # A window with no commits exits 0 from inside the runner; in a
+            # multi-window batch that must not abort the windows that still
+            # have data. Genuine failures (bad path, not a git repo) exit
+            # non-zero and should still stop the whole run.
+            if exc.code:
+                raise

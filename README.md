@@ -122,7 +122,8 @@ Requires `gh` CLI installed and authenticated.
 
 | Flag | Default | Description |
 |---|---|---|
-| `--days` | 90 | Analysis window in days |
+| `--windows` | `7,15,30,60,90` | Analysis windows to produce in one run (one snapshot per window, powers the platform's window selector). Used when `--days` is not given. |
+| `--days` | — | Analyze a single N-day window instead of the default set. Overridden by `--windows`. |
 | `--churn-days` | 14 | Churn detection window in days |
 | `--out` | `out/` | Output directory |
 | `--lang` | `en` | Report language (`en`, `pt-br`) |
