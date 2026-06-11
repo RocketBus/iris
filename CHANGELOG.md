@@ -4,6 +4,51 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.4.0 — AI agent usage telemetry, privacy-by-construction (2026-06-11)
+
+The full intelligence loop for AI-agent usage: measure how much AI effort goes
+into each repo and whether it became durable code — **without ever exposing or
+inferring any individual's usage**. Identity dies on the developer's machine;
+the smallest grain anywhere at rest is `(repo, day, model)`.
+
+### Added
+
+- **CLI: `iris agent` — Claude Code session telemetry** (#67). A privacy-bounded
+  parser reads only an allow-list from session transcripts (token usage, model,
+  tool-call counts) — never prompt text, code, tool arguments, or identity.
+  Token sums are de-duplicated by `message.id` (Claude Code writes one turn as
+  several lines carrying identical usage); tool calls are counted per block.
+  `iris agent enable|disable|status|record` manages a `SessionEnd` hook that
+  spools anonymous `(repo, day, model)` aggregates to
+  `~/.iris/agent-usage/spool.jsonl`. Repo is derived from the git remote then
+  discarded; exact timestamps collapse into a coarse duration bucket.
+- **CLI: default-on with disclosure** (#67). For Claude Code users, telemetry
+  enables on first run with a one-time notice and a one-command opt-out
+  (`iris agent disable`); the choice is remembered. Never silent, never for
+  non-users, never blocking a session.
+- **CLI: `iris agent flush`** (#86). Ships spooled records to the platform in
+  batches; at-least-once and retry-safe (the server dedupes by idempotency
+  key). A best-effort, silent flush also piggybacks on `iris push`.
+- **Platform: `POST /api/ingest/usage` + `usage_rollup`** (#68). Token-auth
+  endpoint that accumulates anonymous records into an already-aggregated table
+  via an atomic additive upsert (`ingest_usage_rollup` RPC), with a short-TTL
+  dedup ledger. Defense in depth rejects any identity field.
+- **Platform: AI Agent Usage dashboard section** (#69). Per-repo usage
+  cross-referenced with delivery durability, with **k-anonymity suppression**
+  by repo contributor count (default 4) — repos below the threshold fold into
+  an "Others" aggregate. Zero per-person dimension on any screen.
+
+### Changed
+
+- **Principle #7 (Vendor-Agnostic Intelligence)** reopened from an absolute ban
+  to a guarded allowance: vendor AI telemetry is permitted only under four
+  privacy-by-construction conditions (parsed locally, identity discarded at the
+  edge, only aggregates uploaded, repo/team grain with k-anonymity), with a
+  default-on-with-disclosure consent model. Recorded as ADRs in
+  `docs/DECISIONS.md` (#66).
+
+---
+
 ## v1.3.1 — Faster multi-window analysis (2026-06-10)
 
 ### Changed
