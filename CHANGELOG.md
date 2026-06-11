@@ -4,7 +4,7 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
-## Unreleased
+## v1.3.1 — Faster multi-window analysis (2026-06-10)
 
 ### Changed
 
