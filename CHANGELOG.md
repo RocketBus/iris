@@ -4,6 +4,27 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Multi-window runs fetch PR history once** (#80). A multi-window
+  `iris analyze` used to re-run the `gh` PR fetch for every window even
+  though the widest window is a superset of the rest — and that fetch
+  dominates a run (~65% of wall-clock). An opt-in, process-level read
+  cache (`iris/ingestion/window_cache.py`) now fetches PRs once per repo
+  for the widest window and serves the narrower windows by re-applying the
+  exact overlap filter in memory; the CLI processes windows widest-first
+  and resets the cache afterwards. Measured ~2.4× faster on the default
+  5-window run (72.7s → 29.8s on this repo); output is byte-for-byte
+  identical to the per-window fetch (verified by diffing `metrics.json`).
+  Commit and diff reads are intentionally left per-window — they are cheap
+  and their day-granularity / top-N-commit semantics make an in-memory
+  slice non-trivial. The cache is off by default, so single-window runs,
+  `iris pr`, and tests are unaffected.
+
+---
+
 ## v1.3.0 — Selectable analysis windows (2026-06-10)
 
 ### Added

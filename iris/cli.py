@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 from iris.i18n import get_strings, SUPPORTED_LANGS
 from iris.platform.telemetry import span, record_metric, record_counter, record_duration, flush
+from iris.ingestion import window_cache
 from iris.ingestion.git_reader import read_commits
 from iris.ingestion.github_reader import read_pull_requests
 from iris.metrics.aggregator import aggregate
@@ -1438,21 +1439,28 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     windows = _resolve_windows(args.windows, args.days)
-    multi = len(windows) > 1
 
-    for idx, window in enumerate(windows, start=1):
-        args.days = window
-        if not multi:
-            runner(args)
-            continue
+    if len(windows) == 1:
+        args.days = windows[0]
+        runner(args)
+        return
 
-        print(f"\n=== Window {window}d ({idx}/{len(windows)}) ===\n")
-        try:
-            runner(args)
-        except SystemExit as exc:
-            # A window with no commits exits 0 from inside the runner; in a
-            # multi-window batch that must not abort the windows that still
-            # have data. Genuine failures (bad path, not a git repo) exit
-            # non-zero and should still stop the whole run.
-            if exc.code:
-                raise
+    # Process the widest window first so the read cache fetches PR history once
+    # per repo and serves the narrower windows by slicing it in memory (#80).
+    ordered = sorted(windows, reverse=True)
+    window_cache.enable()
+    try:
+        for idx, window in enumerate(ordered, start=1):
+            args.days = window
+            print(f"\n=== Window {window}d ({idx}/{len(ordered)}) ===\n")
+            try:
+                runner(args)
+            except SystemExit as exc:
+                # A window with no commits exits 0 from inside the runner; in a
+                # multi-window batch that must not abort the windows that still
+                # have data. Genuine failures (bad path, not a git repo) exit
+                # non-zero and should still stop the whole run.
+                if exc.code:
+                    raise
+    finally:
+        window_cache.reset()

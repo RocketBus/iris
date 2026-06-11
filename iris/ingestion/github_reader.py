@@ -20,6 +20,7 @@ import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
 
+from iris.ingestion import window_cache
 from iris.models.pull_request import CommitRef, PRReview, PRState, PullRequest
 
 
@@ -317,6 +318,10 @@ def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
         NOT (merged_at < since) AND
         NOT (closed_at < since)
 
+    Under a multi-window run the result is cached and the narrower windows are
+    served by re-slicing in memory (see `window_cache`); the fetch below then
+    runs once per repo instead of once per window.
+
     Args:
         repo_path: Absolute path to a Git repository with a GitHub remote.
         days: Number of days to look back from now.
@@ -325,6 +330,17 @@ def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
         List of PullRequest objects with state populated. Returns an empty
         list if gh is unavailable or the repo has no GitHub remote.
     """
+    return window_cache.pull_requests(
+        repo_path,
+        days,
+        lambda: _read_pull_requests_uncached(repo_path, days),
+        keep=lambda pr, since: not _finished_before_window(
+            pr.merged_at, pr.closed_at, pr.state, since
+        ),
+    )
+
+
+def _read_pull_requests_uncached(repo_path: str, days: int) -> list[PullRequest]:
     if not is_gh_available():
         return []
 
@@ -429,6 +445,24 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
     )
 
 
+def _finished_before_window(
+    merged_at: datetime | None,
+    closed_at: datetime | None,
+    state: str,
+    since: datetime,
+) -> bool:
+    """True if a PR's lifecycle ended before `since` (so it's outside the window).
+
+    Single source of truth for the window-overlap filter, shared by the initial
+    parse and the in-memory re-slice done by the multi-window read cache.
+    """
+    if merged_at is not None and merged_at < since:
+        return True
+    if state == "closed" and closed_at is not None and closed_at < since:
+        return True
+    return False
+
+
 def _parse_pull_requests(
     raw_prs: list[dict],
     since: datetime,
@@ -452,9 +486,7 @@ def _parse_pull_requests(
         state = _infer_state(raw.get("state"), merged_at, closed_at)
 
         # Window-overlap filter: drop PRs that finished before the window began.
-        if merged_at is not None and merged_at < since:
-            continue
-        if state == "closed" and closed_at is not None and closed_at < since:
+        if _finished_before_window(merged_at, closed_at, state, since):
             continue
 
         reviews = _parse_reviews(raw.get("reviews", []))
