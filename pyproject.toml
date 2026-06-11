@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "iris"
-version = "1.3.1"
+version = "1.4.0"
 description = "Engineering intelligence for the AI era — measure signal vs noise in software delivery"
 requires-python = ">=3.11"
 license = "Apache-2.0"
