@@ -274,6 +274,46 @@ Keeping insights on disk artificially caps the audience and blocks the multi-rep
 
 ---
 
+## 2026-06-11 — Vendor AI Telemetry Allowed Under Privacy-by-Construction (Revises Principle #7)
+
+### Decision
+
+Iris may consume vendor AI-agent telemetry (e.g. Claude Code and Codex session transcripts) **only** when all four of the following conditions hold:
+
+1. **Parsed locally** — the transcript is read and reduced on the developer's own machine. No raw transcript ever crosses the network.
+2. **Identity discarded at the edge** — user, email, host, and filesystem paths are dropped before upload. Identity dies on the developer's machine.
+3. **Only aggregates uploaded** — the ingest payload and its storage are aggregated to `(repo, day, model)`. There is no session table carrying identity; conversation text, code, and tool-call arguments are never transmitted.
+4. **Exposed only at repo/team grain with k-anonymity** — no per-developer view exists anywhere, and team/repo cells below the k threshold are suppressed.
+
+Telemetry that cannot meet **all four** conditions remains forbidden.
+
+### Context
+
+Principle #7 (Vendor-Agnostic Intelligence) and the CLAUDE.md non-goal "IDE plugins or vendor-specific AI telemetry (permanent — see Principle #7)" previously banned vendor telemetry without exception. Reading `~/.claude/projects/**/*.jsonl` (Claude Code) or the Codex equivalent **is** depending on proprietary vendor telemetry — a direct conflict.
+
+Epic #65 wants to answer the most on-mission question Iris can ask: *"where do we spend AI effort, and did it become durable code or rework?"* That requires correlating AI-agent usage (input) with the durability signals the engine already produces (output), at the same repo/period grain — without ever exposing or inferring per-individual usage.
+
+This is distinct from the earlier "AI Impact Is Measured Indirectly" decision, which rejected **detecting AI-generated code** from fragile vendor identifiers. This ADR does not resurrect that: it does not classify code as AI-written. It measures opt-in *usage of AI agents*, reduced to anonymous aggregates at the edge.
+
+### Rationale
+
+The original ban guarded two real risks: (1) fragility and lock-in to proprietary vendor formats, and (2) surveillance of individuals. The four conditions are designed so both guards still hold:
+
+- The only thing that crosses the network is a vendor-neutral aggregate. Adapters absorb each vendor's format locally, so the platform never depends on a proprietary schema — Principle #7's intent (long-term relevance despite tooling changes) survives.
+- Identity is destroyed at the edge and the smallest stored grain is `(repo, day, model)`, with no `user` column. Not even a DBA with full access can answer "how much did person X use." Principle #2 (Systems Over Individuals) and Principle #8 (Trust Is a Product Feature) are preserved by construction, not by policy.
+
+A blanket "permanent" ban was the right default while the cost of the exception was unexamined. With the privacy inversion specified, the principle is better expressed as a guarded allowance than an absolute prohibition.
+
+### Consequences
+
+- The four conditions above are **binding** on any implementation of #65 (#67 CLI adapter, #68 ingest/`usage_rollup`, #69 exposure). An implementation that violates any one of them must not ship.
+- Principle #7 is updated from an absolute ban to "permitted only under the four conditions of this ADR." `CLAUDE.md` non-goal is realigned: vendor AI telemetry stops being unrestricted-`permanent` and becomes "permitted under the four conditions of the 2026-06-11 ADR."
+- This moves epic #65 from out-of-scope into **Stage 3 (cross-system correlation)**.
+- Supersedes the unrestricted reading of Principle #7's "vendor telemetry" clause but does not delete it, and does not relax Principle #2: per-individual usage exposure remains a permanent non-goal regardless of these conditions.
+- Does not alter "AI Impact Is Measured Indirectly": Iris still does not classify code as AI-generated.
+
+---
+
 ## Revising Decisions
 
 Decisions may evolve.

@@ -88,7 +88,7 @@ Rigidity is a failure mode.
 
 Iris measures engineering outcomes independently of specific tools or AI vendors.
 
-We do not depend on proprietary IDE signals or vendor telemetry.
+The platform never depends on a proprietary signal to function. Vendor AI telemetry may be consumed **only** under the four privacy-by-construction conditions of the 2026-06-11 ADR: parsed locally, identity discarded at the edge, only aggregates uploaded, and exposed solely at repo/team grain with k-anonymity. Adapters absorb each vendor's format on the developer's machine, so what crosses the network is always a vendor-neutral aggregate — never a raw vendor schema. Telemetry that cannot meet all four conditions remains out.
 
 The system analyzes behaviors and results, ensuring long-term relevance despite tooling changes.
 

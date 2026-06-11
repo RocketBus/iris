@@ -62,7 +62,7 @@ Do NOT introduce:
 
 - individual developer ranking, scoring, or productivity tracking (permanent — see Principle #2)
 - real-time monitoring or alerting on live commits
-- IDE plugins or vendor-specific AI telemetry (permanent — see Principle #7)
+- IDE plugins (permanent — see Principle #7); vendor-specific AI telemetry **only** under the four privacy-by-construction conditions of the 2026-06-11 ADR (parsed locally, identity discarded at the edge, only aggregates uploaded, repo/team grain with k-anonymity) — anything short of all four stays out
 - dashboard sprawl: each new view must tie to a validated insight, not a hypothetical user
 - microservices, event buses, or distributed queues in the platform
 - enterprise abstractions (RBAC matrix, policy engines, SCIM) before Stage 3 is opened
