@@ -1162,6 +1162,13 @@ def _run_push(argv: list[str]) -> None:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Opportunistically ship any spooled agent-usage telemetry (best-effort).
+    from iris.agent.flush import maybe_flush_quietly
+
+    flushed = maybe_flush_quietly(server, token, cli_version=VERSION)
+    if flushed and flushed["sent"]:
+        print(f"  Agent usage: flushed {flushed['sent']} record(s).")
+
 
 def _push_after_analysis(
     metrics_path: str,
@@ -1205,6 +1212,13 @@ def _push_after_analysis(
     except RuntimeError as e:
         print(f"\n[ERROR] Push failed — metrics were NOT sent to the platform.", file=sys.stderr)
         print(f"        {e}", file=sys.stderr)
+        return
+
+    # Daily auto-push is the natural moment to ship spooled agent-usage
+    # telemetry too — the dev is already online. Best-effort and silent.
+    from iris.agent.flush import maybe_flush_quietly
+
+    maybe_flush_quietly(server, token, cli_version=VERSION)
 
 
 def _run_hook(argv: list[str]) -> None:
@@ -1315,7 +1329,7 @@ def _run_agent(argv: list[str]) -> None:
     never leave the edge.
     """
     if not argv:
-        print("Usage: iris agent <enable|disable|status|record>", file=sys.stderr)
+        print("Usage: iris agent <enable|disable|status|flush|record>", file=sys.stderr)
         sys.exit(1)
 
     action = argv[0]
@@ -1355,6 +1369,26 @@ def _run_agent(argv: list[str]) -> None:
         )
         return
 
+    if action == "flush":
+        from iris.agent.flush import flush_spool
+        from iris.platform.config import get_auth
+
+        auth = get_auth()
+        if not auth:
+            print("Not logged in. Run: iris login", file=sys.stderr)
+            sys.exit(1)
+        server_url, token = auth
+        try:
+            r = flush_spool(server_url, token, cli_version=VERSION)
+        except RuntimeError as e:
+            print(f"Flush failed: {e}", file=sys.stderr)
+            sys.exit(1)
+        print(
+            f"Flushed {r['sent']} record(s): {r['applied']} applied, "
+            f"{r['duplicates']} duplicate(s). {r['remaining']} remaining."
+        )
+        return
+
     if action == "status":
         from iris.agent.settings_hook import status
 
@@ -1367,7 +1401,7 @@ def _run_agent(argv: list[str]) -> None:
         return
 
     print(f"Unknown agent action: {action}", file=sys.stderr)
-    print("Usage: iris agent <enable|disable|status|record>", file=sys.stderr)
+    print("Usage: iris agent <enable|disable|status|flush|record>", file=sys.stderr)
     sys.exit(1)
 
 
