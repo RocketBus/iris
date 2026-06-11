@@ -4,6 +4,18 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.4.1 — Dashboard chart polish (2026-06-11)
+
+### Changed
+
+- **Cycle Time charts now match the Stabilization Distribution look** (#93).
+  The two per-repo Cycle Time charts (*% PRs merged within 1 day* and *cycle
+  time distribution*) used 16px CSS bars, visibly thinner than the
+  Recharts-based Stabilization chart. Both bars are now 24px with a slightly
+  larger row gap, for a consistent look and feel across the dashboard.
+
+---
+
 ## v1.4.0 — AI agent usage telemetry, privacy-by-construction (2026-06-11)
 
 The full intelligence loop for AI-agent usage: measure how much AI effort goes
