@@ -124,7 +124,7 @@ interface Row {
 function RankingChart({ rows }: { rows: Row[] }) {
   const { t } = useTranslation();
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {rows.map((row) => (
         <div
           key={row.name}
@@ -136,7 +136,7 @@ function RankingChart({ rows }: { rows: Row[] }) {
           >
             {row.name}
           </span>
-          <div className="h-4 overflow-hidden rounded-sm bg-muted">
+          <div className="h-6 overflow-hidden rounded-sm bg-muted">
             <div
               className={cn("h-full rounded-sm", rampClass(row.pctWithin24h))}
               style={{ width: `${Math.max(2, row.pctWithin24h * 100)}%` }}
@@ -156,7 +156,7 @@ function RankingChart({ rows }: { rows: Row[] }) {
 
 function DistributionChart({ rows }: { rows: Row[] }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       {rows.map((row) => {
         const total =
           row.buckets.same_day +
@@ -177,7 +177,7 @@ function DistributionChart({ rows }: { rows: Row[] }) {
             >
               {row.name}
             </span>
-            <div className="flex h-4 w-full overflow-hidden rounded-sm bg-muted">
+            <div className="flex h-6 w-full overflow-hidden rounded-sm bg-muted">
               {row.buckets.same_day > 0 && (
                 <span
                   className="h-full bg-bucket-same-day"
