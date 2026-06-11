@@ -3,7 +3,6 @@ import { notFound, redirect } from "next/navigation";
 
 import { getServerSession } from "next-auth/next";
 
-import { RepoList } from "./repo-list";
 import { AIAgentUsage } from "./sections/AIAgentUsage";
 import { AIDeliveryTimeline } from "./sections/AIDeliveryTimeline";
 import { AIvsHuman } from "./sections/AIvsHuman";
@@ -249,9 +248,6 @@ export default async function OrgDashboardPage({
 
       {/* Hyper engineers — restrito a owner/admin */}
       {canSeeHyperEngineers && <HyperEngineers engineers={hyperEngineers} />}
-
-      {/* Repo list */}
-      <RepoList repos={repoSummaries} orgSlug={tenant} />
     </div>
   );
 }
