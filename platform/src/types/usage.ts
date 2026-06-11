@@ -63,3 +63,50 @@ export interface UsageRollupRow {
   created_at: string;
   updated_at: string;
 }
+
+// ---------------------------------------------------------------------------
+// Dashboard view (#69): repo-grain usage with k-anonymity suppression + the
+// usage×durability cross-reference. Zero per-person fields — `contributors` is
+// a COUNT used only to decide suppression, never names.
+// ---------------------------------------------------------------------------
+
+export interface AgentUsageRow {
+  /** Repo name, or null on the suppressed "Others" aggregate. */
+  repo: string | null;
+  /** Distinct contributors on the repo (count only). 0 on the aggregate. */
+  contributors: number;
+  /** True on the folded "Others" row (repos below the k threshold). */
+  suppressed: boolean;
+  /** Number of repos folded in — only set on the suppressed row. */
+  repoCount: number;
+  sessions: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheCreationTokens: number;
+  toolCalls: number;
+  /** Model with the most output tokens on this repo, or null. */
+  topModel: string | null;
+  /** Merged coarse session-length histogram. */
+  durationBuckets: Record<string, number>;
+  // Cross-reference with the engine (null on the suppressed aggregate).
+  stabilization: number | null;
+  durabilityAi: number | null;
+}
+
+export interface AgentUsageSection {
+  /** Visible repo rows (contributors >= k), sorted by output tokens desc. */
+  rows: AgentUsageRow[];
+  /** Folded aggregate of repos below the k threshold, or null if none. */
+  suppressedRow: AgentUsageRow | null;
+  totals: {
+    sessions: number;
+    inputTokens: number;
+    outputTokens: number;
+    toolCalls: number;
+  };
+  /** k-anonymity threshold applied (repo contributor count). */
+  kThreshold: number;
+  /** How many repos were suppressed into the aggregate. */
+  suppressedRepoCount: number;
+}
