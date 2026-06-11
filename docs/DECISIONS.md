@@ -314,6 +314,35 @@ A blanket "permanent" ban was the right default while the cost of the exception 
 
 ---
 
+## 2026-06-11 — AI Telemetry Defaults On With Disclosure (Amends "Vendor AI Telemetry Allowed Under Privacy-by-Construction")
+
+### Decision
+
+For Claude Code users, agent usage telemetry is **enabled by default on first run** of the Iris CLI — with a one-time disclosure and a one-command opt-out (`iris agent disable`). It is never enabled silently, and never on a machine that doesn't already use Claude Code.
+
+### Context
+
+The 2026-06-11 ADR fixed the four data conditions but left the *consent model* unspecified. #67 first shipped it opt-in (explicit `iris agent enable`). The problem with opt-in here is selection bias: only AI enthusiasts flip it on, which skews the very adoption signal the epic exists to measure. The maintainer chose default-on-with-disclosure to get representative coverage without sacrificing trust.
+
+### Rationale
+
+The four conditions already make the data anonymous by construction, so the residual question is consent, not exposure. Consent is honored through **transparency, not silence**:
+
+- A clear first-run notice states what is collected (anonymous `(repo, day, model)` aggregates — never prompts, code, tool arguments, identity, or exact timestamps) and how to turn it off.
+- The opt-out is a single command and is **remembered**: once a choice is recorded (`agent_telemetry_initialized`), first-run never overrides it.
+- Auto-enable touches only machines that already use Claude Code — Iris never creates `~/.claude` for a non-user.
+
+This keeps Principle #8 (Trust Is a Product Feature) satisfied: nothing is hidden and leaving is trivial. Silent default-on — collecting with no notice — was considered and **rejected** as a Principle #8 breach.
+
+### Consequences
+
+- First run of any non-`agent` CLI command on a Claude Code machine registers the SessionEnd hook and prints the disclosure once.
+- The choice is persisted; explicit `enable`/`disable` also set it, so first-run never fights the user. A disabled choice sticks across upgrades.
+- `iris agent disable` is the always-available off switch.
+- Amends the **consent model only**. The four data conditions and Principle #2 (no per-individual exposure, ever) are unchanged.
+
+---
+
 ## Revising Decisions
 
 Decisions may evolve.

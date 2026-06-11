@@ -1258,6 +1258,119 @@ def _run_hook(argv: list[str]) -> None:
         sys.exit(1)
 
 
+# Commands that must never trigger first-run auto-enable: the `agent` group is
+# explicit telemetry management (incl. the machine-invoked `record`), and these
+# meta commands shouldn't carry a disclosure banner.
+_TELEMETRY_INIT_SKIP = {"agent", "--version", "-V", "-h", "--help", "upgrade", "uninstall"}
+
+
+def _print_agent_telemetry_disclosure() -> None:
+    """One-time notice shown when telemetry auto-enables on first run."""
+    print(
+        "\n"
+        "Iris AI-agent telemetry is now ON for this machine.\n"
+        "  It records ANONYMOUS (repo, day, model) usage aggregates from your\n"
+        "  Claude Code sessions — never prompts, code, tool arguments, identity,\n"
+        "  or exact timestamps. Everything is reduced on your machine before\n"
+        "  anything is stored or sent.\n"
+        "  Turn it off anytime:  iris agent disable\n",
+        file=sys.stderr,
+    )
+
+
+def _maybe_init_agent_telemetry(raw_argv: list[str]) -> bool:
+    """First-run: default AI-agent telemetry ON for Claude Code users, once,
+    with a clear disclosure and an easy opt-out (`iris agent disable`).
+
+    Honors any prior choice: runs only while no decision is recorded. Only
+    Claude Code users are touched — we never create ~/.claude for others. Never
+    raises into a normal CLI invocation. See the 2026-06-11 consent ADR.
+    Returns True iff it auto-enabled on this call.
+    """
+    if not raw_argv or raw_argv[0] in _TELEMETRY_INIT_SKIP:
+        return False
+    try:
+        from iris.platform.config import load_config, save_config
+        from iris.agent import settings_hook
+
+        if load_config().get(settings_hook.CONFIG_INITIALIZED):
+            return False
+        # Only auto-enable for actual Claude Code users.
+        if not os.path.isdir(settings_hook.claude_dir()):
+            return False
+
+        settings_hook.enable()  # registers the hook, sets enabled + initialized
+        _print_agent_telemetry_disclosure()
+        return True
+    except Exception:
+        return False
+
+
+def _run_agent(argv: list[str]) -> None:
+    """Handle `iris agent enable|disable|status|record` subcommands.
+
+    Captures local AI-agent (Claude Code) session usage and spools anonymous
+    `(repo, day, model)` aggregates. Per the 2026-06-11 ADR, identity is
+    discarded on this machine — prompts, code, tool args, and exact timestamps
+    never leave the edge.
+    """
+    if not argv:
+        print("Usage: iris agent <enable|disable|status|record>", file=sys.stderr)
+        sys.exit(1)
+
+    action = argv[0]
+
+    if action == "record":
+        # Invoked by the Claude Code SessionEnd hook with event JSON on stdin.
+        # Must never disrupt the session: swallow errors and exit 0.
+        from iris.agent.recorder import record_from_stdin
+
+        record_from_stdin()
+        return
+
+    if action == "enable":
+        from iris.agent.settings_hook import enable
+
+        info = enable()
+        if info["already_enabled"]:
+            print("AI-agent telemetry already enabled.")
+        else:
+            print("AI-agent telemetry enabled.")
+            print(f"  SessionEnd hook added to: {info['settings_path']}")
+            print(f"  Command: {info['command']}")
+        print(
+            "Only anonymous (repo, day, model) aggregates are recorded — "
+            "identity never leaves your machine."
+        )
+        return
+
+    if action == "disable":
+        from iris.agent.settings_hook import disable
+
+        info = disable()
+        print(
+            "AI-agent telemetry disabled."
+            if info["removed"]
+            else "AI-agent telemetry was not enabled."
+        )
+        return
+
+    if action == "status":
+        from iris.agent.settings_hook import status
+
+        info = status()
+        print(f"AI-agent telemetry: {'enabled' if info['flag'] else 'disabled'}")
+        registered = "registered" if info["hook_registered"] else "not registered"
+        print(f"SessionEnd hook:    {registered} ({info['settings_path']})")
+        spool = info["spool"]
+        print(f"Spooled records:    {spool['records']} ({spool['path']})")
+        return
+
+    print(f"Unknown agent action: {action}", file=sys.stderr)
+    print("Usage: iris agent <enable|disable|status|record>", file=sys.stderr)
+    sys.exit(1)
+
+
 def _run_uninstall() -> None:
     """Remove Iris from the system."""
     import shutil
@@ -1397,6 +1510,7 @@ def _run_upgrade() -> None:
 def main(argv: list[str] | None = None) -> None:
     # Intercept subcommands before argparse (they use different arg structures)
     raw_argv = argv if argv is not None else sys.argv[1:]
+    _maybe_init_agent_telemetry(raw_argv)
     if raw_argv and raw_argv[0] in ("--version", "-V"):
         print(f"Iris {VERSION}")
         return
@@ -1408,6 +1522,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if raw_argv and raw_argv[0] == "hook":
         _run_hook(raw_argv[1:])
+        return
+    if raw_argv and raw_argv[0] == "agent":
+        _run_agent(raw_argv[1:])
         return
     if raw_argv and raw_argv[0] == "login":
         _run_login(raw_argv[1:])
