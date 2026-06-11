@@ -4,6 +4,17 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.4.2 — Dashboard declutter (2026-06-11)
+
+### Changed
+
+- **Org dashboard no longer repeats the repository list** (#95). The dashboard
+  ended with a full repo list duplicating the dedicated `/repos` page; it's
+  been dropped. The same list component still powers `/[tenant]/repos`, so the
+  listing lives in one place.
+
+---
+
 ## v1.4.1 — Dashboard chart polish (2026-06-11)
 
 ### Changed
