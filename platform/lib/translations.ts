@@ -290,7 +290,7 @@ export const translations = {
         title: "DORA",
         sourceBadge: "Datadog",
         subtitle:
-          "Deployment metrics for the org over the last 30 days, sourced directly from Datadog.",
+          "Deployment metrics for the org over the last {days} days, sourced directly from Datadog.",
         metrics: {
           cfr: "Change Failure Rate",
           mttrPerDeploy: "MTTR (per failed deploy)",
@@ -1667,7 +1667,7 @@ export const translations = {
         title: "DORA",
         sourceBadge: "Datadog",
         subtitle:
-          "Métricas de deploy da organização nos últimos 30 dias, vindas diretamente do Datadog.",
+          "Métricas de deploy da organização nos últimos {days} dias, vindas diretamente do Datadog.",
         metrics: {
           cfr: "Taxa de falha em mudança",
           mttrPerDeploy: "MTTR (por deploy com falha)",

@@ -4,6 +4,17 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.4.4 — DORA window label (2026-06-11)
+
+### Fixed
+
+- **DORA subtitle hardcoded "last 30 days"** while the metrics already followed
+  the selected analysis window. The org DORA subtitle now reflects the chosen
+  window (e.g. "over the last 90 days"), matching the data — the deploy counts
+  were always windowed, only the label was stale.
+
+---
+
 ## v1.4.3 — Footer version sync + Cycle Time chart restyle (2026-06-11)
 
 ### Changed

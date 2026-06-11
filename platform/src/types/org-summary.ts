@@ -172,6 +172,8 @@ export interface OrgTimelineWeek {
  * push under an active integration.
  */
 export interface OrgDORA {
+  /** Inclusive window size used to compute these metrics (drives the label). */
+  windowDays: number;
   reposWithData: number;
   deploymentsTotal: number;
   deploymentsFailed: number;
