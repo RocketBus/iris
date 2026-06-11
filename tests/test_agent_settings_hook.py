@@ -45,6 +45,8 @@ def test_enable_adds_session_end_hook(tmp_path, monkeypatch):
 
     cfg = json.loads((tmp_path / ".iris" / "config.json").read_text())
     assert cfg["agent_telemetry_enabled"] is True
+    # A recorded decision exists, so first-run won't fight an explicit enable.
+    assert cfg["agent_telemetry_initialized"] is True
 
 
 def test_enable_is_idempotent(tmp_path, monkeypatch):
@@ -105,6 +107,14 @@ def test_disable_when_not_enabled_is_safe(tmp_path, monkeypatch):
     _isolate(tmp_path, monkeypatch)
     info = sh.disable()
     assert info["removed"] is False
+
+
+def test_disable_records_initialized_so_first_run_wont_reenable(tmp_path, monkeypatch):
+    _isolate(tmp_path, monkeypatch)
+    sh.disable()
+    cfg = json.loads((tmp_path / ".iris" / "config.json").read_text())
+    assert cfg["agent_telemetry_enabled"] is False
+    assert cfg["agent_telemetry_initialized"] is True
 
 
 def test_status_reflects_state(tmp_path, monkeypatch):

@@ -18,10 +18,22 @@ from iris.agent.recorder import spool_stats
 from iris.platform.config import load_config, save_config
 
 CONFIG_FLAG = "agent_telemetry_enabled"
+# Set once a decision exists (auto first-run OR explicit enable/disable). While
+# absent, first-run may auto-enable; once set, the stored choice is respected.
+CONFIG_INITIALIZED = "agent_telemetry_initialized"
 
 
 def _settings_path() -> str:
     return os.path.expanduser("~/.claude/settings.json")
+
+
+def claude_dir() -> str:
+    """Directory holding the Claude Code user settings (parent of settings.json).
+
+    Used to detect whether this machine is a Claude Code user before auto-
+    enabling — we never create ~/.claude for someone who doesn't use the agent.
+    """
+    return os.path.dirname(_settings_path())
 
 
 def _record_command() -> str:
@@ -91,6 +103,7 @@ def enable() -> dict:
 
     config = load_config()
     config[CONFIG_FLAG] = True
+    config[CONFIG_INITIALIZED] = True
     save_config(config)
 
     return {
@@ -132,10 +145,11 @@ def disable() -> dict:
         if removed:
             _save_settings(settings)
 
+    # Record the choice (False + initialized) so first-run never re-enables it.
     config = load_config()
-    if config.get(CONFIG_FLAG):
-        config[CONFIG_FLAG] = False
-        save_config(config)
+    config[CONFIG_FLAG] = False
+    config[CONFIG_INITIALIZED] = True
+    save_config(config)
 
     return {"removed": removed, "settings_path": _settings_path()}
 

@@ -1258,6 +1258,54 @@ def _run_hook(argv: list[str]) -> None:
         sys.exit(1)
 
 
+# Commands that must never trigger first-run auto-enable: the `agent` group is
+# explicit telemetry management (incl. the machine-invoked `record`), and these
+# meta commands shouldn't carry a disclosure banner.
+_TELEMETRY_INIT_SKIP = {"agent", "--version", "-V", "-h", "--help", "upgrade", "uninstall"}
+
+
+def _print_agent_telemetry_disclosure() -> None:
+    """One-time notice shown when telemetry auto-enables on first run."""
+    print(
+        "\n"
+        "Iris AI-agent telemetry is now ON for this machine.\n"
+        "  It records ANONYMOUS (repo, day, model) usage aggregates from your\n"
+        "  Claude Code sessions — never prompts, code, tool arguments, identity,\n"
+        "  or exact timestamps. Everything is reduced on your machine before\n"
+        "  anything is stored or sent.\n"
+        "  Turn it off anytime:  iris agent disable\n",
+        file=sys.stderr,
+    )
+
+
+def _maybe_init_agent_telemetry(raw_argv: list[str]) -> bool:
+    """First-run: default AI-agent telemetry ON for Claude Code users, once,
+    with a clear disclosure and an easy opt-out (`iris agent disable`).
+
+    Honors any prior choice: runs only while no decision is recorded. Only
+    Claude Code users are touched — we never create ~/.claude for others. Never
+    raises into a normal CLI invocation. See the 2026-06-11 consent ADR.
+    Returns True iff it auto-enabled on this call.
+    """
+    if not raw_argv or raw_argv[0] in _TELEMETRY_INIT_SKIP:
+        return False
+    try:
+        from iris.platform.config import load_config, save_config
+        from iris.agent import settings_hook
+
+        if load_config().get(settings_hook.CONFIG_INITIALIZED):
+            return False
+        # Only auto-enable for actual Claude Code users.
+        if not os.path.isdir(settings_hook.claude_dir()):
+            return False
+
+        settings_hook.enable()  # registers the hook, sets enabled + initialized
+        _print_agent_telemetry_disclosure()
+        return True
+    except Exception:
+        return False
+
+
 def _run_agent(argv: list[str]) -> None:
     """Handle `iris agent enable|disable|status|record` subcommands.
 
@@ -1462,6 +1510,7 @@ def _run_upgrade() -> None:
 def main(argv: list[str] | None = None) -> None:
     # Intercept subcommands before argparse (they use different arg structures)
     raw_argv = argv if argv is not None else sys.argv[1:]
+    _maybe_init_agent_telemetry(raw_argv)
     if raw_argv and raw_argv[0] in ("--version", "-V"):
         print(f"Iris {VERSION}")
         return
