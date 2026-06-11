@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth/next";
 
 import { RepoList } from "./repo-list";
+import { AIAgentUsage } from "./sections/AIAgentUsage";
 import { AIDeliveryTimeline } from "./sections/AIDeliveryTimeline";
 import { AIvsHuman } from "./sections/AIvsHuman";
 import { CycleTime } from "./sections/CycleTime";
@@ -23,6 +24,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { WindowSelector } from "@/components/WindowSelector";
 import { authOptions } from "@/lib/auth";
 import { computeOrgAdoption } from "@/lib/queries/adoption-timeline";
+import {
+  getOrgUsageRollup,
+  getRepoContributorCounts,
+  computeAgentUsage,
+} from "@/lib/queries/agent-usage";
 import { computeOrgDORA } from "@/lib/queries/dora";
 import {
   getOrgLatestPayloads,
@@ -145,6 +151,22 @@ export default async function OrgDashboardPage({
     windowDays,
     payloads,
   });
+
+  // AI-agent usage (#69): repo-grain usage over the same lookback window, with
+  // k-anonymity suppression and the usage×durability cross-reference.
+  const usageSince = new Date(Date.now() - windowDays * 86_400_000)
+    .toISOString()
+    .slice(0, 10);
+  const [usageRows, contributorCounts] = await Promise.all([
+    getOrgUsageRollup(supabaseAdmin, org.id, usageSince),
+    getRepoContributorCounts(supabaseAdmin, org.id, windowDays),
+  ]);
+  const agentUsageData = computeAgentUsage(
+    usageRows,
+    repoSummaries,
+    payloads,
+    contributorCounts,
+  );
   const repoNameIndex = new Map(repoSummaries.map((r) => [r.id, r.name]));
   const adoptionRows = computeOrgAdoption(payloads, repoNameIndex);
 
@@ -206,6 +228,9 @@ export default async function OrgDashboardPage({
 
       {/* AI tool comparison */}
       {toolComparisonData && <ToolComparison data={toolComparisonData} />}
+
+      {/* AI-agent usage — tokens/model/duration per repo + usage×durability */}
+      {agentUsageData && <AIAgentUsage data={agentUsageData} />}
 
       {/* Intent distribution */}
       {intentData && <IntentDistribution data={intentData} />}

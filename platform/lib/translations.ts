@@ -509,6 +509,25 @@ export const translations = {
       noSignificant:
         "No tool has enough commits yet to produce a meaningful comparison (minimum {threshold}).",
     },
+    agentUsage: {
+      title: "AI Agent Usage",
+      subtitle:
+        "Anonymous agent usage per repository, cross-referenced with delivery durability.",
+      columnRepo: "Repository",
+      columnContributors: "Contributors",
+      columnSessions: "Sessions",
+      columnInput: "Input tok",
+      columnOutput: "Output tok",
+      columnTools: "Tool calls",
+      columnModel: "Top model",
+      columnSession: "Typical session",
+      columnStabilization: "Stabilization",
+      columnDurability: "AI durability",
+      othersRow: "Others",
+      othersDetail: "{count} repos suppressed",
+      kAnonymityNote:
+        "Usage is anonymous and shown only for repos with at least {k} contributors; smaller repos fold into “Others” so no single person's usage can be isolated. A repo where only one person uses AI is not individually protected — but usage is never attributed to a person anywhere.",
+    },
     connect: {
       title: "Connect your first repository",
       subtitle:
@@ -1870,6 +1889,25 @@ export const translations = {
         "Linhas com menos de {threshold} commits ficam marcadas como baixa confiança e vão pro final da lista.",
       noSignificant:
         "Nenhuma ferramenta ainda tem commits suficientes para uma comparação significativa (mínimo {threshold}).",
+    },
+    agentUsage: {
+      title: "Uso de Agentes de IA",
+      subtitle:
+        "Uso anônimo de agentes por repositório, cruzado com a durabilidade da entrega.",
+      columnRepo: "Repositório",
+      columnContributors: "Contribuidores",
+      columnSessions: "Sessões",
+      columnInput: "Tokens in",
+      columnOutput: "Tokens out",
+      columnTools: "Tool calls",
+      columnModel: "Modelo top",
+      columnSession: "Sessão típica",
+      columnStabilization: "Estabilização",
+      columnDurability: "Durabilidade IA",
+      othersRow: "Outros",
+      othersDetail: "{count} repos suprimidos",
+      kAnonymityNote:
+        "O uso é anônimo e exibido só para repos com pelo menos {k} contribuidores; repos menores caem em “Outros” para que o uso de nenhuma pessoa seja isolável. Um repo onde só uma pessoa usa IA não fica individualmente protegido — mas o uso nunca é atribuído a uma pessoa em lugar nenhum.",
     },
     connect: {
       title: "Conecte seu primeiro repositório",
