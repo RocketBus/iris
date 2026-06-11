@@ -1258,6 +1258,71 @@ def _run_hook(argv: list[str]) -> None:
         sys.exit(1)
 
 
+def _run_agent(argv: list[str]) -> None:
+    """Handle `iris agent enable|disable|status|record` subcommands.
+
+    Captures local AI-agent (Claude Code) session usage and spools anonymous
+    `(repo, day, model)` aggregates. Per the 2026-06-11 ADR, identity is
+    discarded on this machine — prompts, code, tool args, and exact timestamps
+    never leave the edge.
+    """
+    if not argv:
+        print("Usage: iris agent <enable|disable|status|record>", file=sys.stderr)
+        sys.exit(1)
+
+    action = argv[0]
+
+    if action == "record":
+        # Invoked by the Claude Code SessionEnd hook with event JSON on stdin.
+        # Must never disrupt the session: swallow errors and exit 0.
+        from iris.agent.recorder import record_from_stdin
+
+        record_from_stdin()
+        return
+
+    if action == "enable":
+        from iris.agent.settings_hook import enable
+
+        info = enable()
+        if info["already_enabled"]:
+            print("AI-agent telemetry already enabled.")
+        else:
+            print("AI-agent telemetry enabled.")
+            print(f"  SessionEnd hook added to: {info['settings_path']}")
+            print(f"  Command: {info['command']}")
+        print(
+            "Only anonymous (repo, day, model) aggregates are recorded — "
+            "identity never leaves your machine."
+        )
+        return
+
+    if action == "disable":
+        from iris.agent.settings_hook import disable
+
+        info = disable()
+        print(
+            "AI-agent telemetry disabled."
+            if info["removed"]
+            else "AI-agent telemetry was not enabled."
+        )
+        return
+
+    if action == "status":
+        from iris.agent.settings_hook import status
+
+        info = status()
+        print(f"AI-agent telemetry: {'enabled' if info['flag'] else 'disabled'}")
+        registered = "registered" if info["hook_registered"] else "not registered"
+        print(f"SessionEnd hook:    {registered} ({info['settings_path']})")
+        spool = info["spool"]
+        print(f"Spooled records:    {spool['records']} ({spool['path']})")
+        return
+
+    print(f"Unknown agent action: {action}", file=sys.stderr)
+    print("Usage: iris agent <enable|disable|status|record>", file=sys.stderr)
+    sys.exit(1)
+
+
 def _run_uninstall() -> None:
     """Remove Iris from the system."""
     import shutil
@@ -1408,6 +1473,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if raw_argv and raw_argv[0] == "hook":
         _run_hook(raw_argv[1:])
+        return
+    if raw_argv and raw_argv[0] == "agent":
+        _run_agent(raw_argv[1:])
         return
     if raw_argv and raw_argv[0] == "login":
         _run_login(raw_argv[1:])
