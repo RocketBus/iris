@@ -4,6 +4,18 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.4.3 — Footer version sync (2026-06-11)
+
+### Fixed
+
+- **Dashboard footer showed a stale version** (was `v1.0.7`). The footer renders
+  `platform/package.json`'s version (via `NEXT_PUBLIC_BUILD_VERSION`), which was
+  never bumped alongside releases. Synced it to the product version and added
+  `platform/package.json` to the release checklist so the footer tracks releases
+  from now on.
+
+---
+
 ## v1.4.2 — Dashboard declutter (2026-06-11)
 
 ### Changed
