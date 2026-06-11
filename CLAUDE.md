@@ -98,8 +98,9 @@ When creating a new version tag:
 
 1. `pyproject.toml` — update `version`
 2. `iris/cli.py` — update `VERSION`
-3. `CHANGELOG.md` — add entry at the top
-4. Commit, push, then `git tag -a vX.Y.Z`
+3. `platform/package.json` — update `version` (drives the dashboard footer via `NEXT_PUBLIC_BUILD_VERSION`)
+4. `CHANGELOG.md` — add entry at the top
+5. Commit, push, then `git tag -a vX.Y.Z`
 
 When adding a new analysis metric, complete the full chain:
 
