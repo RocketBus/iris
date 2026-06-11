@@ -1,6 +1,16 @@
 "use client";
 
 import { Zap } from "lucide-react";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+  Cell,
+} from "recharts";
 
 import { MetricCard } from "@/components/charts/MetricCard";
 import {
@@ -11,7 +21,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
-import { cn } from "@/lib/utils";
 import type { CycleTimeData } from "@/types/org-summary";
 
 // Insight banner is only shown once cycle-time data is dense enough
@@ -19,12 +28,45 @@ import type { CycleTimeData } from "@/types/org-summary";
 // render the section but hide the headline.
 const INSIGHT_MIN_MERGED = 50;
 
-// Cutoffs for the "% merged within 24h" horizontal bar color ramp.
-// Tuned so a repo that ships in a day most of the time reads green,
-// "mixed" reads yellow, and slow repos read orange/red.
+// Cutoffs for the "% merged within 24h" bar color ramp. Tuned so a repo that
+// ships in a day most of the time reads green, "mixed" reads yellow, and slow
+// repos read orange.
 const FAST_GREEN_PCT = 0.8;
 const MID_YELLOW_PCT = 0.65;
 const SLOW_ORANGE_PCT = 0.5;
+
+// Match the Stabilization Distribution chart for a consistent dashboard look.
+const CHART_HEIGHT = 200;
+const Y_AXIS_WIDTH = 170;
+const AXIS_TICK = { fontSize: 10, fill: "var(--color-muted-foreground)" };
+
+// Cycle-time buckets, in fastest→slowest order, shared by the stacked bars,
+// the tooltip, and the legend.
+const BUCKETS = [
+  {
+    key: "same_day",
+    labelKey: "sameDay",
+    color: "var(--color-bucket-same-day)",
+  },
+  { key: "one_day", labelKey: "oneDay", color: "var(--color-bucket-one-day)" },
+  {
+    key: "two_to_three_days",
+    labelKey: "twoThree",
+    color: "var(--color-bucket-two-three)",
+  },
+  {
+    key: "four_to_seven_days",
+    labelKey: "fourSeven",
+    color: "var(--color-bucket-four-seven)",
+  },
+  {
+    key: "seven_plus_days",
+    labelKey: "sevenPlus",
+    color: "var(--color-bucket-seven-plus)",
+  },
+] as const;
+
+type RepoRow = CycleTimeData["perRepo"][number];
 
 interface CycleTimeProps {
   data: CycleTimeData;
@@ -114,134 +156,171 @@ export function CycleTime({ data }: CycleTimeProps) {
   );
 }
 
-interface Row {
-  name: string;
-  merged: number;
-  pctWithin24h: number;
-  buckets: CycleTimeData["perRepo"][number]["buckets"];
+function truncateRepo(value: string): string {
+  return value.length > 26 ? `…${value.slice(-25)}` : value;
 }
 
-function RankingChart({ rows }: { rows: Row[] }) {
+const tickPct = (v: number) => `${(v * 100).toFixed(0)}%`;
+
+function rampColor(pct: number): string {
+  if (pct >= FAST_GREEN_PCT) return "var(--color-signal-green)";
+  if (pct >= MID_YELLOW_PCT) return "var(--color-bucket-one-day)";
+  if (pct >= SLOW_ORANGE_PCT) return "var(--color-signal-yellow)";
+  return "var(--color-bucket-four-seven)";
+}
+
+/** Single bar per repo — share of PRs merged within a day. Mirrors the
+ * Stabilization Distribution chart (horizontal Recharts bars + % axis). */
+function RankingChart({ rows }: { rows: RepoRow[] }) {
   const { t } = useTranslation();
+  const data = [...rows].sort((a, b) => b.pctWithin24h - a.pctWithin24h);
+
   return (
-    <div className="space-y-2">
-      {rows.map((row) => (
-        <div
-          key={row.name}
-          className="grid grid-cols-[100px_1fr_46px] items-center gap-2 text-xs"
-        >
-          <span
-            className="truncate text-right text-muted-foreground"
-            title={row.name}
-          >
-            {row.name}
-          </span>
-          <div className="h-6 overflow-hidden rounded-sm bg-muted">
-            <div
-              className={cn("h-full rounded-sm", rampClass(row.pctWithin24h))}
-              style={{ width: `${Math.max(2, row.pctWithin24h * 100)}%` }}
-              title={t("dashboard.cycleTime.tooltips.ranking", {
-                merged: row.merged,
-              })}
-            />
-          </div>
-          <span className="text-right font-mono tabular-nums text-muted-foreground">
-            {formatPct(row.pctWithin24h)}
-          </span>
-        </div>
-      ))}
-    </div>
+    <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+      <BarChart data={data} layout="vertical">
+        <CartesianGrid
+          strokeDasharray="3 3"
+          stroke="var(--color-chart-grid)"
+          horizontal={false}
+        />
+        <XAxis
+          type="number"
+          domain={[0, 1]}
+          tickFormatter={tickPct}
+          tick={AXIS_TICK}
+          tickLine={false}
+          axisLine={false}
+        />
+        <YAxis
+          type="category"
+          dataKey="name"
+          width={Y_AXIS_WIDTH}
+          tick={AXIS_TICK}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={truncateRepo}
+        />
+        <Tooltip
+          content={({ payload }) => {
+            const p = payload?.[0]?.payload as RepoRow | undefined;
+            if (!p) return null;
+            return (
+              <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground shadow-md">
+                <p className="font-medium">{p.name}</p>
+                <p className="text-muted-foreground">
+                  {formatPct(p.pctWithin24h)} ·{" "}
+                  {t("dashboard.cycleTime.tooltips.ranking", {
+                    merged: p.merged,
+                  })}
+                </p>
+              </div>
+            );
+          }}
+        />
+        <Bar dataKey="pctWithin24h" radius={[0, 4, 4, 0]}>
+          {data.map((row) => (
+            <Cell key={row.name} fill={rampColor(row.pctWithin24h)} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
-function DistributionChart({ rows }: { rows: Row[] }) {
+/** Stacked bar per repo — cycle-time bucket mix normalized to 100%. Same
+ * Recharts horizontal layout as the ranking chart. */
+function DistributionChart({ rows }: { rows: RepoRow[] }) {
+  const { t } = useTranslation();
+  const data = [...rows]
+    .sort((a, b) => b.pctWithin24h - a.pctWithin24h)
+    .map((row) => {
+      const total = BUCKETS.reduce((sum, b) => sum + row.buckets[b.key], 0);
+      const out: Record<string, number | string> = { name: row.name };
+      for (const b of BUCKETS) {
+        out[b.key] = total > 0 ? row.buckets[b.key] / total : 0;
+      }
+      return out;
+    })
+    .filter((d) => BUCKETS.some((b) => (d[b.key] as number) > 0));
+
   return (
-    <div className="space-y-2">
-      {rows.map((row) => {
-        const total =
-          row.buckets.same_day +
-          row.buckets.one_day +
-          row.buckets.two_to_three_days +
-          row.buckets.four_to_seven_days +
-          row.buckets.seven_plus_days;
-        if (total === 0) return null;
-        const pct = (n: number) => (n / total) * 100;
-        return (
-          <div
-            key={row.name}
-            className="grid grid-cols-[100px_1fr] items-center gap-2 text-xs"
-          >
-            <span
-              className="truncate text-right text-muted-foreground"
-              title={row.name}
-            >
-              {row.name}
-            </span>
-            <div className="flex h-6 w-full overflow-hidden rounded-sm bg-muted">
-              {row.buckets.same_day > 0 && (
-                <span
-                  className="h-full bg-bucket-same-day"
-                  style={{ width: `${pct(row.buckets.same_day)}%` }}
-                />
-              )}
-              {row.buckets.one_day > 0 && (
-                <span
-                  className="h-full bg-bucket-one-day"
-                  style={{ width: `${pct(row.buckets.one_day)}%` }}
-                />
-              )}
-              {row.buckets.two_to_three_days > 0 && (
-                <span
-                  className="h-full bg-bucket-two-three"
-                  style={{ width: `${pct(row.buckets.two_to_three_days)}%` }}
-                />
-              )}
-              {row.buckets.four_to_seven_days > 0 && (
-                <span
-                  className="h-full bg-bucket-four-seven"
-                  style={{ width: `${pct(row.buckets.four_to_seven_days)}%` }}
-                />
-              )}
-              {row.buckets.seven_plus_days > 0 && (
-                <span
-                  className="h-full bg-bucket-seven-plus"
-                  style={{ width: `${pct(row.buckets.seven_plus_days)}%` }}
-                />
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+      <BarChart data={data} layout="vertical">
+        <CartesianGrid
+          strokeDasharray="3 3"
+          stroke="var(--color-chart-grid)"
+          horizontal={false}
+        />
+        <XAxis
+          type="number"
+          domain={[0, 1]}
+          tickFormatter={tickPct}
+          tick={AXIS_TICK}
+          tickLine={false}
+          axisLine={false}
+        />
+        <YAxis
+          type="category"
+          dataKey="name"
+          width={Y_AXIS_WIDTH}
+          tick={AXIS_TICK}
+          tickLine={false}
+          axisLine={false}
+          tickFormatter={truncateRepo}
+        />
+        <Tooltip
+          content={({ payload }) => {
+            const p = payload?.[0]?.payload as
+              | Record<string, number | string>
+              | undefined;
+            if (!p) return null;
+            return (
+              <div className="rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground shadow-md">
+                <p className="font-medium">{p.name as string}</p>
+                {BUCKETS.map((b) => {
+                  const frac = (p[b.key] as number) ?? 0;
+                  if (frac <= 0) return null;
+                  return (
+                    <p
+                      key={b.key}
+                      className="flex items-center gap-1.5 text-muted-foreground"
+                    >
+                      <span
+                        className="size-2 rounded-full"
+                        style={{ backgroundColor: b.color }}
+                      />
+                      {t(`dashboard.cycleTime.buckets.${b.labelKey}`)}:{" "}
+                      {(frac * 100).toFixed(0)}%
+                    </p>
+                  );
+                })}
+              </div>
+            );
+          }}
+        />
+        {BUCKETS.map((b) => (
+          <Bar key={b.key} dataKey={b.key} stackId="a" fill={b.color} />
+        ))}
+      </BarChart>
+    </ResponsiveContainer>
   );
 }
 
 function DistributionLegend() {
   const { t } = useTranslation();
-  const items = [
-    { key: "sameDay", className: "bg-bucket-same-day" },
-    { key: "oneDay", className: "bg-bucket-one-day" },
-    { key: "twoThree", className: "bg-bucket-two-three" },
-    { key: "fourSeven", className: "bg-bucket-four-seven" },
-    { key: "sevenPlus", className: "bg-bucket-seven-plus" },
-  ] as const;
   return (
     <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-xs text-muted-foreground">
-      {items.map((i) => (
-        <span key={i.key} className="flex items-center gap-1.5">
-          <span className={cn("size-2.5 rounded-full", i.className)} />
-          {t(`dashboard.cycleTime.buckets.${i.key}`)}
+      {BUCKETS.map((b) => (
+        <span key={b.key} className="flex items-center gap-1.5">
+          <span
+            className="size-2.5 rounded-full"
+            style={{ backgroundColor: b.color }}
+          />
+          {t(`dashboard.cycleTime.buckets.${b.labelKey}`)}
         </span>
       ))}
     </div>
   );
-}
-
-function rampClass(pct: number): string {
-  if (pct >= FAST_GREEN_PCT) return "bg-signal-green";
-  if (pct >= MID_YELLOW_PCT) return "bg-bucket-one-day"; // lime/green
-  if (pct >= SLOW_ORANGE_PCT) return "bg-signal-yellow";
-  return "bg-bucket-four-seven"; // orange — slow repo
 }
 
 function formatPct(value: number | null): string {
