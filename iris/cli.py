@@ -1220,6 +1220,13 @@ def _push_after_analysis(
 
     maybe_flush_quietly(server, token, cli_version=VERSION)
 
+    # Same moment is the right one to self-update: the server told us the latest
+    # version in its response, and we're already off the commit's critical path.
+    # Detached, opt-out, managed-installs-only — see iris/update/auto.py.
+    from iris.update.auto import maybe_auto_update
+
+    maybe_auto_update(result.get("latest_version"), server, VERSION)
+
 
 def _run_hook(argv: list[str]) -> None:
     """Handle `iris hook install|uninstall|status` subcommands."""
@@ -1315,6 +1322,59 @@ def _maybe_init_agent_telemetry(raw_argv: list[str]) -> bool:
 
         settings_hook.enable()  # registers the hook, sets enabled + initialized
         _print_agent_telemetry_disclosure()
+        return True
+    except Exception:
+        return False
+
+
+# Management/meta commands that shouldn't carry the auto-update disclosure or
+# silently flip the default on. `upgrade` manages the preference itself.
+_AUTO_UPDATE_INIT_SKIP = {
+    "agent", "hook", "login", "auth", "upgrade", "uninstall",
+    "--version", "-V", "-h", "--help",
+}
+
+
+def _print_auto_update_disclosure() -> None:
+    """One-time notice shown when silent auto-update auto-enables on first run."""
+    print(
+        "\n"
+        "Iris will keep itself up to date automatically.\n"
+        "  When a newer version is published, Iris quietly re-runs the same\n"
+        "  installer you used (install.sh) in the background after a push —\n"
+        "  it never blocks your commits and only touches its own install.\n"
+        "  Turn it off anytime:  iris upgrade --disable-auto\n",
+        file=sys.stderr,
+    )
+
+
+def _maybe_init_auto_update(raw_argv: list[str]) -> bool:
+    """First-run: default silent auto-update ON, once, with a disclosure the
+    user can actually see and an easy opt-out (`iris upgrade --disable-auto`).
+
+    Only fires on an interactive TTY so the notice is never swallowed by the
+    background push hook (whose stderr goes to /dev/null), and only for installs
+    `install.sh` can manage — others can't self-update, so there's nothing to
+    disclose. Honors any prior choice and never raises into a normal run.
+    Returns True iff it auto-enabled on this call.
+    """
+    if not raw_argv or raw_argv[0] in _AUTO_UPDATE_INIT_SKIP:
+        return False
+    try:
+        from iris.platform.config import load_config
+        from iris.update import auto
+
+        if load_config().get(auto.CONFIG_INITIALIZED):
+            return False
+        # Don't enable where the user won't see the disclosure (background hook).
+        if not sys.stderr.isatty():
+            return False
+        # Only default-on where a silent upgrade can actually run.
+        if not auto._managed_install():
+            return False
+
+        auto.enable()  # sets enabled + initialized
+        _print_auto_update_disclosure()
         return True
     except Exception:
         return False
@@ -1504,13 +1564,34 @@ def _run_uninstall() -> None:
     print("")
 
 
-def _run_upgrade() -> None:
+def _run_upgrade(argv: list[str] | None = None) -> None:
     """Upgrade Iris CLI by delegating to the same install.sh the user already
     used. install.sh is the single source of truth for resolving the latest
     version (GitHub Releases API), detecting pipx vs pip, and doing the
     correct uninstall-then-install dance on pipx — duplicating that logic
-    here drifts immediately."""
+    here drifts immediately.
+
+    The ``--disable-auto`` / ``--enable-auto`` / ``--auto-status`` flags manage
+    the silent auto-update preference instead of running an upgrade now."""
     import subprocess
+
+    from iris.update import auto
+
+    argv = argv or []
+    if "--disable-auto" in argv:
+        auto.disable()
+        print("Silent auto-update disabled. Re-enable: iris upgrade --enable-auto")
+        return
+    if "--enable-auto" in argv:
+        auto.enable()
+        print("Silent auto-update enabled.")
+        return
+    if "--auto-status" in argv:
+        state = "on" if auto.is_enabled() else "off"
+        managed = "yes" if auto._managed_install() else "no (manual upgrades only)"
+        print(f"Silent auto-update: {state}")
+        print(f"Self-manageable install: {managed}")
+        return
 
     # Resolve which deployment served the install. Priority: env override,
     # then ~/.iris/config.json (written by install.sh at install time),
@@ -1545,11 +1626,12 @@ def main(argv: list[str] | None = None) -> None:
     # Intercept subcommands before argparse (they use different arg structures)
     raw_argv = argv if argv is not None else sys.argv[1:]
     _maybe_init_agent_telemetry(raw_argv)
+    _maybe_init_auto_update(raw_argv)
     if raw_argv and raw_argv[0] in ("--version", "-V"):
         print(f"Iris {VERSION}")
         return
     if raw_argv and raw_argv[0] == "upgrade":
-        _run_upgrade()
+        _run_upgrade(raw_argv[1:])
         return
     if raw_argv and raw_argv[0] == "uninstall":
         _run_uninstall()
