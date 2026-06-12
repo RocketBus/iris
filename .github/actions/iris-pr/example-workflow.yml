@@ -1,0 +1,25 @@
+# Canonical Iris PR Insights workflow.
+# Copy this file into a consuming repo as: .github/workflows/iris.yml
+#
+# Both permissions are required:
+#   contents: read       -> actions/checkout (private repos 404 without it)
+#   pull-requests: write -> posting the insights comment
+name: Iris PR Insights
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  iris-pr:
+    name: Iris PR Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: RocketBus/clickbus-iris/.github/actions/iris-pr@main

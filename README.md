@@ -118,6 +118,19 @@ Generates concise markdown insights for code review:
 
 Requires `gh` CLI installed and authenticated.
 
+### GitHub Actions (automatic PR comments)
+
+To post Iris insights on every PR automatically, copy
+[`.github/actions/iris-pr/example-workflow.yml`](.github/actions/iris-pr/example-workflow.yml)
+into the consuming repo as `.github/workflows/iris.yml`. See the
+[action README](.github/actions/iris-pr/README.md) for inputs and setup notes.
+
+> The workflow **must** grant `contents: read` (for checkout) and
+> `pull-requests: write` (to comment). Declaring a `permissions:` block sets
+> every unlisted permission to `none`, so on private repos a missing
+> `contents: read` shows up as a misleading `Repository not found` during
+> checkout.
+
 ### Options
 
 | Flag | Default | Description |
