@@ -86,7 +86,7 @@ const faqJsonLd = {
       name: "How can I contribute or report issues?",
       acceptedAnswer: {
         "@type": "Answer",
-        text: "The project lives on GitHub at RocketBus/clickbus-iris. Issues and PRs are welcome.",
+        text: "The project lives on GitHub at RocketBus/iris. Issues and PRs are welcome.",
       },
     },
   ],

@@ -153,7 +153,7 @@ export const translations = {
           "The CLI is free and open. The cloud platform is in early access with usage-based pricing — contact us for details.",
         contributeTitle: "How can I contribute or report issues?",
         contributeAnswer:
-          "The project is on GitHub at RocketBus/clickbus-iris. Issues and PRs are welcome.",
+          "The project is on GitHub at RocketBus/iris. Issues and PRs are welcome.",
       },
     },
     setupLinked: {
@@ -1512,7 +1512,7 @@ export const translations = {
           "O CLI é gratuito e aberto. A plataforma na nuvem está em acesso antecipado com preço por uso — entre em contato para mais detalhes.",
         contributeTitle: "Como posso contribuir ou reportar problemas?",
         contributeAnswer:
-          "O projeto está no GitHub em RocketBus/clickbus-iris. Issues e PRs são bem-vindos.",
+          "O projeto está no GitHub em RocketBus/iris. Issues e PRs são bem-vindos.",
       },
     },
     setupLinked: {
@@ -2903,7 +2903,7 @@ export const translations = {
           "La CLI es gratuita y open source. La plataforma en la nube está en acceso anticipado con precio por uso — contáctanos para más detalles.",
         contributeTitle: "¿Cómo puedo contribuir o reportar problemas?",
         contributeAnswer:
-          "El proyecto está en GitHub en RocketBus/clickbus-iris. Issues y PRs son bienvenidos.",
+          "El proyecto está en GitHub en RocketBus/iris. Issues y PRs son bienvenidos.",
       },
     },
     footer: {

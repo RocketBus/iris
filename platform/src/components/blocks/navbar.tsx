@@ -64,7 +64,7 @@ export const Navbar = () => {
             <Button size="sm">{t("publicNav.getStarted")}</Button>
           </Link>
           <a
-            href="https://github.com/RocketBus/clickbus-iris"
+            href="https://github.com/RocketBus/iris"
             className="text-muted-foreground hover:text-foreground transition-colors"
             target="_blank"
             rel="noopener noreferrer"

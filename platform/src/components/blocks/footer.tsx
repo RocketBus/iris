@@ -24,7 +24,7 @@ export function Footer() {
         </span>
         <nav className="flex items-center gap-4">
           <a
-            href="https://github.com/RocketBus/clickbus-iris"
+            href="https://github.com/RocketBus/iris"
             className="text-muted-foreground text-sm transition-opacity hover:opacity-75"
             target="_blank"
             rel="noopener noreferrer"

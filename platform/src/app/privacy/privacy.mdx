@@ -17,7 +17,7 @@ The hosted platform is access-restricted to authorized users. The CLI is open so
 
 ## 1. Data we collect
 
-**The CLI (running locally) does not transmit data to the Controller by default.** It reads your Git repository's metadata (commits, diffs, PR information via the GitHub CLI) and produces a local report. Nothing leaves your machine unless you opt in to a hosted platform via `iris push` or to your own observability backend via `OTEL_EXPORTER_OTLP_ENDPOINT` (see [`docs/TELEMETRY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/docs/TELEMETRY.md)).
+**The CLI (running locally) does not transmit data to the Controller by default.** It reads your Git repository's metadata (commits, diffs, PR information via the GitHub CLI) and produces a local report. Nothing leaves your machine unless you opt in to a hosted platform via `iris push` or to your own observability backend via `OTEL_EXPORTER_OTLP_ENDPOINT` (see [`docs/TELEMETRY.md`](https://github.com/RocketBus/iris/blob/main/docs/TELEMETRY.md)).
 
 **The hosted platform** collects:
 
@@ -79,7 +79,7 @@ To exercise any of these rights, contact the Controller at the privacy address a
 - All traffic is encrypted with TLS 1.2+
 - Database access uses Supabase service-role keys, scoped to the server only
 - Strict Content-Security-Policy and HSTS headers (see `platform/next.config.ts`)
-- Vulnerability reports follow [`SECURITY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/SECURITY.md)
+- Vulnerability reports follow [`SECURITY.md`](https://github.com/RocketBus/iris/blob/main/SECURITY.md)
 
 ## 8. Changes to this policy
 
@@ -87,8 +87,8 @@ Material changes are announced via the platform UI and a commit to this file in 
 
 ## 9. Contact
 
-Use the privacy and DPO addresses listed at the top of this document. For vulnerability disclosure, see [`SECURITY.md`](https://github.com/RocketBus/clickbus-iris/blob/main/SECURITY.md).
+Use the privacy and DPO addresses listed at the top of this document. For vulnerability disclosure, see [`SECURITY.md`](https://github.com/RocketBus/iris/blob/main/SECURITY.md).
 
 ---
 
-*This template is published as part of the open-source repository at [github.com/RocketBus/clickbus-iris](https://github.com/RocketBus/clickbus-iris). The canonical version applicable to a specific hosted Service is rendered by that deployment with its own operator information.*
+*This template is published as part of the open-source repository at [github.com/RocketBus/iris](https://github.com/RocketBus/iris). The canonical version applicable to a specific hosted Service is rendered by that deployment with its own operator information.*

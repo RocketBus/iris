@@ -19,8 +19,8 @@ $ErrorActionPreference = "Stop"
 $IRIS_SERVER_URL = if ($env:IRIS_SERVER_URL) { $env:IRIS_SERVER_URL } else { "{{IRIS_SERVER_URL}}" }
 
 $VERSION = if ($env:IRIS_VERSION) { $env:IRIS_VERSION } else { "latest" }
-$RELEASES_API = "https://api.github.com/repos/RocketBus/clickbus-iris/releases"
-$RELEASES_DOWNLOAD = "https://github.com/RocketBus/clickbus-iris/releases/download"
+$RELEASES_API = "https://api.github.com/repos/RocketBus/iris/releases"
+$RELEASES_DOWNLOAD = "https://github.com/RocketBus/iris/releases/download"
 $MIN_PYTHON_MAJOR = 3
 $MIN_PYTHON_MINOR = 11
 

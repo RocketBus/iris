@@ -49,3 +49,22 @@ jobs:
 
           See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details." \
             dist/*.whl dist/*.tar.gz
+
+      - name: Verify assets are attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # The installer pulls iris-<version>-py3-none-any.whl straight off the
+          # release. A release without that asset 404s every `iris upgrade`, so
+          # confirm both artifacts actually landed before we call it a release.
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+          assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for want in "iris-${VERSION}-py3-none-any.whl" "iris-${VERSION}.tar.gz"; do
+            if ! printf '%s\n' "$assets" | grep -qx "$want"; then
+              echo "::error::Release $TAG is missing asset $want. Attached: ${assets:-<none>}"
+              exit 1
+            fi
+          done
+          echo "Verified assets on $TAG:"
+          printf '%s\n' "$assets"
