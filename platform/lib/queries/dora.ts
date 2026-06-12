@@ -95,6 +95,7 @@ export async function computeOrgDORA(
     : 0;
 
   return {
+    windowDays,
     reposWithData,
     deploymentsTotal: deployMetrics.deploymentsTotal,
     deploymentsFailed: deployMetrics.deploymentsFailed,

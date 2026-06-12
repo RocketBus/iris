@@ -46,7 +46,7 @@ export function DORAOverview({ data }: Props) {
             </Badge>
           </h2>
           <p className="text-sm text-muted-foreground">
-            {t("dashboard.dora.subtitle")}
+            {t("dashboard.dora.subtitle", { days: data.windowDays })}
           </p>
         </div>
       </div>
