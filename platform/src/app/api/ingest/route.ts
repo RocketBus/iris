@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { getLatestCliVersion, isUpdateAvailable } from "@/lib/cli-version";
 import { supabaseAdmin } from "@/lib/supabase";
 import { withSpan, recordError } from "@/lib/telemetry";
 import { validateToken } from "@/lib/tokens";
@@ -224,8 +225,17 @@ export async function POST(request: Request) {
         ...(cli_version ? { "iris.cli_version": cli_version } : {}),
       });
 
+      // Hand back the latest published CLI version so an opted-in CLI can
+      // self-update silently. Best-effort: a failed lookup just omits the hint.
+      const latest_version = await getLatestCliVersion();
+
       return Response.json(
-        { run_id: run.id, repository_id: repositoryId },
+        {
+          run_id: run.id,
+          repository_id: repositoryId,
+          latest_version,
+          update_available: isUpdateAvailable(latest_version, cli_version),
+        },
         { status: 201 },
       );
     },
