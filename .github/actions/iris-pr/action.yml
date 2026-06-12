@@ -21,7 +21,12 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
 
-    - run: pip install iris
+    # Install Iris from this action's own repo checkout (the repo root holds
+    # pyproject.toml). Iris is not published to public PyPI — `pip install iris`
+    # would pull an unrelated package and leave `iris` unavailable.
+    # $GITHUB_ACTION_PATH = .../.github/actions/iris-pr, so ../../.. is the repo root.
+    - name: Install Iris
+      run: pip install "$GITHUB_ACTION_PATH/../../.."
       shell: bash
 
     - name: Run Iris PR analysis
