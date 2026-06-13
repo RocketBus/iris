@@ -4,6 +4,28 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.5.0 — Silent self-update (2026-06-12)
+
+### Added
+
+- **Silent, opt-out CLI self-update** (#102). The CLI now keeps itself current
+  without anyone running `iris upgrade` by hand. It mirrors the agent-telemetry
+  consent model — default-on once, with a visible first-run disclosure and an
+  easy off switch — and reuses the same `install.sh` the user already trusted at
+  install time, so it adds no new trust surface.
+  - Fires only from the daily background push, fully detached, never blocking a
+    commit. Only auto-manages installs `install.sh` owns (pipx / `~/.iris`);
+    system pip and Homebrew are skipped silently.
+  - First-run auto-enable happens only on an interactive TTY so the disclosure
+    is never swallowed by the background hook. At most one attempt per day;
+    failures are logged to `~/.iris/auto_update.log`, never raised.
+  - Opt-out: `iris upgrade --disable-auto` (persistent) or `IRIS_NO_AUTO_UPDATE=1`
+    (transient, for CI/runners). Status via `iris upgrade --auto-status`.
+- **`/api/ingest`** now returns `latest_version` and `update_available`, so an
+  opted-in CLI learns about a newer release from the push it already makes.
+
+---
+
 ## v1.4.4 — DORA window label (2026-06-11)
 
 ### Fixed
