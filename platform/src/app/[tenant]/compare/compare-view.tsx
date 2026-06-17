@@ -2,12 +2,18 @@
 
 import { useMemo, useState } from "react";
 
+import { Search } from "lucide-react";
+
 import { Sparkline } from "@/components/charts/Sparkline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
 import { cn } from "@/lib/utils";
 import type { RepoSummary } from "@/types/temporal";
 import { healthIndicator } from "@/types/temporal";
+
+// Show the search input only when there are enough repos for it to be useful.
+// Mirrors the threshold used by RepoList on /[tenant]/repos.
+const SEARCH_MIN_REPOS = 5;
 
 interface CompareViewProps {
   repos: RepoSummary[];
@@ -211,6 +217,7 @@ export function CompareView({ repos }: CompareViewProps) {
     key: "stabilization_ratio",
     dir: "desc",
   });
+  const [query, setQuery] = useState("");
 
   function handleSort(key: SortKey) {
     setSort((prev) =>
@@ -220,8 +227,10 @@ export function CompareView({ repos }: CompareViewProps) {
     );
   }
 
-  // Best/worst highlights are independent of the chosen sort — they reflect the
-  // extreme across the whole set.
+  // Best/worst highlights span the whole set, NOT the filtered view: the user
+  // is filtering to focus, not to redefine the comparison universe. A repo
+  // with 60% stabilization stays highlighted yellow even when it's the only
+  // one matching the filter.
   const allStab = repos
     .map((r) => r.stabilization_ratio)
     .filter((v): v is number => v !== null);
@@ -245,8 +254,13 @@ export function CompareView({ repos }: CompareViewProps) {
     .filter((v): v is number => v !== null && v > 0);
   const hasAnyAI = allAI.length > 0;
 
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? repos.filter((r) => r.name.toLowerCase().includes(q)) : repos;
+  }, [repos, query]);
+
   const sorted = useMemo(() => {
-    const arr = [...repos];
+    const arr = [...filtered];
     arr.sort((a, b) => {
       const av = sortValue(a, sort.key);
       const bv = sortValue(b, sort.key);
@@ -261,7 +275,7 @@ export function CompareView({ repos }: CompareViewProps) {
       return sort.dir === "asc" ? cmp : -cmp;
     });
     return arr;
-  }, [repos, sort]);
+  }, [filtered, sort]);
 
   if (repos.length === 0) {
     return (
@@ -289,14 +303,41 @@ export function CompareView({ repos }: CompareViewProps) {
     { key: "health", label: t("compare.columns.health") },
   ];
 
+  const showSearch = repos.length > SEARCH_MIN_REPOS;
+  const noMatches =
+    showSearch && query.trim().length > 0 && sorted.length === 0;
+
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
         <CardTitle>{t("compare.ranking")}</CardTitle>
+        {showSearch && (
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("compare.searchPlaceholder")}
+              aria-label={t("compare.searchPlaceholder")}
+              className="w-full rounded-md border border-border bg-card py-2 pl-9 pr-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+        )}
       </CardHeader>
       <CardContent>
+        {noMatches && (
+          <p className="py-4 text-sm text-muted-foreground">
+            {t("compare.noMatches", { query: query.trim() })}
+          </p>
+        )}
         {/* Desktop / tablet: table */}
-        <div className="hidden overflow-x-auto md:block">
+        <div
+          className={cn(
+            "hidden overflow-x-auto md:block",
+            noMatches && "md:hidden",
+          )}
+        >
           <table className="w-full">
             <thead>
               <tr className="border-b border-border text-left text-xs text-muted-foreground">
@@ -416,7 +457,9 @@ export function CompareView({ repos }: CompareViewProps) {
         </div>
 
         {/* Mobile: sort control + card stack */}
-        <div className="flex flex-col gap-3 md:hidden">
+        <div
+          className={cn("flex flex-col gap-3 md:hidden", noMatches && "hidden")}
+        >
           <div className="flex items-center gap-2">
             <label
               htmlFor="compare-sort"

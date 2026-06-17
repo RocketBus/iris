@@ -1299,6 +1299,8 @@ export const translations = {
       ranking: "Repository Ranking",
       sortBy: "Sort by",
       sortHint: "Click a column header to sort",
+      searchPlaceholder: "Filter by repository...",
+      noMatches: "No repositories match “{query}”.",
       columns: {
         repository: "Repository",
         stabilization: "Stabilization",
@@ -2695,6 +2697,8 @@ export const translations = {
       ranking: "Ranking de Repositórios",
       sortBy: "Ordenar por",
       sortHint: "Clique no cabeçalho de uma coluna para ordenar",
+      searchPlaceholder: "Filtrar por repositório...",
+      noMatches: "Nenhum repositório corresponde a “{query}”.",
       columns: {
         repository: "Repositório",
         stabilization: "Estabilização",
