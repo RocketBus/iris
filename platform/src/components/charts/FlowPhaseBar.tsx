@@ -1,4 +1,4 @@
-import { WINDOW_PHASES } from "@/lib/queries/cycle-time-flow";
+import { WAIT_PHASES, WINDOW_PHASES } from "@/lib/queries/cycle-time-flow";
 import { cn } from "@/lib/utils";
 import type { FlowPhaseKey } from "@/types/org-summary";
 
@@ -23,6 +23,8 @@ interface FlowPhaseBarProps {
   formatHours: (hours: number) => string;
   /** Phase to highlight as the dominant (widest) one, if any. */
   dominantKey?: FlowPhaseKey | null;
+  /** Localized footnote explaining the wait-phase hatch (optional). */
+  waitNote?: string;
 }
 
 /**
@@ -35,6 +37,7 @@ export function FlowPhaseBar({
   labels,
   formatHours,
   dominantKey,
+  waitNote,
 }: FlowPhaseBarProps) {
   const total = WINDOW_PHASES.reduce(
     (sum, key) => sum + (phaseHours[key] ?? 0),
@@ -57,7 +60,15 @@ export function FlowPhaseBar({
                 FLOW_PHASE_COLORS[key],
                 key === dominantKey && "ring-2 ring-inset ring-foreground/40",
               )}
-              style={{ width: `${pct}%` }}
+              style={{
+                width: `${pct}%`,
+                // Wait phases (queue time) get a diagonal hatch so active vs
+                // wait reads at a glance — the flow-efficiency signal.
+                ...(WAIT_PHASES.has(key) && {
+                  backgroundImage:
+                    "repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0, rgba(255,255,255,0.35) 1.5px, transparent 1.5px, transparent 4px)",
+                }),
+              }}
               title={`${labels[key]}: ${formatHours(hours)}`}
             />
           );
@@ -94,6 +105,11 @@ export function FlowPhaseBar({
           );
         })}
       </div>
+      {waitNote && (
+        <p className="text-[11px] leading-snug text-muted-foreground">
+          {waitNote}
+        </p>
+      )}
     </div>
   );
 }

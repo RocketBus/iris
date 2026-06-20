@@ -32,8 +32,8 @@ describe("summarizeFlow", () => {
       key: "in_review_active",
       hours: 5,
       sharePct: 58.8, // round(5 / 8.5 * 100, 1)
-      isWait: false,
     });
+    expect(WAIT_PHASES.has(out.dominantPhase!.key)).toBe(false);
     expect(out.prsWithFlow).toBe(40);
     expect(out.flowCoveragePct).toBe(1);
   });
@@ -54,7 +54,7 @@ describe("summarizeFlow", () => {
     expect(out.dominantPhase?.key).toBe("awaiting_first_review");
     expect(out.dominantPhase?.hours).toBe(8);
     expect(out.dominantPhase?.sharePct).toBe(80); // 8 / 10 window total
-    expect(out.dominantPhase?.isWait).toBe(true);
+    expect(WAIT_PHASES.has(out.dominantPhase!.key)).toBe(true);
   });
 
   it("reports partial coverage from the decomposed count, not total merged — M3", () => {
@@ -151,7 +151,6 @@ function flow(over: Partial<FlowDecomposition>): FlowDecomposition {
       key: "awaiting_first_review",
       hours: 4,
       sharePct: 57.1,
-      isWait: true,
     },
     prsWithFlow: 80,
     flowCoveragePct: 0.9,

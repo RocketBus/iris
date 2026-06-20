@@ -141,7 +141,6 @@ export function summarizeFlow(
       key,
       hours: phaseMedianHours[key],
       sharePct: round((phaseMedianHours[key] / windowHours) * 100, 1),
-      isWait: WAIT_PHASES.has(key),
     };
   }
 

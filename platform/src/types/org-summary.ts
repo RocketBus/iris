@@ -112,8 +112,6 @@ export interface DominantPhase {
    * Computed over the post-open window only (excludes `coding`).
    */
   sharePct: number;
-  /** True when the phase is a wait (queue) phase — the actionable kind. */
-  isWait: boolean;
 }
 
 /**

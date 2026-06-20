@@ -127,7 +127,7 @@ export function CycleTime({ data }: CycleTimeProps) {
         </Card>
       )}
 
-      {data.flow && verdict.dominantPhase && (
+      {verdict.variant === "verdict" && data.flow && verdict.dominantPhase && (
         <Card>
           <CardHeader>
             <CardTitle>{t("dashboard.cycleTime.flowBarTitle")}</CardTitle>
@@ -141,6 +141,7 @@ export function CycleTime({ data }: CycleTimeProps) {
               labels={phaseLabels(t)}
               formatHours={formatHoursAsDays}
               dominantKey={verdict.dominantPhase.key}
+              waitNote={t("dashboard.cycleTime.waitNote")}
             />
           </CardContent>
         </Card>

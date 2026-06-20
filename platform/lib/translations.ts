@@ -387,6 +387,7 @@ export const translations = {
         flowBarTitle: "Where PR time goes",
         flowBarSubtitle:
           "Code-window time by phase (median, weighted by decomposed PRs).",
+        waitNote: "Hatched = queue (wait) time.",
         phaseLabels: {
           coding: "Coding",
           awaiting_first_review: "Awaiting first review",
@@ -1780,6 +1781,7 @@ export const translations = {
         flowBarTitle: "Onde o tempo do PR é gasto",
         flowBarSubtitle:
           "Tempo da janela de código por fase (mediana, ponderada por PRs decompostos).",
+        waitNote: "Hachurado = tempo em fila (espera).",
         phaseLabels: {
           coding: "Escrita de código",
           awaiting_first_review: "Espera pelo 1º review",
