@@ -443,12 +443,10 @@ function buildVerdictText(
     };
   }
 
-  const waitTag = dp.isWait ? t("dashboard.cycleTime.waitTag") : "";
   return {
     tone: "signal",
     text: t("dashboard.cycleTime.verdict", {
       phase,
-      waitTag,
       phaseHours,
       sharePct: `${dp.sharePct.toFixed(0)}%`,
       median,

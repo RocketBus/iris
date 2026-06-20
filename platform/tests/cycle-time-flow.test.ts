@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   FLOW_PHASE_ORDER,
   WAIT_PHASES,
+  WINDOW_PHASES,
   selectCycleTimeVerdict,
   summarizeFlow,
   type FlowRow,
@@ -17,18 +18,18 @@ import type { RepoSummary } from "@/types/temporal";
 // ---------------------------------------------------------------------------
 
 describe("summarizeFlow", () => {
-  it("weights per-repo phase medians by merged count and picks the dominant", () => {
+  it("weights per-repo phase medians by the decomposed-PR count and picks the window dominant", () => {
     const rows: FlowRow[] = [
-      { merged: 10, phases: { coding: 2, awaiting_first_review: 8 } },
-      { merged: 30, phases: { coding: 6, awaiting_first_review: 2 } },
+      { weight: 10, phases: { awaiting_first_review: 8, in_review_active: 2 } },
+      { weight: 30, phases: { awaiting_first_review: 2, in_review_active: 6 } },
     ];
     const out = summarizeFlow(rows, 40)!;
 
-    // coding = (2*10 + 6*30)/40 = 5 ; awaiting = (8*10 + 2*30)/40 = 3.5
-    expect(out.phaseMedianHours.coding).toBe(5);
+    // awaiting = (8*10 + 2*30)/40 = 3.5 ; active = (2*10 + 6*30)/40 = 5
     expect(out.phaseMedianHours.awaiting_first_review).toBe(3.5);
+    expect(out.phaseMedianHours.in_review_active).toBe(5);
     expect(out.dominantPhase).toEqual({
-      key: "coding",
+      key: "in_review_active",
       hours: 5,
       sharePct: 58.8, // round(5 / 8.5 * 100, 1)
       isWait: false,
@@ -37,60 +38,79 @@ describe("summarizeFlow", () => {
     expect(out.flowCoveragePct).toBe(1);
   });
 
-  it("flags a wait phase as the actionable dominant kind", () => {
+  it("never lets 'coding' (pre-PR-open authoring) win the verdict — M2", () => {
+    // coding is the largest phase, but it is OUTSIDE the measured window.
     const rows: FlowRow[] = [
-      { merged: 5, phases: { coding: 1, awaiting_first_review: 9 } },
+      {
+        weight: 10,
+        phases: { coding: 20, awaiting_first_review: 8, in_review_wait: 2 },
+      },
     ];
-    const out = summarizeFlow(rows, 5)!;
+    const out = summarizeFlow(rows, 10)!;
+    // coding is still computed in the data...
+    expect(out.phaseMedianHours.coding).toBe(20);
+    // ...but the dominant is the largest WINDOW phase, and the share denominator
+    // is the window total (8 + 2 = 10), not the all-phase total.
     expect(out.dominantPhase?.key).toBe("awaiting_first_review");
+    expect(out.dominantPhase?.hours).toBe(8);
+    expect(out.dominantPhase?.sharePct).toBe(80); // 8 / 10 window total
     expect(out.dominantPhase?.isWait).toBe(true);
   });
 
-  it("reports partial coverage when some merged PRs lack phase data", () => {
-    const rows: FlowRow[] = [{ merged: 20, phases: { coding: 4 } }];
-    const out = summarizeFlow(rows, 50)!; // 30 merged PRs carried no phase data
+  it("reports partial coverage from the decomposed count, not total merged — M3", () => {
+    const rows: FlowRow[] = [{ weight: 20, phases: { in_review_wait: 4 } }];
+    const out = summarizeFlow(rows, 50)!; // 50 merged, only 20 decomposed
     expect(out.prsWithFlow).toBe(20);
     expect(out.flowCoveragePct).toBe(0.4);
   });
 
   it("weights TTFR and flow efficiency only over rows that carry them", () => {
     const rows: FlowRow[] = [
-      { merged: 10, phases: { coding: 1 }, ttfrHours: 12, flowEfficiency: 0.5 },
-      { merged: 30, phases: { coding: 1 }, ttfrHours: null }, // skipped for ttfr/eff
+      {
+        weight: 10,
+        phases: { awaiting_first_review: 1 },
+        ttfrHours: 12,
+        flowEfficiency: 0.5,
+      },
+      { weight: 30, phases: { awaiting_first_review: 1 }, ttfrHours: null },
     ];
     const out = summarizeFlow(rows, 40)!;
-    expect(out.medianTimeToFirstReviewHours).toBe(12); // only the 10-weight row
+    expect(out.medianTimeToFirstReviewHours).toBe(12);
     expect(out.flowEfficiencyMedian).toBe(0.5);
   });
 
-  it("returns null when no row carries phase data", () => {
+  it("returns null when no row carries decomposed phase data", () => {
     expect(summarizeFlow([], 10)).toBeNull();
     expect(
-      summarizeFlow([{ merged: 0, phases: { coding: 5 } }], 10),
+      summarizeFlow([{ weight: 0, phases: { awaiting_first_review: 5 } }], 10),
     ).toBeNull();
   });
 
-  it("returns a decomposition with no dominant phase when all phases are zero", () => {
-    const out = summarizeFlow([{ merged: 5, phases: {} }], 5)!;
+  it("has no dominant phase when every window phase is zero (even if coding > 0)", () => {
+    const out = summarizeFlow([{ weight: 5, phases: { coding: 9 } }], 5)!;
     expect(out.dominantPhase).toBeNull();
+    expect(out.phaseMedianHours.coding).toBe(9);
     expect(out.prsWithFlow).toBe(5);
     expect(out.flowCoveragePct).toBe(1);
   });
 
   it("returns null coverage when the total merged count is unknown", () => {
-    const out = summarizeFlow([{ merged: 5, phases: { coding: 2 } }], 0)!;
+    const out = summarizeFlow(
+      [{ weight: 5, phases: { awaiting_first_review: 2 } }],
+      0,
+    )!;
     expect(out.flowCoveragePct).toBeNull();
   });
 
-  it("breaks ties toward the earlier phase deterministically", () => {
+  it("breaks ties toward the earlier window phase deterministically", () => {
     const out = summarizeFlow(
-      [{ merged: 1, phases: { coding: 4, awaiting_merge: 4 } }],
+      [{ weight: 1, phases: { awaiting_first_review: 4, awaiting_merge: 4 } }],
       1,
     )!;
-    expect(out.dominantPhase?.key).toBe("coding");
+    expect(out.dominantPhase?.key).toBe("awaiting_first_review");
   });
 
-  it("exposes the canonical order and the wait-phase set", () => {
+  it("exposes the canonical order, the window phases, and the wait-phase set", () => {
     expect(FLOW_PHASE_ORDER).toEqual([
       "coding",
       "awaiting_first_review",
@@ -98,8 +118,15 @@ describe("summarizeFlow", () => {
       "in_review_wait",
       "awaiting_merge",
     ]);
+    expect(WINDOW_PHASES).toEqual([
+      "awaiting_first_review",
+      "in_review_active",
+      "in_review_wait",
+      "awaiting_merge",
+    ]);
+    expect(WINDOW_PHASES).not.toContain("coding");
     expect(WAIT_PHASES.has("in_review_wait")).toBe(true);
-    expect(WAIT_PHASES.has("coding")).toBe(false);
+    expect(WAIT_PHASES.has("in_review_active")).toBe(false);
   });
 });
 
@@ -123,7 +150,7 @@ function flow(over: Partial<FlowDecomposition>): FlowDecomposition {
     dominantPhase: {
       key: "awaiting_first_review",
       hours: 4,
-      sharePct: 50,
+      sharePct: 57.1,
       isWait: true,
     },
     prsWithFlow: 80,
@@ -229,12 +256,13 @@ function metrics(over: Partial<ReportMetrics>): ReportMetrics {
 }
 
 describe("computeCycleTime — flow decomposition", () => {
-  it("aggregates phase data the engine emits into data.flow", () => {
+  it("aggregates phase data weighted by flow_pr_count and excludes coding", () => {
     const payloads = new Map<string, ReportMetrics>();
     payloads.set(
       "r1",
       metrics({
         pr_merged_count: 20,
+        flow_pr_count: 20,
         pr_cycle_time_buckets: {
           same_day: 12,
           one_day: 4,
@@ -242,14 +270,14 @@ describe("computeCycleTime — flow decomposition", () => {
           four_to_seven_days: 1,
           seven_plus_days: 1,
         },
-        time_in_phase_median_hours: { coding: 2, awaiting_first_review: 10 },
-        median_time_to_first_review_hours: 10,
+        time_in_phase_median_hours: { coding: 30, awaiting_first_review: 10 },
       }),
     );
     payloads.set(
       "r2",
       metrics({
         pr_merged_count: 30,
+        flow_pr_count: 30,
         pr_cycle_time_buckets: {
           same_day: 20,
           one_day: 6,
@@ -257,16 +285,60 @@ describe("computeCycleTime — flow decomposition", () => {
           four_to_seven_days: 1,
           seven_plus_days: 1,
         },
-        time_in_phase_median_hours: { coding: 3, awaiting_first_review: 3 },
+        time_in_phase_median_hours: { coding: 30, awaiting_first_review: 3 },
       }),
     );
 
     const out = computeCycleTime(repos, payloads)!;
     expect(out.flow).not.toBeNull();
-    // awaiting = (10*20 + 3*30)/50 = 5.8 ; coding = (2*20 + 3*30)/50 = 2.6
+    // awaiting = (10*20 + 3*30)/50 = 5.8 ; coding present but EXCLUDED from dominant
     expect(out.flow!.phaseMedianHours.awaiting_first_review).toBe(5.8);
+    expect(out.flow!.phaseMedianHours.coding).toBe(30);
     expect(out.flow!.dominantPhase?.key).toBe("awaiting_first_review");
-    expect(out.flow!.flowCoveragePct).toBe(1);
+    expect(out.flow!.flowCoveragePct).toBe(1); // 50 decomposed / 50 merged
+  });
+
+  it("yields partial coverage when flow_pr_count < merged — M3 guard-rail is live", () => {
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set(
+      "r1",
+      metrics({
+        pr_merged_count: 100,
+        flow_pr_count: 40, // only 40 of 100 merged PRs were decomposed
+        pr_cycle_time_buckets: {
+          same_day: 60,
+          one_day: 20,
+          two_to_three_days: 10,
+          four_to_seven_days: 6,
+          seven_plus_days: 4,
+        },
+        time_in_phase_median_hours: { awaiting_first_review: 9 },
+      }),
+    );
+    const out = computeCycleTime(repos, payloads)!;
+    expect(out.flow!.flowCoveragePct).toBe(0.4);
+    expect(out.flow!.prsWithFlow).toBe(40);
+  });
+
+  it("leaves data.flow null when phase data has no flow_pr_count (old payloads) — M3", () => {
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set(
+      "r1",
+      metrics({
+        pr_merged_count: 60,
+        // time_in_phase present but NO flow_pr_count → cannot trust coverage
+        time_in_phase_median_hours: { awaiting_first_review: 5 },
+        pr_cycle_time_buckets: {
+          same_day: 40,
+          one_day: 12,
+          two_to_three_days: 4,
+          four_to_seven_days: 2,
+          seven_plus_days: 2,
+        },
+      }),
+    );
+    const out = computeCycleTime(repos, payloads)!;
+    expect(out.flow).toBeNull();
   });
 
   it("leaves data.flow null when no payload carries phase data", () => {
@@ -275,6 +347,7 @@ describe("computeCycleTime — flow decomposition", () => {
       "r1",
       metrics({
         pr_merged_count: 10,
+        flow_pr_count: 10,
         pr_cycle_time_buckets: {
           same_day: 8,
           one_day: 2,

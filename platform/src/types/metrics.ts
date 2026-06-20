@@ -261,6 +261,9 @@ export interface ReportMetrics {
     awaiting_merge?: number;
   };
   median_time_to_first_review_hours?: number;
+  // Merged PRs that actually carry a phase decomposition — the honest
+  // denominator for flow coverage (not pr_merged_count).
+  flow_pr_count?: number;
 
   // Human Review Coverage — fraction of merged PRs with genuine human review.
   // Disambiguates pr_single_pass_rate: "merged in one pass" vs "no human looked".

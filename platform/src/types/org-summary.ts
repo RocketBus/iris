@@ -101,12 +101,16 @@ export type FlowPhaseKey =
   | "in_review_wait"
   | "awaiting_merge";
 
-/** The phase that consumes the most time within the code window. */
+/** The phase that consumes the most time within the measured window. */
 export interface DominantPhase {
   key: FlowPhaseKey;
   /** Org-weighted median hours spent in this phase. */
   hours: number;
-  /** This phase's share of the total code-window time, 0–100. */
+  /**
+   * This phase's share of the summed window-phase medians (an approximation
+   * of where time concentrates — NOT a share of the cycle-time median), 0–100.
+   * Computed over the post-open window only (excludes `coding`).
+   */
   sharePct: number;
   /** True when the phase is a wait (queue) phase — the actionable kind. */
   isWait: boolean;
@@ -114,15 +118,16 @@ export interface DominantPhase {
 
 /**
  * Org-level decomposition of the code window (PR open → merge) into phases.
- * Weighted by per-repo merged count — an approximation (per-PR timings are
- * never persisted, by design), so display is gated on `flowCoveragePct`.
+ * Weighted by each repo's decomposed-PR count — an approximation (per-PR
+ * timings are never persisted, by design), so display is gated on
+ * `flowCoveragePct`. `dominantPhase` is chosen over the post-open window only.
  */
 export interface FlowDecomposition {
   phaseMedianHours: Record<FlowPhaseKey, number>;
   medianTimeToFirstReviewHours: number | null;
   flowEfficiencyMedian: number | null;
   dominantPhase: DominantPhase | null;
-  /** Merged PRs that carried phase data (the aggregation weight). */
+  /** Merged PRs that carried a phase decomposition (the aggregation weight). */
   prsWithFlow: number;
   /** prsWithFlow ÷ total merged PRs, 0.0–1.0. */
   flowCoveragePct: number | null;

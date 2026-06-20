@@ -670,9 +670,12 @@ export function computeCycleTime(
     totalMerged += merged;
     totalWithin24h += buckets.same_day;
 
-    if (p.time_in_phase_median_hours) {
+    // Only contribute to the flow decomposition when the engine reported the
+    // real count of decomposed PRs (flow_pr_count). Older payloads without it
+    // are skipped so coverage stays honest instead of pinning at ~100%.
+    if (p.time_in_phase_median_hours && (p.flow_pr_count ?? 0) > 0) {
       flowRows.push({
-        merged,
+        weight: p.flow_pr_count as number,
         phases: p.time_in_phase_median_hours,
         ttfrHours: p.median_time_to_first_review_hours ?? null,
         flowEfficiency: p.flow_efficiency_median ?? null,

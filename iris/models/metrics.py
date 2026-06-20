@@ -132,6 +132,10 @@ class ReportMetrics:
     flow_efficiency_by_origin: dict[str, float] | None = None
     time_in_phase_median_hours: dict[str, float] | None = None
     median_time_to_first_review_hours: float | None = None
+    # Count of merged PRs that survived Flow Efficiency's filters and carry a
+    # phase decomposition. The honest denominator for flow coverage — NOT
+    # pr_merged_count (which also counts PRs with no phase data).
+    flow_pr_count: int | None = None
 
     # Human Review Coverage — fraction of merged PRs with genuine human review
     # (optional — None when no merged PR exists in the window). Disambiguates

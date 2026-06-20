@@ -379,15 +379,14 @@ export const translations = {
         subtitle:
           "How long engineering takes to deliver, from PR open to merge.",
         verdict:
-          "Within the code window (PR open → merge), the stage that consumes the most time is {phase}{waitTag}: {phaseHours} median, {sharePct} of cycle time. Median cycle time: {median} · {pct} of PRs within 1 day. Based on {n} PRs with phase decomposition ({coverage} coverage).",
+          "Within the code window (PR open → merge), the stage that consumes the most time is {phase}: {phaseHours} median, {sharePct} of measured phase time. Median cycle time: {median} · {pct} of PRs within 1 day. Based on {n} PRs with phase decomposition ({coverage} coverage).",
         verdictLowCoverage:
           "Partial sample: only {coverage} of merged PRs carry a phase decomposition — a hint, not a verdict. Where data exists, the longest stage is {phase} ({phaseHours}).",
         verdictNoFlow:
           "Median cycle time {median}; {pct} of PRs within 1 day. Phase decomposition isn't available for this view yet — without it, the dashboard makes no claim about where the bottleneck is.",
-        waitTag: " (wait)",
         flowBarTitle: "Where PR time goes",
         flowBarSubtitle:
-          "Code-window time by phase (median, weighted by merged PRs).",
+          "Code-window time by phase (median, weighted by decomposed PRs).",
         phaseLabels: {
           coding: "Coding",
           awaiting_first_review: "Awaiting first review",
@@ -1773,15 +1772,14 @@ export const translations = {
         subtitle:
           "Quanto tempo a engenharia leva para entregar, do PR aberto ao merge.",
         verdict:
-          "Dentro da janela de código (PR aberto → merge), a etapa que mais consome tempo é {phase}{waitTag}: mediana {phaseHours}, {sharePct} do tempo de ciclo. Mediana do cycle time: {median} · {pct} dos PRs em ≤1 dia. Base: {n} PRs com decomposição de fase ({coverage} de cobertura).",
+          "Dentro da janela de código (PR aberto → merge), a etapa que mais consome tempo é {phase}: mediana {phaseHours}, {sharePct} do tempo das fases medidas. Mediana do cycle time: {median} · {pct} dos PRs em ≤1 dia. Base: {n} PRs com decomposição de fase ({coverage} de cobertura).",
         verdictLowCoverage:
           "Amostra parcial: só {coverage} dos PRs mesclados têm decomposição de fase — indício, não veredito. Onde há dado, a etapa mais longa é {phase} ({phaseHours}).",
         verdictNoFlow:
           "Mediana do cycle time {median}; {pct} dos PRs em ≤1 dia. A decomposição por fase ainda não está disponível para este recorte — sem ela, o dashboard não afirma onde está o gargalo.",
-        waitTag: " (espera)",
         flowBarTitle: "Onde o tempo do PR é gasto",
         flowBarSubtitle:
-          "Tempo da janela de código por fase (mediana, ponderada por PRs mesclados).",
+          "Tempo da janela de código por fase (mediana, ponderada por PRs decompostos).",
         phaseLabels: {
           coding: "Escrita de código",
           awaiting_first_review: "Espera pelo 1º review",

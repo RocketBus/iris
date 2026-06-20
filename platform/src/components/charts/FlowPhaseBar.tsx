@@ -1,4 +1,4 @@
-import { FLOW_PHASE_ORDER } from "@/lib/queries/cycle-time-flow";
+import { WINDOW_PHASES } from "@/lib/queries/cycle-time-flow";
 import { cn } from "@/lib/utils";
 import type { FlowPhaseKey } from "@/types/org-summary";
 
@@ -26,8 +26,9 @@ interface FlowPhaseBarProps {
 }
 
 /**
- * Horizontal stacked bar + legend showing how the code window (PR open ->
- * merge) splits across the five lifecycle phases. Presentational only.
+ * Horizontal stacked bar + legend showing how the measured code window
+ * (PR open -> merge) splits across its phases. Excludes `coding` (pre-open
+ * authoring time), matching the verdict's window. Presentational only.
  */
 export function FlowPhaseBar({
   phaseHours,
@@ -35,7 +36,7 @@ export function FlowPhaseBar({
   formatHours,
   dominantKey,
 }: FlowPhaseBarProps) {
-  const total = FLOW_PHASE_ORDER.reduce(
+  const total = WINDOW_PHASES.reduce(
     (sum, key) => sum + (phaseHours[key] ?? 0),
     0,
   );
@@ -44,7 +45,7 @@ export function FlowPhaseBar({
   return (
     <div className="space-y-3">
       <div className="flex h-3 overflow-hidden rounded-full">
-        {FLOW_PHASE_ORDER.map((key) => {
+        {WINDOW_PHASES.map((key) => {
           const hours = phaseHours[key] ?? 0;
           if (hours === 0) return null;
           const pct = (hours / total) * 100;
@@ -63,7 +64,7 @@ export function FlowPhaseBar({
         })}
       </div>
       <div className="grid gap-1 text-xs">
-        {FLOW_PHASE_ORDER.map((key) => {
+        {WINDOW_PHASES.map((key) => {
           const hours = phaseHours[key] ?? 0;
           if (hours === 0) return null;
           return (
