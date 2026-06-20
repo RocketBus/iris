@@ -93,6 +93,41 @@ export interface PRHealthData {
   reposWithData: number;
 }
 
+/** The five lifecycle phases of a merged PR, in canonical order. */
+export type FlowPhaseKey =
+  | "coding"
+  | "awaiting_first_review"
+  | "in_review_active"
+  | "in_review_wait"
+  | "awaiting_merge";
+
+/** The phase that consumes the most time within the code window. */
+export interface DominantPhase {
+  key: FlowPhaseKey;
+  /** Org-weighted median hours spent in this phase. */
+  hours: number;
+  /** This phase's share of the total code-window time, 0–100. */
+  sharePct: number;
+  /** True when the phase is a wait (queue) phase — the actionable kind. */
+  isWait: boolean;
+}
+
+/**
+ * Org-level decomposition of the code window (PR open → merge) into phases.
+ * Weighted by per-repo merged count — an approximation (per-PR timings are
+ * never persisted, by design), so display is gated on `flowCoveragePct`.
+ */
+export interface FlowDecomposition {
+  phaseMedianHours: Record<FlowPhaseKey, number>;
+  medianTimeToFirstReviewHours: number | null;
+  flowEfficiencyMedian: number | null;
+  dominantPhase: DominantPhase | null;
+  /** Merged PRs that carried phase data (the aggregation weight). */
+  prsWithFlow: number;
+  /** prsWithFlow ÷ total merged PRs, 0.0–1.0. */
+  flowCoveragePct: number | null;
+}
+
 /**
  * Cycle Time view — how long the org takes to go from PR open to merge.
  *
@@ -113,6 +148,12 @@ export interface CycleTimeData {
   meanHours: number | null;
   /** Hours. Worst-case P90 across repos (max of repo P90s). */
   p90Hours: number | null;
+  /**
+   * Code-window phase decomposition + dominant phase. Null when no repo in
+   * the window carried phase data (older payloads). This is what replaces the
+   * old hardcoded "bottleneck" sentence with a computed read of the tenant.
+   */
+  flow: FlowDecomposition | null;
   /** Per-repo rows, sorted from fastest to slowest. */
   perRepo: Array<{
     name: string;

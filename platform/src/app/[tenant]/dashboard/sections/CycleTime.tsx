@@ -12,6 +12,7 @@ import {
   Cell,
 } from "recharts";
 
+import { FlowPhaseBar } from "@/components/charts/FlowPhaseBar";
 import { MetricCard } from "@/components/charts/MetricCard";
 import {
   Card,
@@ -21,12 +22,21 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
-import type { CycleTimeData } from "@/types/org-summary";
+import {
+  selectCycleTimeVerdict,
+  type CycleTimeVerdict,
+} from "@/lib/queries/cycle-time-flow";
+import { cn } from "@/lib/utils";
+import type { CycleTimeData, FlowPhaseKey } from "@/types/org-summary";
 
-// Insight banner is only shown once cycle-time data is dense enough
+// The verdict banner is only shown once cycle-time data is dense enough
 // to make a confident statement. Below this many merged PRs we still
 // render the section but hide the headline.
 const INSIGHT_MIN_MERGED = 50;
+
+// Below this coverage the phase decomposition is shown as a partial sample,
+// never as a verdict. See selectCycleTimeVerdict.
+const COVERAGE_FLOOR = 0.6;
 
 // Cutoffs for the "% merged within 24h" bar color ramp. Tuned so a repo that
 // ships in a day most of the time reads green, "mixed" reads yellow, and slow
@@ -74,9 +84,15 @@ interface CycleTimeProps {
 
 export function CycleTime({ data }: CycleTimeProps) {
   const { t } = useTranslation();
-  const showInsight =
-    data.totalPRsMerged >= INSIGHT_MIN_MERGED &&
-    data.pctMergedWithin24h !== null;
+  const verdict = selectCycleTimeVerdict(
+    {
+      totalPRsMerged: data.totalPRsMerged,
+      pctMergedWithin24h: data.pctMergedWithin24h,
+      flow: data.flow,
+    },
+    { minMerged: INSIGHT_MIN_MERGED, coverageFloor: COVERAGE_FLOOR },
+  );
+  const verdictText = buildVerdictText(verdict, data, t);
 
   return (
     <section className="space-y-4">
@@ -89,16 +105,43 @@ export function CycleTime({ data }: CycleTimeProps) {
         </p>
       </div>
 
-      {showInsight && (
-        <Card className="border-signal-green/30 bg-signal-green/5">
+      {verdictText && (
+        <Card
+          className={cn(
+            verdictText.tone === "signal"
+              ? "border-signal-green/30 bg-signal-green/5"
+              : "border-border bg-muted/30",
+          )}
+        >
           <CardContent className="flex items-start gap-3 py-4">
-            <Zap className="mt-0.5 size-5 shrink-0 text-signal-yellow" />
-            <p className="text-sm">
-              {t("dashboard.cycleTime.insight", {
-                pct: formatPct(data.pctMergedWithin24h),
-                median: formatHoursAsDays(data.medianHours),
-              })}
-            </p>
+            <Zap
+              className={cn(
+                "mt-0.5 size-5 shrink-0",
+                verdictText.tone === "signal"
+                  ? "text-signal-yellow"
+                  : "text-muted-foreground",
+              )}
+            />
+            <p className="text-sm">{verdictText.text}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {data.flow && verdict.dominantPhase && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("dashboard.cycleTime.flowBarTitle")}</CardTitle>
+            <CardDescription>
+              {t("dashboard.cycleTime.flowBarSubtitle")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <FlowPhaseBar
+              phaseHours={data.flow.phaseMedianHours}
+              labels={phaseLabels(t)}
+              formatHours={formatHoursAsDays}
+              dominantKey={verdict.dominantPhase.key}
+            />
           </CardContent>
         </Card>
       )}
@@ -338,4 +381,80 @@ function formatHoursAsDays(hours: number | null): string {
     ? rounded.toFixed(0)
     : rounded.toFixed(1).replace(".", ",");
   return `${label} d`;
+}
+
+type Translate = (
+  path: string,
+  params?: Record<string, string | number>,
+) => string;
+
+function phaseLabels(t: Translate): Record<FlowPhaseKey, string> {
+  return {
+    coding: t("dashboard.cycleTime.phaseLabels.coding"),
+    awaiting_first_review: t(
+      "dashboard.cycleTime.phaseLabels.awaiting_first_review",
+    ),
+    in_review_active: t("dashboard.cycleTime.phaseLabels.in_review_active"),
+    in_review_wait: t("dashboard.cycleTime.phaseLabels.in_review_wait"),
+    awaiting_merge: t("dashboard.cycleTime.phaseLabels.awaiting_merge"),
+  };
+}
+
+type VerdictText = { text: string; tone: "signal" | "muted" };
+
+/**
+ * Turn a computed verdict into the banner copy. Only ever describes the code
+ * window it measured — never claims anything about "before" or "after".
+ */
+function buildVerdictText(
+  verdict: CycleTimeVerdict,
+  data: CycleTimeData,
+  t: Translate,
+): VerdictText | null {
+  if (verdict.variant === "none") return null;
+
+  const median = formatHoursAsDays(data.medianHours);
+  const pct = formatPct(data.pctMergedWithin24h);
+
+  if (verdict.variant === "noFlow") {
+    return {
+      tone: "muted",
+      text: t("dashboard.cycleTime.verdictNoFlow", { median, pct }),
+    };
+  }
+
+  const dp = verdict.dominantPhase;
+  if (!dp) return null;
+  const phase = phaseLabels(t)[dp.key];
+  const phaseHours = formatHoursAsDays(dp.hours);
+  const coverage =
+    verdict.flowCoveragePct !== null
+      ? `${Math.round(verdict.flowCoveragePct * 100)}%`
+      : "—";
+
+  if (verdict.variant === "lowCoverage") {
+    return {
+      tone: "muted",
+      text: t("dashboard.cycleTime.verdictLowCoverage", {
+        coverage,
+        phase,
+        phaseHours,
+      }),
+    };
+  }
+
+  const waitTag = dp.isWait ? t("dashboard.cycleTime.waitTag") : "";
+  return {
+    tone: "signal",
+    text: t("dashboard.cycleTime.verdict", {
+      phase,
+      waitTag,
+      phaseHours,
+      sharePct: `${dp.sharePct.toFixed(0)}%`,
+      median,
+      pct,
+      n: verdict.prsWithFlow ?? 0,
+      coverage,
+    }),
+  };
 }

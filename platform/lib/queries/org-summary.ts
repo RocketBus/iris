@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { summarizeFlow, type FlowRow } from "@/lib/queries/cycle-time-flow";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/queries/temporal";
 import type { ReportMetrics } from "@/types/metrics";
 import type {
@@ -630,6 +631,9 @@ export function computeCycleTime(
 
   type Row = NonNullable<CycleTimeData["perRepo"]>[number];
   const rows: Row[] = [];
+  // Per-repo phase decomposition the engine already emits — aggregated below
+  // into the org-level "where does PR time go" read (see summarizeFlow).
+  const flowRows: FlowRow[] = [];
 
   let totalMerged = 0;
   let totalWithin24h = 0;
@@ -666,6 +670,15 @@ export function computeCycleTime(
     totalMerged += merged;
     totalWithin24h += buckets.same_day;
 
+    if (p.time_in_phase_median_hours) {
+      flowRows.push({
+        merged,
+        phases: p.time_in_phase_median_hours,
+        ttfrHours: p.median_time_to_first_review_hours ?? null,
+        flowEfficiency: p.flow_efficiency_median ?? null,
+      });
+    }
+
     if (p.pr_median_time_to_merge_hours !== undefined) {
       medianWeightedSum += p.pr_median_time_to_merge_hours * merged;
       weightTotal += merged;
@@ -695,6 +708,7 @@ export function computeCycleTime(
     medianHours: weightTotal > 0 ? medianWeightedSum / weightTotal : null,
     meanHours: weightTotal > 0 ? meanWeightedSum / weightTotal : null,
     p90Hours: maxP90,
+    flow: summarizeFlow(flowRows, totalMerged),
     perRepo: rows,
   };
 }
