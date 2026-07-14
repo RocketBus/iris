@@ -58,6 +58,20 @@ function existingRepoChain(id = "repo-1") {
   return chain;
 }
 
+// A repositories query chain for a repo the org has never onboarded. `.single()`
+// resolves with no row (PostgREST's shape for "0 rows"). Exposes `insert` so
+// tests can assert usage ingestion never creates repositories.
+function missingRepoChain() {
+  const chain: Record<string, unknown> = {};
+  chain.select = vi.fn(() => chain);
+  chain.eq = vi.fn(() => chain);
+  chain.single = vi.fn(() =>
+    Promise.resolve({ data: null, error: { code: "PGRST116" } }),
+  );
+  chain.insert = vi.fn(() => chain);
+  return chain;
+}
+
 function makeRequest(
   body: unknown,
   authorization = "Bearer iris_test",
@@ -126,7 +140,12 @@ describe("POST /api/ingest/usage", () => {
     const res = await POST(makeRequest({ records: [VALID_RECORD] }));
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json).toEqual({ applied: 1, duplicates: 0, repositories: 1 });
+    expect(json).toEqual({
+      applied: 1,
+      duplicates: 0,
+      skipped: 0,
+      repositories: 1,
+    });
 
     expect(mockedRpc).toHaveBeenCalledWith(
       "ingest_usage_rollup",
@@ -157,7 +176,32 @@ describe("POST /api/ingest/usage", () => {
     mockedRpc.mockResolvedValue({ data: false, error: null });
     const res = await POST(makeRequest({ records: [VALID_RECORD] }));
     const json = await res.json();
-    expect(json).toEqual({ applied: 0, duplicates: 1, repositories: 1 });
+    expect(json).toEqual({
+      applied: 0,
+      duplicates: 1,
+      skipped: 0,
+      repositories: 1,
+    });
+  });
+
+  it("skips usage for a repo the org has not onboarded — never creates it", async () => {
+    const chain = missingRepoChain();
+    mockedFrom.mockReturnValue(chain);
+
+    const res = await POST(makeRequest({ records: [VALID_RECORD] }));
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual({
+      applied: 0,
+      duplicates: 0,
+      skipped: 1,
+      repositories: 0,
+    });
+    // The whole point: usage never materializes a repository row, and unknown
+    // repos never reach the rollup.
+    expect(chain.insert).not.toHaveBeenCalled();
+    expect(mockedRpc).not.toHaveBeenCalled();
   });
 
   it("500 when the RPC errors", async () => {

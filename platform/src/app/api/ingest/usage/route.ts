@@ -83,13 +83,27 @@ function bareRepoName(repo: string): string {
   return parts.length ? parts[parts.length - 1] : repo;
 }
 
-async function resolveRepositoryId(
+/**
+ * Look up an EXISTING repository for this org by bare name. Returns its id, or
+ * null when the org has no such repo.
+ *
+ * Deliberately never creates rows. A repository belongs to an org only once
+ * durability metrics have been pushed for it (via /api/ingest); usage is
+ * enrichment that attaches to an already-onboarded repo. If usage could
+ * materialize repositories, a machine-global usage spool flushed under one
+ * org's token would leak every personal repo the developer ran the agent in
+ * into that org's repo list — each showing "0 runs" because it has usage but no
+ * analysis run. Unknown repos are skipped by the caller instead.
+ *
+ * Misses are cached (value null) so an unknown repo in a large batch is looked
+ * up once, not once per record.
+ */
+async function resolveExistingRepositoryId(
   organizationId: string,
   repoName: string,
-  cache: Map<string, string>,
+  cache: Map<string, string | null>,
 ): Promise<string | null> {
-  const cached = cache.get(repoName);
-  if (cached) return cached;
+  if (cache.has(repoName)) return cache.get(repoName) ?? null;
 
   const { data: existing } = await supabaseAdmin
     .from("repositories")
@@ -98,20 +112,8 @@ async function resolveRepositoryId(
     .eq("name", repoName)
     .single();
 
-  let id: string | null = null;
-  if (existing) {
-    id = existing.id;
-  } else {
-    const { data: created, error } = await supabaseAdmin
-      .from("repositories")
-      .insert({ organization_id: organizationId, name: repoName })
-      .select("id")
-      .single();
-    if (error || !created) return null;
-    id = created.id;
-  }
-
-  if (id) cache.set(repoName, id);
+  const id: string | null = existing?.id ?? null;
+  cache.set(repoName, id);
   return id;
 }
 
@@ -166,21 +168,23 @@ export async function POST(request: Request) {
       }
 
       // 5. Resolve repos + apply each record via the additive upsert RPC.
-      const repoCache = new Map<string, string>();
+      // Usage only enriches repos the org already tracks; usage for any other
+      // repo (e.g. a developer's personal repo picked up by the machine-global
+      // spool) is dropped here at the org boundary.
+      const repoCache = new Map<string, string | null>();
       let applied = 0;
       let duplicates = 0;
+      let skipped = 0;
 
       for (const record of parsed.data.records) {
-        const repoId = await resolveRepositoryId(
+        const repoId = await resolveExistingRepositoryId(
           tokenData.organization_id,
           bareRepoName(record.repo),
           repoCache,
         );
         if (!repoId) {
-          return Response.json(
-            { error: "Failed to resolve repository", repo: record.repo },
-            { status: 500 },
-          );
+          skipped += 1;
+          continue;
         }
 
         const { data: wasApplied, error } = await supabaseAdmin.rpc(
@@ -215,14 +219,18 @@ export async function POST(request: Request) {
         else applied += 1;
       }
 
+      // Distinct repos that actually matched (cache holds null for misses).
+      const matchedRepos = [...repoCache.values()].filter(Boolean).length;
+
       parentSpan.setAttributes({
         "iris.usage.applied": applied,
         "iris.usage.duplicates": duplicates,
-        "iris.usage.repositories": repoCache.size,
+        "iris.usage.skipped": skipped,
+        "iris.usage.repositories": matchedRepos,
       });
 
       return Response.json(
-        { applied, duplicates, repositories: repoCache.size },
+        { applied, duplicates, skipped, repositories: matchedRepos },
         { status: 200 },
       );
     },
