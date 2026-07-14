@@ -186,7 +186,14 @@ export async function getRepoAITimeSeries(
  *
  * Uses 2 bulk queries instead of 3N+1 per-repo queries:
  * 1. All repos in org
- * 2. All recent metrics for org (grouped client-side by repo)
+ * 2. One pre-aggregated row per repo from the `repo_metric_summaries` view
+ *
+ * Query 2 deliberately reads the view rather than raw `metrics`: a raw fetch
+ * needs a row limit, and PostgREST silently caps every response at the
+ * project's "Max rows" (default 1000). Once an org had > 1000 metric rows in a
+ * window, repos whose latest run fell outside the newest-1000 slice came back
+ * with zero rows and rendered "0 runs" despite having metrics. The view
+ * returns ~one row per repo, so the result set stays well under any cap.
  */
 export async function getOrgReposSummary(
   supabase: SupabaseClient,
@@ -202,62 +209,55 @@ export async function getOrgReposSummary(
 
   if (!repos || repos.length === 0) return [];
 
-  // Query 2: all metrics for org, newest first (enough for sparkline + delta)
-  const { data: allMetrics } = await supabase
-    .from("metrics")
+  // Query 2: pre-aggregated summary, one row per repo (see doc comment).
+  const { data: summaries } = await supabase
+    .from("repo_metric_summaries")
     .select(
-      "repository_id, created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable",
+      "repository_id, runs_count, last_run_at, stabilization_ratio, prev_stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable, recent_stabilization",
     )
     .eq("organization_id", organizationId)
-    .eq("window_days", windowDays)
-    .order("created_at", { ascending: false })
-    .limit(repos.length * 15);
+    .eq("window_days", windowDays);
 
-  // Group metrics by repository_id
-  const metricsByRepo = new Map<string, typeof allMetrics>();
-  for (const row of allMetrics ?? []) {
-    const existing = metricsByRepo.get(row.repository_id) ?? [];
-    existing.push(row);
-    metricsByRepo.set(row.repository_id, existing);
-  }
+  const summaryByRepo = new Map<
+    string,
+    NonNullable<typeof summaries>[number]
+  >();
+  for (const row of summaries ?? []) summaryByRepo.set(row.repository_id, row);
 
   return repos.map((repo) => {
-    const rows = metricsByRepo.get(repo.id) ?? [];
-    // rows are newest-first (from ORDER BY created_at DESC)
-    const latest = rows[0] ?? null;
-    const previous = rows[1] ?? null;
+    const s = summaryByRepo.get(repo.id) ?? null;
 
-    const stabilization = latest?.stabilization_ratio ?? null;
-    const prevStabilization = previous?.stabilization_ratio ?? null;
+    const stabilization = s?.stabilization_ratio ?? null;
+    const prevStabilization = s?.prev_stabilization_ratio ?? null;
     const delta =
       stabilization !== null && prevStabilization !== null
         ? stabilization - prevStabilization
         : null;
 
-    // Sparkline: last N values in chronological order (reverse the desc-sorted rows)
-    const sparkline = rows
+    // recent_stabilization is newest-first; take the last N, reverse to
+    // chronological order, drop nulls — matching the previous behaviour.
+    const sparkline = (s?.recent_stabilization ?? [])
       .slice(0, SPARKLINE_POINTS)
       .reverse()
-      .map((r) => r.stabilization_ratio)
-      .filter((v): v is number => v !== null);
+      .filter((v: number | null): v is number => v !== null);
 
     return {
       id: repo.id,
       name: repo.name,
       remote_url: repo.remote_url,
-      last_run_at: latest?.created_at ?? null,
-      runs_count: rows.length,
+      last_run_at: s?.last_run_at ?? null,
+      runs_count: s?.runs_count ?? 0,
       stabilization_ratio: stabilization,
-      revert_rate: latest?.revert_rate ?? null,
-      churn_events: latest?.churn_events ?? null,
-      commits_total: latest?.commits_total ?? null,
-      ai_detection_coverage_pct: latest?.ai_detection_coverage_pct ?? null,
-      pr_merged_count: latest?.pr_merged_count ?? null,
-      pr_single_pass_rate: latest?.pr_single_pass_rate ?? null,
-      fix_latency_median_hours: latest?.fix_latency_median_hours ?? null,
-      cascade_rate: latest?.cascade_rate ?? null,
-      merge_strategy: latest?.merge_strategy ?? null,
-      commit_metrics_reliable: latest?.commit_metrics_reliable ?? null,
+      revert_rate: s?.revert_rate ?? null,
+      churn_events: s?.churn_events ?? null,
+      commits_total: s?.commits_total ?? null,
+      ai_detection_coverage_pct: s?.ai_detection_coverage_pct ?? null,
+      pr_merged_count: s?.pr_merged_count ?? null,
+      pr_single_pass_rate: s?.pr_single_pass_rate ?? null,
+      fix_latency_median_hours: s?.fix_latency_median_hours ?? null,
+      cascade_rate: s?.cascade_rate ?? null,
+      merge_strategy: s?.merge_strategy ?? null,
+      commit_metrics_reliable: s?.commit_metrics_reliable ?? null,
       stabilization_delta: delta,
       health: classifyHealth(stabilization),
       sparkline,
