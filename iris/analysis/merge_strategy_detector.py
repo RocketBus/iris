@@ -3,7 +3,7 @@
 A repository's merge strategy determines how much per-commit signal
 survives in history. Squash collapses N commits into 1, discarding commit
 counts, temporal distribution, bursts/cascades, and — depending on the
-GitHub config — the ``Co-Authored-By`` trailers that AI attribution relies
+GitHub config — the attribution trailers that AI attribution relies
 on. Comparing per-commit metrics across repos that use *different*
 strategies compares things that are not comparable, and can under-report AI
 adoption in squash repos as if it were low real usage.

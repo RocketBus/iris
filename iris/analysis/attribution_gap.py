@@ -1,7 +1,7 @@
 """Attribution gap — flag unattributed commits with high-velocity patterns.
 
 Detects commits that match patterns consistent with AI-assisted development
-but have no AI attribution (no co-author tag). This does NOT infer that
+but have no AI attribution (no attribution trailer). This does NOT infer that
 commits are AI — it flags a gap in attribution that merits investigation.
 
 A commit is flagged when it matches 2+ of these signals:

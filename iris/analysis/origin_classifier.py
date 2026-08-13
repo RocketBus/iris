@@ -1,7 +1,7 @@
 """Commit origin classifier — determines whether a commit is human, AI-assisted, or bot.
 
 Heuristics (first match wins):
-1. Co-author patterns: copilot, claude/anthropic, cursor, codeium, tabnine, amazon-q, gemini → AI_ASSISTED
+1. Attribution trailer names an AI tool → AI_ASSISTED
 2. Author patterns: [bot], dependabot, renovate, github-actions, mergify → BOT
 3. Default: HUMAN
 
@@ -25,10 +25,21 @@ class CommitOrigin(Enum):
     BOT = "BOT"
 
 
-# Co-author email patterns that indicate AI assistance
-_AI_CO_AUTHOR_PATTERNS = re.compile(
-    r"copilot|github-copilot|claude|anthropic|cursor|codeium|tabnine|amazon-q|gemini|windsurf",
-    re.IGNORECASE,
+# AI tool patterns, matched against a commit's attribution trailers.
+#
+# Single source of truth: both "is this commit AI-assisted?" and "which tool?"
+# read this table, so a tool can never be detectable by one and invisible to
+# the other. Order matters — first match wins in detect_tool().
+_AI_TOOL_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"copilot|github-copilot", re.IGNORECASE), "Copilot"),
+    (re.compile(r"claude|anthropic", re.IGNORECASE), "Claude"),
+    (re.compile(r"cursor", re.IGNORECASE), "Cursor"),
+    (re.compile(r"codeium", re.IGNORECASE), "Codeium"),
+    (re.compile(r"tabnine", re.IGNORECASE), "Tabnine"),
+    (re.compile(r"amazon-q", re.IGNORECASE), "Amazon Q"),
+    (re.compile(r"gemini", re.IGNORECASE), "Gemini"),
+    (re.compile(r"windsurf", re.IGNORECASE), "Windsurf"),
+    (re.compile(r"devin", re.IGNORECASE), "Devin"),
 )
 
 # Known bot names, grouped for readability. This list is a heuristic and
@@ -80,15 +91,14 @@ def classify_origin(commit: Commit) -> CommitOrigin:
     """Classify a commit by its origin (human, AI-assisted, or bot).
 
     Args:
-        commit: A Commit object with author and co_authors.
+        commit: A Commit object with author and attribution_trailers.
 
     Returns:
         CommitOrigin enum value.
     """
-    # Heuristic 1: co-author patterns → AI_ASSISTED
-    for email in commit.co_authors:
-        if _AI_CO_AUTHOR_PATTERNS.search(email):
-            return CommitOrigin.AI_ASSISTED
+    # Heuristic 1: an attribution trailer names an AI tool → AI_ASSISTED
+    if detect_tool(commit) is not None:
+        return CommitOrigin.AI_ASSISTED
 
     # Heuristic 2: author patterns → BOT
     if _BOT_AUTHOR_PATTERNS.search(commit.author):
@@ -98,29 +108,16 @@ def classify_origin(commit: Commit) -> CommitOrigin:
     return CommitOrigin.HUMAN
 
 
-# Tool-specific patterns for granular AI tool identification.
-# Order matters: first match wins.
-_TOOL_PATTERNS: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"copilot|github-copilot", re.IGNORECASE), "Copilot"),
-    (re.compile(r"claude|anthropic", re.IGNORECASE), "Claude"),
-    (re.compile(r"cursor", re.IGNORECASE), "Cursor"),
-    (re.compile(r"codeium", re.IGNORECASE), "Codeium"),
-    (re.compile(r"tabnine", re.IGNORECASE), "Tabnine"),
-    (re.compile(r"amazon-q", re.IGNORECASE), "Amazon Q"),
-    (re.compile(r"gemini", re.IGNORECASE), "Gemini"),
-    (re.compile(r"windsurf", re.IGNORECASE), "Windsurf"),
-]
-
-
 def detect_tool(commit: Commit) -> str | None:
-    """Detect the specific AI tool from a commit's co-author patterns.
+    """Detect the specific AI tool from a commit's attribution trailers.
 
     Returns the tool name (e.g. "Copilot", "Claude") or None if no AI tool
-    is detected. Only meaningful when classify_origin returns AI_ASSISTED.
+    is detected. A non-None result is exactly what makes classify_origin
+    return AI_ASSISTED.
     """
-    for email in commit.co_authors:
-        for pattern, tool_name in _TOOL_PATTERNS:
-            if pattern.search(email):
+    for trailer in commit.attribution_trailers:
+        for pattern, tool_name in _AI_TOOL_PATTERNS:
+            if pattern.search(trailer):
                 return tool_name
     return None
 

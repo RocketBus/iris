@@ -35,7 +35,7 @@ _BASE_DATE = datetime(2026, 1, 1, tzinfo=timezone.utc)
 def _commit(
     hash: str,
     author: str = "Alice",
-    co_authors: list[str] | None = None,
+    attribution_trailers: list[str] | None = None,
     days_offset: int = 0,
     files: list[FileChange] | None = None,
     message: str = "",
@@ -43,7 +43,7 @@ def _commit(
     return Commit(
         hash=hash,
         author=author,
-        co_authors=co_authors or [],
+        attribution_trailers=attribution_trailers or [],
         date=_BASE_DATE + timedelta(days=days_offset),
         files=files or [FileChange(path="src/main.py", lines_added=10, lines_removed=2)],
         message=message,
@@ -57,8 +57,8 @@ def _commit(
 
 def test_build_tool_map_maps_ai_commits_to_tools():
     commits = [
-        _commit("aaa", co_authors=["copilot@users.noreply.github.com"]),
-        _commit("bbb", co_authors=["claude-code@iris.invalid"]),
+        _commit("aaa", attribution_trailers=["copilot@users.noreply.github.com"]),
+        _commit("bbb", attribution_trailers=["claude-code@iris.invalid"]),
         _commit("ccc"),  # human
         _commit("ddd", author="dependabot[bot]"),  # bot
     ]
@@ -77,7 +77,7 @@ def test_build_tool_map_empty_for_all_human():
 
 
 def test_build_tool_map_cursor():
-    commits = [_commit("aaa", co_authors=["cursor@iris.invalid"])]
+    commits = [_commit("aaa", attribution_trailers=["cursor@iris.invalid"])]
     classified = classify_origins(commits)
     tool_map = build_tool_map(classified)
 
@@ -101,9 +101,9 @@ def test_detect_tool_all_patterns():
         (["amazon-q@iris.invalid"], "Amazon Q"),
         (["gemini@iris.invalid"], "Gemini"),
     ]
-    for co_authors, expected_tool in cases:
-        c = _commit("x", co_authors=co_authors)
-        assert detect_tool(c) == expected_tool, f"Failed for {co_authors}"
+    for attribution_trailers, expected_tool in cases:
+        c = _commit("x", attribution_trailers=attribution_trailers)
+        assert detect_tool(c) == expected_tool, f"Failed for {attribution_trailers}"
 
 
 def test_detect_tool_none_for_human():
@@ -125,7 +125,7 @@ def test_cascade_by_tool_populates_when_threshold_met():
         # Trigger commit (FEATURE)
         commits.append(_commit(
             hash=f"trigger_{i:03d}",
-            co_authors=["copilot@users.noreply.github.com"],
+            attribution_trailers=["copilot@users.noreply.github.com"],
             days_offset=i * 10,
             files=[FileChange(path=f"src/file_{i}.py", lines_added=20, lines_removed=0)],
             message=f"feat: add feature {i}",
@@ -157,7 +157,7 @@ def test_cascade_by_tool_empty_below_threshold():
 
     # Only 2 Copilot commits — below threshold
     commits = [
-        _commit("a1", co_authors=["copilot@users.noreply.github.com"], days_offset=0,
+        _commit("a1", attribution_trailers=["copilot@users.noreply.github.com"], days_offset=0,
                 files=[FileChange("f.py", 10, 0)], message="feat: x"),
         _commit("a2", days_offset=1,
                 files=[FileChange("f.py", 2, 1)], message="fix: y"),
@@ -212,7 +212,7 @@ def test_new_code_churn_by_tool_populates():
         # Introducing commit (Claude)
         commits.append(_commit(
             hash=f"intro_{i:03d}",
-            co_authors=["claude-code@iris.invalid"],
+            attribution_trailers=["claude-code@iris.invalid"],
             days_offset=i * 5,
             files=[FileChange(path=path, lines_added=20, lines_removed=0)],
         ))
@@ -281,7 +281,7 @@ def test_duplicate_by_tool_populates():
         h = f"cursor_{i:03d}"
         commits.append(_commit(
             hash=h,
-            co_authors=["cursor@iris.invalid"],
+            attribution_trailers=["cursor@iris.invalid"],
             days_offset=i,
             files=[
                 FileChange(path=f"src/a_{i}.py", lines_added=10, lines_removed=0),

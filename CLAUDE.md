@@ -112,10 +112,16 @@ When adding a new analysis metric, complete the full chain:
 6. TypeScript types (`platform/src/types/metrics.ts`)
 7. Platform UI — if the metric should be visible in the dashboard
 
-When adding a new AI tool to the hook (`iris/hooks/prepare_commit_msg.sh`), also add it to:
+When adding a new AI tool, add it to `_AI_TOOL_PATTERNS` in
+`iris/analysis/origin_classifier.py` — the single source of truth for both
+"is this AI-assisted?" and "which tool?". Then, if the tool exposes an
+environment variable, teach `iris/hooks/prepare_commit_msg.sh` to detect it
+and add the name to that hook's already-attributed guard.
 
-1. `_AI_CO_AUTHOR_PATTERNS` regex in `iris/analysis/origin_classifier.py`
-2. `_TOOL_PATTERNS` list in `iris/analysis/origin_classifier.py`
+Attribution trailer keys read from commit bodies (`Co-authored-by`,
+`Assisted-by`, `Made-with`) live in `_ATTRIBUTION_TRAILER_RE` in
+`iris/ingestion/git_reader.py`. Document any change in
+`docs/guides/ai-attribution-policy.md`.
 
 ---
 

@@ -32,13 +32,13 @@ def _commit(
     hash: str,
     days_offset: int = 0,
     message: str = "feat: something",
-    co_authors: list[str] | None = None,
+    attribution_trailers: list[str] | None = None,
     files: list[FileChange] | None = None,
 ) -> Commit:
     return Commit(
         hash=hash,
         author="Alice",
-        co_authors=co_authors or [],
+        attribution_trailers=attribution_trailers or [],
         date=_BASE_DATE + timedelta(days=days_offset),
         message=message,
         files=files or [FileChange("src/main.py", 10, 2)],
@@ -67,7 +67,7 @@ def test_extract_reverted_hash_none():
 
 def test_revert_by_origin_attributes_correctly():
     original = _commit("abc123", days_offset=0, message="feat: add feature",
-                       co_authors=["copilot@users.noreply.github.com"],
+                       attribution_trailers=["copilot@users.noreply.github.com"],
                        files=[FileChange("src/feature.py", 50, 0)])
     revert = _commit("def456", days_offset=1,
                      message='Revert "Add feature"\n\nThis reverts commit abc123.',
@@ -115,10 +115,10 @@ def test_fix_targeting_ai_code_attracts_fixes():
     # AI commit introduces code, then human fixes it
     commits = [
         _commit("ai1", days_offset=0, message="feat: add auth",
-                co_authors=["copilot@users.noreply.github.com"],
+                attribution_trailers=["copilot@users.noreply.github.com"],
                 files=[FileChange("src/auth.py", 50, 0)]),
         _commit("ai2", days_offset=1, message="feat: add api",
-                co_authors=["claude-code@iris.invalid"],
+                attribution_trailers=["claude-code@iris.invalid"],
                 files=[FileChange("src/api.py", 40, 0)]),
         _commit("h1", days_offset=2, message="feat: add utils",
                 files=[FileChange("src/utils.py", 30, 0)]),
@@ -179,7 +179,7 @@ def test_fix_targeting_tool_attribution():
     for i in range(5):
         commits.append(_commit(
             f"feat_{i}", days_offset=i * 3, message=f"feat: feature {i}",
-            co_authors=["copilot@users.noreply.github.com"],
+            attribution_trailers=["copilot@users.noreply.github.com"],
             files=[FileChange(f"src/mod_{i}.py", 20, 0)],
         ))
         commits.append(_commit(
