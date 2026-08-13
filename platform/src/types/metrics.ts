@@ -279,6 +279,13 @@ export interface ReportMetrics {
   merge_strategy_dominant_share?: number; // 0.0–1.0
   commit_metrics_reliable?: boolean;
 
+  // Repository kind — `NON_CODE` marks a documentation / issue-board repo:
+  // no project manifest is tracked, so nothing is built or deployed from it
+  // and every other metric here describes prose. All of them are still
+  // populated; the flag exists so comparisons can leave these repos out.
+  // Absent on payloads from CLI versions before this field existed.
+  repo_kind?: "CODE" | "NON_CODE";
+
   // DORA (real) — populated when the org has an active Datadog integration
   // and the engine fetched events for the analysis window. Every field
   // here is optional; `dora_source` is the canonical "is there data?" flag.

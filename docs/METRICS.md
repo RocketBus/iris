@@ -52,6 +52,7 @@ serialization time.
 | Stage | Where | Fields added |
 |---|---|---|
 | Aggregation | `iris/metrics/aggregator.py` | Core, revert, intent, origin, commit shape, fix latency, cascades, stability map, attribution gap, churn detail, activity timeline, acceptance, PR lifecycle, fix targeting |
+| Enrichment | `iris/cli.py::_merge_repo_kind` | `repo_kind` |
 | Enrichment | `iris/cli.py::_merge_durability` | `durability_*` |
 | Enrichment | `iris/cli.py::_merge_quality_metrics` | `duplicate_*`, `moved_code_pct`, `refactoring_ratio`, `move_by_origin`, `operation_*`, `revision_age_distribution`, `pct_revising_*`, `provenance_by_origin`, `new_code_churn_*` |
 | Report-time | `iris/reports/writer.py` | `origin_funnel` (computed from finalized metrics; present in JSON, but field on `ReportMetrics` dataclass is always `None` in memory) |
@@ -895,6 +896,49 @@ carries `merge_strategy_dominant_share` for the repo-detail badge.
 
 ---
 
+## 29. Repository kind
+
+Per-**repository** flag separating repos that ship software from repos that
+exist to hold issues, cards, specs, or documentation. Every metric in this
+document is still computed for a `NON_CODE` repo — the flag says what those
+numbers describe. Stabilization of markdown is a real number about a real
+file; it just isn't delivery, and averaging it with a service's corrupts the
+comparison the same way mixing merge strategies does.
+
+| Field | Unit | Source | Nullable when |
+|---|---|---|---|
+| `repo_kind` | `CODE\|NON_CODE` | `analysis/repo_kind.py` | never (every run stamps it) |
+
+Classification: `CODE` when any tracked file is a recognized project
+manifest — the file a build, package manager, or deploy step needs
+(`package.json`, `pom.xml`, `go.mod`, `pyproject.toml`, `Dockerfile`,
+`Chart.yaml`, `main.tf`, `*.csproj`, …; full list in the module). Nested
+manifests count, so monorepos classify as `CODE`. An unreadable tree
+classifies as `CODE` — a repo is never downgraded because Git failed.
+
+Share-of-changed-lines was evaluated as an alternative and rejected: over a
+39-repo corpus it placed documentation repos at 0–41% and a live Java service
+at 54%, too narrow a margin to gate reporting on. Manifest presence separated
+the same corpus cleanly.
+
+Consumers:
+
+- Repo report — a caveat line above the metrics
+  (`iris/i18n.py:non_code_repo_caveat`).
+- Org report — `NON_CODE` repos are listed in the overview table but held out
+  of every cross-repo comparison (median stabilization, median revert rate,
+  Human-vs-AI stabilization, detection coverage breakdown, rework speed,
+  adoption counts), with the exclusion and the repo names stated inline
+  (`org_non_code_excluded`). `median_stabilization_repos` in the org JSON
+  reports how many repos the median covers.
+- A repo with no `repo_kind` (pushed by an older CLI) counts as `CODE`, so
+  history never silently drops out of a median.
+
+Privacy / ranking risk (Principle #2): **none by construction.** A property
+of the file tree, never of people.
+
+---
+
 ## 29. Adoption timeline (post-report, not on `ReportMetrics`)
 
 When AI-assisted commits started appearing, and how the pre-adoption vs
@@ -996,6 +1040,7 @@ By-origin attribution:
 | `analysis/flow_load.py` | `flow_load` |
 | `analysis/flow_efficiency.py` | `flow_efficiency_median`, `median_time_to_first_review_hours`, `time_in_phase_median_hours`, `flow_efficiency_by_intent`, `flow_efficiency_by_origin` |
 | `analysis/merge_strategy_detector.py` | `merge_strategy`, `merge_strategy_dominant_share`, `commit_metrics_reliable` |
+| `analysis/repo_kind.py` | `repo_kind` |
 | `analysis/dora_real.py` | `dora_source`, `dora_deployments_total`, `dora_deployments_failed`, `dora_deployments_pending_evaluation`, `dora_incidents_total`, `dora_cfr`, `dora_mttr_per_deploy_seconds_median`, `dora_mttr_per_deploy_seconds_p90`, `dora_mttr_per_incident_seconds_median`, `dora_mttr_per_incident_seconds_p90`, `dora_rollback_rate`, `dora_rollbacks_total`, `dora_lead_time_seconds_median`, `dora_deploy_frequency_per_day`, `dora_remediation_distribution`, `dora_cfr_by_origin`, `dora_rollback_rate_by_origin`, `dora_cfr_by_origin_coverage_pct` |
 | `analysis/duplicate_detector.py` | `duplicate_block_rate`, `duplicate_block_count`, `duplicate_median_block_size`, `duplicate_by_origin`, `duplicate_by_tool` |
 | `analysis/move_detector.py` | `moved_code_pct`, `refactoring_ratio`, `move_by_origin` |

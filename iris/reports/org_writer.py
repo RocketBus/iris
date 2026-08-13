@@ -104,9 +104,24 @@ def write_org_report(
                       or org_result.delivery_narrative):
         lines.extend(["---", ""])
 
+    # Documentation / issue-board repos are measured and listed, but kept out
+    # of every cross-repo comparison below: their stabilization and churn
+    # describe prose, so averaging them with services corrupts the comparison.
+    code_repos = [r for r in org_result.repos if r.metrics.repo_kind != "NON_CODE"]
+    non_code_repos = [r for r in org_result.repos if r.metrics.repo_kind == "NON_CODE"]
+
+    if non_code_repos:
+        lines.extend([
+            s["org_non_code_excluded"].format(
+                count=len(non_code_repos),
+                repos=", ".join(sorted(r.repo_name for r in non_code_repos)),
+            ),
+            "",
+        ])
+
     # AI Impact Across Organization (conditional — only when AI commits exist)
     ai_repos = [
-        r for r in org_result.repos
+        r for r in code_repos
         if r.metrics.stabilization_by_origin is not None
     ]
     if ai_repos:
@@ -129,7 +144,7 @@ def write_org_report(
             f"## {s['org_ai_impact_title']}",
             "",
             s["org_ai_impact_body"].format(
-                total_repos=len(org_result.repos),
+                total_repos=len(code_repos),
                 ai_repos=len(ai_repos),
                 human_stab=human_median,
                 ai_stab=ai_median,
@@ -139,17 +154,17 @@ def write_org_report(
 
         # Detection coverage breakdown
         high_cov = sum(
-            1 for r in org_result.repos
+            1 for r in code_repos
             if r.metrics.ai_detection_coverage_pct is not None
             and r.metrics.ai_detection_coverage_pct >= 30
         )
         low_cov = sum(
-            1 for r in org_result.repos
+            1 for r in code_repos
             if r.metrics.ai_detection_coverage_pct is not None
             and 0 < r.metrics.ai_detection_coverage_pct < 30
         )
         no_ai = sum(
-            1 for r in org_result.repos
+            1 for r in code_repos
             if r.metrics.ai_detection_coverage_pct is None
             or r.metrics.ai_detection_coverage_pct == 0
         )
@@ -161,7 +176,7 @@ def write_org_report(
         # Fix latency by origin (org-wide aggregation)
         human_latencies = []
         ai_latencies = []
-        for r in org_result.repos:
+        for r in code_repos:
             flo = r.metrics.fix_latency_by_origin
             if not flo:
                 continue
@@ -185,7 +200,7 @@ def write_org_report(
 
         # Adoption timeline summary
         repos_with_adoption = [
-            r for r in org_result.repos
+            r for r in code_repos
             if r.adoption is not None and r.adoption.event.adoption_confidence != "insufficient"
         ]
         if repos_with_adoption:
@@ -195,7 +210,7 @@ def write_org_report(
             lines.append("")
             lines.append(
                 s["org_ai_adoption_body"].format(
-                    clear=len(clear), sparse=len(sparse), total=len(org_result.repos),
+                    clear=len(clear), sparse=len(sparse), total=len(code_repos),
                 )
             )
             lines.append("")
@@ -205,9 +220,9 @@ def write_org_report(
     total_prs = sum(
         r.metrics.pr_merged_count or 0 for r in org_result.repos
     )
-    stab_values = [r.metrics.stabilization_ratio for r in org_result.repos]
+    stab_values = [r.metrics.stabilization_ratio for r in code_repos]
     median_stab = median(stab_values) if stab_values else 0.0
-    revert_values = [r.metrics.revert_rate for r in org_result.repos]
+    revert_values = [r.metrics.revert_rate for r in code_repos]
     median_revert = median(revert_values) if revert_values else 0.0
 
     lines.extend([
@@ -287,7 +302,9 @@ def write_org_metrics(
 
     Returns the file path.
     """
-    stab_values = [r.metrics.stabilization_ratio for r in org_result.repos]
+    # Same rule as the report: the median compares delivery repos only.
+    code_repos = [r for r in org_result.repos if r.metrics.repo_kind != "NON_CODE"]
+    stab_values = [r.metrics.stabilization_ratio for r in code_repos]
     total_commits = sum(r.metrics.commits_total for r in org_result.repos)
     total_prs = sum(
         r.metrics.pr_merged_count or 0 for r in org_result.repos
@@ -300,6 +317,8 @@ def write_org_metrics(
             "commits_total": r.metrics.commits_total,
             "stabilization_ratio": round(r.metrics.stabilization_ratio, 3),
         }
+        if r.metrics.repo_kind is not None:
+            entry["repo_kind"] = r.metrics.repo_kind
         if r.trend and r.trend.has_sufficient_data:
             entry["attention_signal"] = _attention_label(r, lang=lang)
         repo_entries.append(entry)
@@ -313,6 +332,7 @@ def write_org_metrics(
         "median_stabilization_ratio": round(
             median(stab_values) if stab_values else 0.0, 3,
         ),
+        "median_stabilization_repos": len(code_repos),
         "repos": repo_entries,
     }
 

@@ -25,6 +25,15 @@ VERSION = "v1.5.0"
 RECOMMENDED_WINDOWS = (7, 15, 30, 60, 90)
 
 
+def _merge_repo_kind(metrics, repo_path: str):
+    """Stamp the repository kind onto a ReportMetrics (frozen dataclass)."""
+    from dataclasses import replace
+
+    from iris.analysis.repo_kind import classify_repo_kind
+
+    return replace(metrics, repo_kind=classify_repo_kind(repo_path).value)
+
+
 def _merge_durability(metrics, durability):
     """Merge durability results into a ReportMetrics (frozen dataclass)."""
     from dataclasses import asdict
@@ -512,6 +521,11 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         )
     print(s["cli_classified"].format(count=len(commits)))
     _tick("aggregate analysis done")
+
+    # Step 4a: Repository kind — flags docs/board repos as not comparable
+    metrics = _merge_repo_kind(metrics, repo)
+    if metrics.repo_kind == "NON_CODE":
+        print(s["cli_non_code_repo"])
 
     if metrics.fix_latency_median_hours is not None:
         print(s["cli_fix_latency_computed"].format(

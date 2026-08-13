@@ -89,6 +89,11 @@ def analyze_single_repo(
     # Step 3+4: Aggregate metrics
     metrics = aggregate(commits, churn_days=churn_days, prs=prs or None)
 
+    # Step 4a: Repository kind (keeps docs/board repos out of org comparisons)
+    from iris.cli import _merge_repo_kind
+
+    metrics = _merge_repo_kind(metrics, repo_path)
+
     # Step 5: Trend analysis (optional)
     trend = None
     if trend_enabled:
