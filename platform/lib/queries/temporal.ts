@@ -89,6 +89,12 @@ export async function getRepoTimeSeries(
   limit = 52,
   windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<TimeSeriesPoint[]> {
+  // Fetch newest-first and take the most recent `limit` rows, then reverse
+  // to chronological order for charting. Ordering ascending before LIMIT
+  // would return the OLDEST `limit` rows instead once a repo has more than
+  // `limit` runs — the chart (and the "latest" point every caller derives
+  // from the last array entry) would freeze on a stale run and never
+  // advance as new analyses land.
   const { data } = await supabase
     .from("metrics")
     .select(
@@ -96,10 +102,10 @@ export async function getRepoTimeSeries(
     )
     .eq("repository_id", repositoryId)
     .eq("window_days", windowDays)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
-  return (data ?? []).map((row) => ({
+  return (data ?? []).reverse().map((row) => ({
     date: row.created_at,
     stabilization_ratio: row.stabilization_ratio,
     revert_rate: row.revert_rate,
@@ -134,17 +140,21 @@ export async function getRepoAITimeSeries(
   limit = 52,
   windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<AIImpactPoint[]> {
+  // See getRepoTimeSeries above: fetch newest-first then reverse, or a repo
+  // with more than `limit` runs would get the oldest `limit` instead and
+  // the AI-impact charts would freeze on a stale slice.
   const { data } = await supabase
     .from("metrics")
     .select("created_at, payload, ai_detection_coverage_pct")
     .eq("repository_id", repositoryId)
     .eq("window_days", windowDays)
-    .order("created_at", { ascending: true })
+    .order("created_at", { ascending: false })
     .limit(limit);
 
   if (!data) return [];
 
   return data
+    .reverse()
     .map((row) => {
       const p = (row.payload ?? {}) as Record<string, unknown>;
 
