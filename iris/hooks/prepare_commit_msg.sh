@@ -69,11 +69,19 @@ fi
 # policy already writes `Assisted-by:` (or a tool that writes `Made-with:`)
 # is attributed, so appending a Co-Authored-By would only duplicate it.
 #
-# The word boundary keeps a human co-author (`Claudemir`) from suppressing
-# attribution. If a grep build does not support \b, the worst case is a
-# duplicated trailer — never a commit with no attribution.
+# The key must start at column 0, like the engine requires: git only honours
+# a trailer there, so an indented example inside the body is not attribution
+# and must still get one appended.
+#
+# Tool names are bounded by a non-alphanumeric class instead of \b: POSIX ERE
+# leaves \b undefined, so BSD/macOS grep may read it as a literal `b` (and
+# 2>/dev/null would hide an error), and the class also treats `_` as a
+# separator, matching agent names like `claude_code`. The bound keeps a human
+# co-author (`Claudemir`) from suppressing attribution. If a grep degrades on
+# the `$` inside the closing group, the worst case is a duplicated trailer —
+# never a commit with no attribution.
 
-if grep -qiE "^[[:space:]]*(Co-Authored-By|Assisted-by|Made-with):.*\b(claude|anthropic|cursor|windsurf|copilot|codeium|tabnine|amazon-q|gemini|devin-ai)\b" "$COMMIT_MSG_FILE" 2>/dev/null; then
+if grep -qiE "^(Co-Authored-By|Assisted-by|Made-with):.*[^[:alnum:]](claude|anthropic|cursor|windsurf|copilot|codeium|tabnine|amazon-q|gemini|devin-ai)([^[:alnum:]]|$)" "$COMMIT_MSG_FILE" 2>/dev/null; then
     exit 0
 fi
 

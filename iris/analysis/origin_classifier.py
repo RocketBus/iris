@@ -25,27 +25,37 @@ class CommitOrigin(Enum):
     BOT = "BOT"
 
 
+def _tool_pattern(body: str) -> re.Pattern[str]:
+    """Compile an AI tool matcher bounded by non-alphanumerics.
+
+    The bound is by non-alphanumeric character rather than `\\b` because `_`
+    counts as a word character for `\\b`, and agent names carrying one are a
+    real shape — `claude_code <claude_code@iris.invalid>` comes straight from
+    `$AI_AGENT`, which the hook only lowercases.
+    """
+    return re.compile(rf"(?<![0-9a-z])(?:{body})(?![0-9a-z])", re.IGNORECASE)
+
+
 # AI tool patterns, matched against a commit's attribution trailers.
 #
 # Single source of truth: both "is this commit AI-assisted?" and "which tool?"
 # read this table, so a tool can never be detectable by one and invisible to
 # the other. Order matters — first match wins in detect_tool().
 #
-# Word boundaries are required because the whole trailer value is matched,
-# display name included: without `\b`, a human co-author named `Claudemir`,
-# `Claudete` or `Geminiano` would turn the commit into an AI one. `devin` on
-# its own is a common given name, so only the `devin-ai` integration marker
-# counts.
+# Bounds are required because the whole trailer value is matched, display name
+# included: unbounded, a human co-author named `Claudemir`, `Claudete` or
+# `Geminiano` would turn the commit into an AI one. `devin` on its own is a
+# common given name, so only the `devin-ai` integration marker counts.
 _AI_TOOL_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\bcopilot\b", re.IGNORECASE), "Copilot"),
-    (re.compile(r"\b(?:claude|anthropic)\b", re.IGNORECASE), "Claude"),
-    (re.compile(r"\bcursor\b", re.IGNORECASE), "Cursor"),
-    (re.compile(r"\bcodeium\b", re.IGNORECASE), "Codeium"),
-    (re.compile(r"\btabnine\b", re.IGNORECASE), "Tabnine"),
-    (re.compile(r"\bamazon-q\b", re.IGNORECASE), "Amazon Q"),
-    (re.compile(r"\bgemini\b", re.IGNORECASE), "Gemini"),
-    (re.compile(r"\bwindsurf\b", re.IGNORECASE), "Windsurf"),
-    (re.compile(r"\bdevin[- ]?ai\b", re.IGNORECASE), "Devin"),
+    (_tool_pattern(r"copilot"), "Copilot"),
+    (_tool_pattern(r"claude|anthropic"), "Claude"),
+    (_tool_pattern(r"cursor"), "Cursor"),
+    (_tool_pattern(r"codeium"), "Codeium"),
+    (_tool_pattern(r"tabnine"), "Tabnine"),
+    (_tool_pattern(r"amazon-q"), "Amazon Q"),
+    (_tool_pattern(r"gemini"), "Gemini"),
+    (_tool_pattern(r"windsurf"), "Windsurf"),
+    (_tool_pattern(r"devin[- ]?ai"), "Devin"),
 )
 
 # Known bot names, grouped for readability. This list is a heuristic and

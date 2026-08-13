@@ -51,7 +51,9 @@ Only one trailer per commit is needed. If your policy already writes `Assisted-b
 | Gemini | `Co-Authored-By: Gemini <gemini@iris.invalid>` |
 | Devin | `Co-Authored-By: Devin AI <devin-ai-integration[bot]@users.noreply.github.com>` |
 
-Iris matches the tool name anywhere in the trailer value — display name or e-mail, case-insensitive. Any key from the table above works with any tool.
+Iris matches the tool name as a whole word — bounded by any non-alphanumeric character — in either half of the trailer value (display name or e-mail), case-insensitive. A human co-author whose name merely contains the substring (`Claudemir`, `Geminiano`) is therefore not classified as AI. For the same reason `devin` alone does not count: only the `devin-ai` marker does. Any key from the table above works with any tool.
+
+The trailer must also start at the beginning of the line, as git requires for a trailer (`git interpret-trailers` ignores an indented line). A trailer quoted inside an indented block in the commit body is an example, not attribution, and does not count.
 
 ---
 

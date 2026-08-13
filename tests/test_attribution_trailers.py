@@ -162,6 +162,15 @@ def test_bare_email_still_detected() -> None:
     assert detect_tool(c) == "Copilot"
 
 
+def test_agent_name_with_underscore_is_detected() -> None:
+    # The hook forwards `$AI_AGENT` only lowercased, so an agent named
+    # `claude_code` keeps its underscore — which `\b` reads as a word
+    # character, not a boundary.
+    c = _commit("claude_code <claude_code@iris.invalid>")
+    assert classify_origin(c) is CommitOrigin.AI_ASSISTED
+    assert detect_tool(c) == "Claude"
+
+
 def test_human_co_author_stays_human() -> None:
     c = _commit("Bob Souza <bob@example.com>")
     assert classify_origin(c) is CommitOrigin.HUMAN
