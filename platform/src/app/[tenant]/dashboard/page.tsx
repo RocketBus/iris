@@ -41,6 +41,7 @@ import {
   computeHealthMap,
   computeOrgTimeline,
   computePreviousTotals,
+  computePreviousPayloads,
   computeHyperEngineers,
 } from "@/lib/queries/org-summary";
 import {
@@ -111,11 +112,15 @@ export default async function OrgDashboardPage({
 
   // Fetch raw metrics for previous-period delta calculation. Filter by
   // window_days so multi-window tenants (issue #80) don't compute deltas
-  // across mismatched analysis windows.
+  // across mismatched analysis windows. `payload` is included so
+  // Delivery Quality / PR Health / Cycle Time can compute their own
+  // previous-period aggregates the same way they compute the current
+  // one — those metrics don't have dedicated summary columns the way
+  // commits/PRs/AI-adoption do.
   const { data: allMetricsRaw } = await supabaseAdmin
     .from("metrics")
     .select(
-      "repository_id, commits_total, pr_merged_count, ai_detection_coverage_pct",
+      "repository_id, commits_total, pr_merged_count, ai_detection_coverage_pct, payload",
     )
     .eq("organization_id", org.id)
     .eq("window_days", windowDays)
@@ -123,6 +128,10 @@ export default async function OrgDashboardPage({
     .limit(repoSummaries.length * 15);
 
   const previousTotals = computePreviousTotals(
+    repoSummaries,
+    allMetricsRaw ?? [],
+  );
+  const previousPayloads = computePreviousPayloads(
     repoSummaries,
     allMetricsRaw ?? [],
   );
@@ -134,11 +143,19 @@ export default async function OrgDashboardPage({
     contributorInfo.count,
     previousTotals,
   );
-  const qualityData = computeDeliveryQuality(repoSummaries, payloads);
+  const qualityData = computeDeliveryQuality(
+    repoSummaries,
+    payloads,
+    previousPayloads,
+  );
   const aiData = computeAIvsHuman(payloads);
   const intentData = computeIntentDistribution(payloads);
-  const prData = computePRHealth(repoSummaries, payloads);
-  const cycleTimeData = computeCycleTime(repoSummaries, payloads);
+  const prData = computePRHealth(repoSummaries, payloads, previousPayloads);
+  const cycleTimeData = computeCycleTime(
+    repoSummaries,
+    payloads,
+    previousPayloads,
+  );
   const healthMapEntries = computeHealthMap(repoSummaries);
   const timelineData = computeOrgTimeline(payloads);
   const hyperEngineers = computeHyperEngineers(

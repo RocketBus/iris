@@ -126,6 +126,8 @@ export function DeliveryQuality({ data }: DeliveryQualityProps) {
                 ? `${(data.revertRate * 100).toFixed(1)}%`
                 : "\u2014"
             }
+            delta={data.revertRateDelta}
+            deltaFormat="pp"
             invertDelta
           />
           <MetricCard
@@ -135,6 +137,8 @@ export function DeliveryQuality({ data }: DeliveryQualityProps) {
                 ? `${(data.cascadeRate * 100).toFixed(0)}%`
                 : "\u2014"
             }
+            delta={data.cascadeRateDelta}
+            deltaFormat="pp"
             invertDelta
           />
           <MetricCard
@@ -144,6 +148,8 @@ export function DeliveryQuality({ data }: DeliveryQualityProps) {
                 ? `${data.fixLatencyMedianHours.toFixed(0)}h`
                 : "\u2014"
             }
+            delta={data.fixLatencyMedianHoursDelta}
+            deltaFormat="abs"
             invertDelta
           />
           <MetricCard
@@ -153,6 +159,8 @@ export function DeliveryQuality({ data }: DeliveryQualityProps) {
                 ? `${(data.newCodeChurnRate2w * 100).toFixed(0)}%`
                 : "\u2014"
             }
+            delta={data.newCodeChurnRate2wDelta}
+            deltaFormat="pp"
             invertDelta
           />
         </div>

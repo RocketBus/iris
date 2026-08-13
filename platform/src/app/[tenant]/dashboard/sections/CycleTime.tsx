@@ -151,18 +151,29 @@ export function CycleTime({ data }: CycleTimeProps) {
         <MetricCard
           label={t("dashboard.cycleTime.kpi.pctWithin24h")}
           value={formatPct(data.pctMergedWithin24h)}
+          delta={data.pctMergedWithin24hDelta}
+          deltaFormat="pp"
         />
         <MetricCard
           label={t("dashboard.cycleTime.kpi.median")}
           value={formatHoursAsDays(data.medianHours)}
+          delta={data.medianHoursDelta}
+          deltaFormat="abs"
+          invertDelta
         />
         <MetricCard
           label={t("dashboard.cycleTime.kpi.mean")}
           value={formatHoursAsDays(data.meanHours)}
+          delta={data.meanHoursDelta}
+          deltaFormat="abs"
+          invertDelta
         />
         <MetricCard
           label={t("dashboard.cycleTime.kpi.p90")}
           value={formatHoursAsDays(data.p90Hours)}
+          delta={data.p90HoursDelta}
+          deltaFormat="abs"
+          invertDelta
         />
       </div>
 

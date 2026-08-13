@@ -238,6 +238,7 @@ export function computeOrgPulse(
 export function computeDeliveryQuality(
   repos: RepoSummary[],
   payloads: Map<string, ReportMetrics>,
+  previousPayloads?: Map<string, ReportMetrics>,
 ): DeliveryQuality {
   const stabDistribution = repos
     .filter((r) => r.stabilization_ratio !== null)
@@ -267,12 +268,26 @@ export function computeDeliveryQuality(
     churnRates4w.push(p.new_code_churn_rate_4w ?? null);
   }
 
+  const fixLatencyMedianHours = simpleAvg(fixLatencies);
+  const newCodeChurnRate2w = simpleAvg(churnRates2w);
+  const previous = previousPayloads
+    ? computePreviousDeliveryQuality(previousPayloads)
+    : null;
+
   return {
     stabilizationDistribution: stabDistribution,
     revertRate,
+    revertRateDelta: previous ? diff(revertRate, previous.revertRate) : null,
     cascadeRate,
-    fixLatencyMedianHours: simpleAvg(fixLatencies),
-    newCodeChurnRate2w: simpleAvg(churnRates2w),
+    cascadeRateDelta: previous ? diff(cascadeRate, previous.cascadeRate) : null,
+    fixLatencyMedianHours,
+    fixLatencyMedianHoursDelta: previous
+      ? diff(fixLatencyMedianHours, previous.fixLatencyMedianHours)
+      : null,
+    newCodeChurnRate2w,
+    newCodeChurnRate2wDelta: previous
+      ? diff(newCodeChurnRate2w, previous.newCodeChurnRate2w)
+      : null,
     newCodeChurnRate4w: simpleAvg(churnRates4w),
     reposWithData: stabDistribution.length,
     totalRepos: repos.length,
@@ -535,6 +550,7 @@ export function computeIntentDistribution(
 export function computePRHealth(
   repos: RepoSummary[],
   payloads: Map<string, ReportMetrics>,
+  previousPayloads?: Map<string, ReportMetrics>,
 ): PRHealthData | null {
   const reposWithPR = repos.filter(
     (r) => r.pr_merged_count !== null && r.pr_merged_count > 0,
@@ -591,11 +607,30 @@ export function computePRHealth(
     }
   }
 
+  const medianTimeToMergeHours = simpleAvg(ttmValues);
+  const singlePassRate = weightedAvg(sprValues);
+  const medianReviewRounds = simpleAvg(roundsValues);
+  const previous = previousPayloads
+    ? computePreviousPRHealth(previousPayloads)
+    : null;
+
   return {
     totalPRsMerged,
-    medianTimeToMergeHours: simpleAvg(ttmValues),
-    singlePassRate: weightedAvg(sprValues),
-    medianReviewRounds: simpleAvg(roundsValues),
+    totalPRsMergedDelta: previous
+      ? diff(totalPRsMerged, previous.totalPRsMerged)
+      : null,
+    medianTimeToMergeHours,
+    medianTimeToMergeHoursDelta: previous
+      ? diff(medianTimeToMergeHours, previous.medianTimeToMergeHours)
+      : null,
+    singlePassRate,
+    singlePassRateDelta: previous
+      ? diff(singlePassRate, previous.singlePassRate)
+      : null,
+    medianReviewRounds,
+    medianReviewRoundsDelta: previous
+      ? diff(medianReviewRounds, previous.medianReviewRounds)
+      : null,
     medianPRSizeLines: simpleAvg(sizeValues),
     byOrigin: {
       human:
@@ -634,6 +669,7 @@ export function computePRHealth(
 export function computeCycleTime(
   repos: RepoSummary[],
   payloads: Map<string, ReportMetrics>,
+  previousPayloads?: Map<string, ReportMetrics>,
 ): CycleTimeData | null {
   const repoNameById = new Map(repos.map((r) => [r.id, r.name]));
 
@@ -714,14 +750,29 @@ export function computeCycleTime(
   // same-day PR doesn't outrank a repo with hundreds.
   rows.sort((a, b) => b.pctWithin24h - a.pctWithin24h || b.merged - a.merged);
 
+  const pctMergedWithin24h =
+    totalMerged > 0 ? totalWithin24h / totalMerged : null;
+  const medianHours =
+    medianWeightTotal > 0 ? medianWeightedSum / medianWeightTotal : null;
+  const meanHours =
+    meanWeightTotal > 0 ? meanWeightedSum / meanWeightTotal : null;
+  const previous = previousPayloads
+    ? computePreviousCycleTime(previousPayloads)
+    : null;
+
   return {
     reposWithData: rows.length,
     totalPRsMerged: totalMerged,
-    pctMergedWithin24h: totalMerged > 0 ? totalWithin24h / totalMerged : null,
-    medianHours:
-      medianWeightTotal > 0 ? medianWeightedSum / medianWeightTotal : null,
-    meanHours: meanWeightTotal > 0 ? meanWeightedSum / meanWeightTotal : null,
+    pctMergedWithin24h,
+    pctMergedWithin24hDelta: previous
+      ? diff(pctMergedWithin24h, previous.pctMergedWithin24h)
+      : null,
+    medianHours,
+    medianHoursDelta: previous ? diff(medianHours, previous.medianHours) : null,
+    meanHours,
+    meanHoursDelta: previous ? diff(meanHours, previous.meanHours) : null,
     p90Hours: maxP90,
+    p90HoursDelta: previous ? diff(maxP90, previous.p90Hours) : null,
     flow: summarizeFlow(flowRows, totalMerged),
     perRepo: rows,
   };
@@ -832,6 +883,32 @@ export function computeOrgTimeline(
 // computePreviousTotals — extract previous-run totals for delta calculation
 // ---------------------------------------------------------------------------
 
+/**
+ * Group raw metrics rows (newest-first per repo, as returned by the
+ * `allMetricsRaw` query in the dashboard page) and pick each repo's
+ * second row — the previous analysis run, used as the delta baseline
+ * throughout this file.
+ */
+function previousRowByRepo<T extends { repository_id: string }>(
+  repos: RepoSummary[],
+  allMetrics: T[],
+): Map<string, T> {
+  const byRepo = new Map<string, T[]>();
+  for (const row of allMetrics) {
+    const existing = byRepo.get(row.repository_id) ?? [];
+    existing.push(row);
+    byRepo.set(row.repository_id, existing);
+  }
+
+  const result = new Map<string, T>();
+  for (const repo of repos) {
+    const rows = byRepo.get(repo.id) ?? [];
+    const prev = rows[1]; // second row = previous run (rows are newest-first)
+    if (prev) result.set(repo.id, prev);
+  }
+  return result;
+}
+
 export function computePreviousTotals(
   repos: RepoSummary[],
   allMetrics: Array<{
@@ -841,22 +918,13 @@ export function computePreviousTotals(
     ai_detection_coverage_pct: number | null;
   }>,
 ): { commits: number; prsMerged: number; aiPct: number | null } {
-  // Group by repo, second row is previous
-  const byRepo = new Map<string, typeof allMetrics>();
-  for (const row of allMetrics) {
-    const existing = byRepo.get(row.repository_id) ?? [];
-    existing.push(row);
-    byRepo.set(row.repository_id, existing);
-  }
+  const previousRows = previousRowByRepo(repos, allMetrics);
 
   let commits = 0;
   let prsMerged = 0;
   const aiRows: Array<{ value: number | null; weight: number }> = [];
 
-  for (const repo of repos) {
-    const rows = byRepo.get(repo.id) ?? [];
-    const prev = rows[1]; // second row = previous run (rows are newest-first)
-    if (!prev) continue;
+  for (const prev of previousRows.values()) {
     commits += prev.commits_total ?? 0;
     prsMerged += prev.pr_merged_count ?? 0;
     // 0% is a legitimate value (see computeOrgPulse) — only skip repos with
@@ -874,6 +942,151 @@ export function computePreviousTotals(
     prsMerged,
     aiPct: weightedAvg(aiRows),
   };
+}
+
+/**
+ * Extract each repo's previous-run JSONB payload from the same raw rows
+ * `computePreviousTotals` reads (the query must also select `payload`).
+ * Lets computeDeliveryQuality/computePRHealth/computeCycleTime compute a
+ * "previous period" aggregate the same way they compute the current one,
+ * just fed the previous payloads map instead of the latest one.
+ */
+export function computePreviousPayloads(
+  repos: RepoSummary[],
+  allMetrics: Array<{ repository_id: string; payload: unknown }>,
+): Map<string, ReportMetrics> {
+  const previousRows = previousRowByRepo(repos, allMetrics);
+  const result = new Map<string, ReportMetrics>();
+  for (const [repoId, row] of previousRows) {
+    if (row.payload) result.set(repoId, row.payload as ReportMetrics);
+  }
+  return result;
+}
+
+/**
+ * Previous-period equivalents of computeDeliveryQuality's headline stats,
+ * computed the same way (weighted by commits_total for revert/cascade,
+ * simple average for fix latency and new-code churn) but from each repo's
+ * previous-run payload instead of its latest one.
+ */
+function computePreviousDeliveryQuality(
+  previousPayloads: Map<string, ReportMetrics>,
+): {
+  revertRate: number | null;
+  cascadeRate: number | null;
+  fixLatencyMedianHours: number | null;
+  newCodeChurnRate2w: number | null;
+} {
+  const revertValues: Array<{ value: number | null; weight: number }> = [];
+  const cascadeValues: Array<{ value: number | null; weight: number }> = [];
+  const fixLatencies: Array<number | null> = [];
+  const churnRates2w: Array<number | null> = [];
+
+  for (const [, p] of previousPayloads) {
+    const weight = p.commits_total ?? 0;
+    revertValues.push({ value: p.revert_rate ?? null, weight });
+    cascadeValues.push({ value: p.cascade_rate ?? null, weight });
+    fixLatencies.push(p.fix_latency_median_hours ?? null);
+    churnRates2w.push(p.new_code_churn_rate_2w ?? null);
+  }
+
+  return {
+    revertRate: weightedAvg(revertValues),
+    cascadeRate: weightedAvg(cascadeValues),
+    fixLatencyMedianHours: simpleAvg(fixLatencies),
+    newCodeChurnRate2w: simpleAvg(churnRates2w),
+  };
+}
+
+/** Previous-period equivalents of computePRHealth's headline stats. */
+function computePreviousPRHealth(
+  previousPayloads: Map<string, ReportMetrics>,
+): {
+  totalPRsMerged: number;
+  medianTimeToMergeHours: number | null;
+  singlePassRate: number | null;
+  medianReviewRounds: number | null;
+} {
+  let totalPRsMerged = 0;
+  const ttmValues: Array<number | null> = [];
+  const sprValues: Array<{ value: number | null; weight: number }> = [];
+  const roundsValues: Array<number | null> = [];
+
+  for (const [, p] of previousPayloads) {
+    totalPRsMerged += p.pr_merged_count ?? 0;
+    ttmValues.push(p.pr_median_time_to_merge_hours ?? null);
+    sprValues.push({
+      value: p.pr_single_pass_rate ?? null,
+      weight: p.pr_merged_count ?? 0,
+    });
+    roundsValues.push(p.pr_review_rounds_median ?? null);
+  }
+
+  return {
+    totalPRsMerged,
+    medianTimeToMergeHours: simpleAvg(ttmValues),
+    singlePassRate: weightedAvg(sprValues),
+    medianReviewRounds: simpleAvg(roundsValues),
+  };
+}
+
+/**
+ * Previous-period equivalents of computeCycleTime's headline stats. Mirrors
+ * its median/mean weighting exactly (see the fix for meanHours using its
+ * own weight total, independent of medianHours' weight).
+ */
+function computePreviousCycleTime(
+  previousPayloads: Map<string, ReportMetrics>,
+): {
+  pctMergedWithin24h: number | null;
+  medianHours: number | null;
+  meanHours: number | null;
+  p90Hours: number | null;
+} {
+  let totalMerged = 0;
+  let totalWithin24h = 0;
+  let medianWeightedSum = 0;
+  let meanWeightedSum = 0;
+  let medianWeightTotal = 0;
+  let meanWeightTotal = 0;
+  let maxP90: number | null = null;
+
+  for (const [, p] of previousPayloads) {
+    const merged = p.pr_merged_count ?? 0;
+    const buckets = p.pr_cycle_time_buckets;
+    if (merged <= 0 || !buckets) continue;
+
+    totalMerged += merged;
+    totalWithin24h += buckets.same_day;
+
+    if (p.pr_median_time_to_merge_hours !== undefined) {
+      medianWeightedSum += p.pr_median_time_to_merge_hours * merged;
+      medianWeightTotal += merged;
+    }
+    if (p.pr_mean_time_to_merge_hours !== undefined) {
+      meanWeightedSum += p.pr_mean_time_to_merge_hours * merged;
+      meanWeightTotal += merged;
+    }
+    if (p.pr_p90_time_to_merge_hours !== undefined) {
+      maxP90 =
+        maxP90 === null
+          ? p.pr_p90_time_to_merge_hours
+          : Math.max(maxP90, p.pr_p90_time_to_merge_hours);
+    }
+  }
+
+  return {
+    pctMergedWithin24h: totalMerged > 0 ? totalWithin24h / totalMerged : null,
+    medianHours:
+      medianWeightTotal > 0 ? medianWeightedSum / medianWeightTotal : null,
+    meanHours: meanWeightTotal > 0 ? meanWeightedSum / meanWeightTotal : null,
+    p90Hours: maxP90,
+  };
+}
+
+/** delta = current - previous, or null if either side is missing. */
+function diff(current: number | null, previous: number | null): number | null {
+  return current !== null && previous !== null ? current - previous : null;
 }
 
 // ---------------------------------------------------------------------------

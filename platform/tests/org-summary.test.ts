@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   computeAIvsHuman,
+  computeDeliveryQuality,
   computeOrgPulse,
   computePreviousTotals,
   computePRHealth,
@@ -221,5 +222,101 @@ describe("computePRHealth — by-origin weighting", () => {
     expect(out!.byOrigin.human!.singlePassRate).toBeCloseTo(91 / 110, 5);
     // Weighted: (1*100 + 5*10) / 110 ≈ 1.364 — not the plain average (3).
     expect(out!.byOrigin.human!.medianReviewRounds).toBeCloseTo(150 / 110, 5);
+  });
+});
+
+describe("computeDeliveryQuality — previous-period deltas", () => {
+  it("computes current - previous for revert/cascade/fix-latency/churn", () => {
+    const repos = [
+      repo({
+        id: "r1",
+        revert_rate: 0.1,
+        cascade_rate: 0.05,
+        commits_total: 100,
+      }),
+    ];
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set(
+      "r1",
+      payload({
+        fix_latency_median_hours: 5,
+        new_code_churn_rate_2w: 0.2,
+      }),
+    );
+    const previousPayloads = new Map<string, ReportMetrics>();
+    previousPayloads.set(
+      "r1",
+      payload({
+        revert_rate: 0.2,
+        cascade_rate: 0.08,
+        commits_total: 100,
+        fix_latency_median_hours: 10,
+        new_code_churn_rate_2w: 0.3,
+      }),
+    );
+
+    const out = computeDeliveryQuality(repos, payloads, previousPayloads);
+    expect(out.revertRateDelta).toBeCloseTo(0.1 - 0.2, 10);
+    expect(out.cascadeRateDelta).toBeCloseTo(0.05 - 0.08, 10);
+    expect(out.fixLatencyMedianHoursDelta).toBe(5 - 10);
+    expect(out.newCodeChurnRate2wDelta).toBeCloseTo(0.2 - 0.3, 10);
+  });
+
+  it("returns null deltas when no previous payloads are given (back-compat)", () => {
+    const repos = [repo({ id: "r1", revert_rate: 0.1, commits_total: 100 })];
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set("r1", payload({}));
+
+    const out = computeDeliveryQuality(repos, payloads);
+    expect(out.revertRateDelta).toBeNull();
+    expect(out.cascadeRateDelta).toBeNull();
+    expect(out.fixLatencyMedianHoursDelta).toBeNull();
+    expect(out.newCodeChurnRate2wDelta).toBeNull();
+  });
+});
+
+describe("computePRHealth — previous-period deltas", () => {
+  it("computes current - previous for merged count/time-to-merge/single-pass/review-rounds", () => {
+    const repos = [repo({ id: "r1", pr_merged_count: 50 })];
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set(
+      "r1",
+      payload({
+        pr_merged_count: 50,
+        pr_median_time_to_merge_hours: 10,
+        pr_single_pass_rate: 0.8,
+        pr_review_rounds_median: 1,
+      }),
+    );
+    const previousPayloads = new Map<string, ReportMetrics>();
+    previousPayloads.set(
+      "r1",
+      payload({
+        pr_merged_count: 40,
+        pr_median_time_to_merge_hours: 15,
+        pr_single_pass_rate: 0.7,
+        pr_review_rounds_median: 2,
+      }),
+    );
+
+    const out = computePRHealth(repos, payloads, previousPayloads);
+    expect(out).not.toBeNull();
+    expect(out!.totalPRsMergedDelta).toBe(50 - 40);
+    expect(out!.medianTimeToMergeHoursDelta).toBe(10 - 15);
+    expect(out!.singlePassRateDelta).toBeCloseTo(0.8 - 0.7, 10);
+    expect(out!.medianReviewRoundsDelta).toBe(1 - 2);
+  });
+
+  it("returns null deltas when no previous payloads are given (back-compat)", () => {
+    const repos = [repo({ id: "r1", pr_merged_count: 50 })];
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set("r1", payload({ pr_merged_count: 50 }));
+
+    const out = computePRHealth(repos, payloads);
+    expect(out).not.toBeNull();
+    expect(out!.totalPRsMergedDelta).toBeNull();
+    expect(out!.medianTimeToMergeHoursDelta).toBeNull();
+    expect(out!.singlePassRateDelta).toBeNull();
+    expect(out!.medianReviewRoundsDelta).toBeNull();
   });
 });
