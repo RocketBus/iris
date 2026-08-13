@@ -29,9 +29,14 @@ export interface DeliveryQuality {
   /** Per-repo stabilization values for distribution chart. */
   stabilizationDistribution: Array<{ name: string; value: number }>;
   revertRate: number | null;
+  /** current - previous period, same units as revertRate. Null if either side is missing. */
+  revertRateDelta: number | null;
   cascadeRate: number | null;
+  cascadeRateDelta: number | null;
   fixLatencyMedianHours: number | null;
+  fixLatencyMedianHoursDelta: number | null;
   newCodeChurnRate2w: number | null;
+  newCodeChurnRate2wDelta: number | null;
   newCodeChurnRate4w: number | null;
   reposWithData: number;
   totalRepos: number;
@@ -80,9 +85,14 @@ export interface IntentData {
 /** PR health metrics aggregated across all repos. */
 export interface PRHealthData {
   totalPRsMerged: number;
+  /** current - previous period, absolute PR count. Null if either side is missing. */
+  totalPRsMergedDelta: number | null;
   medianTimeToMergeHours: number | null;
+  medianTimeToMergeHoursDelta: number | null;
   singlePassRate: number | null;
+  singlePassRateDelta: number | null;
   medianReviewRounds: number | null;
+  medianReviewRoundsDelta: number | null;
   medianPRSizeLines: number | null;
   byOrigin: {
     human: {
@@ -149,12 +159,17 @@ export interface CycleTimeData {
   totalPRsMerged: number;
   /** Fraction (0.0–1.0) of merged PRs whose cycle time was ≤ 24h. */
   pctMergedWithin24h: number | null;
+  /** current - previous period, same 0.0-1.0 fraction. Null if either side is missing. */
+  pctMergedWithin24hDelta: number | null;
   /** Hours. Org-level median, weighted by per-repo merged count. */
   medianHours: number | null;
+  medianHoursDelta: number | null;
   /** Hours. Org-level mean, weighted by per-repo merged count. */
   meanHours: number | null;
+  meanHoursDelta: number | null;
   /** Hours. Worst-case P90 across repos (max of repo P90s). */
   p90Hours: number | null;
+  p90HoursDelta: number | null;
   /**
    * Code-window phase decomposition + dominant phase. Null when no repo in
    * the window carried phase data (older payloads). This is what replaces the

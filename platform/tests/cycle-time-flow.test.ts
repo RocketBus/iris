@@ -405,3 +405,71 @@ describe("computeCycleTime — median/mean weighting", () => {
     expect(out.meanHours).toBeCloseTo(5200 / 120, 5);
   });
 });
+
+describe("computeCycleTime — previous-period deltas", () => {
+  it("computes current - previous for pctWithin24h/median/mean/p90", () => {
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set(
+      "r1",
+      metrics({
+        pr_merged_count: 100,
+        pr_cycle_time_buckets: {
+          same_day: 80,
+          one_day: 20,
+          two_to_three_days: 0,
+          four_to_seven_days: 0,
+          seven_plus_days: 0,
+        },
+        pr_median_time_to_merge_hours: 5,
+        pr_mean_time_to_merge_hours: 6,
+        pr_p90_time_to_merge_hours: 20,
+      }),
+    );
+    const previousPayloads = new Map<string, ReportMetrics>();
+    previousPayloads.set(
+      "r1",
+      metrics({
+        pr_merged_count: 100,
+        pr_cycle_time_buckets: {
+          same_day: 60,
+          one_day: 40,
+          two_to_three_days: 0,
+          four_to_seven_days: 0,
+          seven_plus_days: 0,
+        },
+        pr_median_time_to_merge_hours: 8,
+        pr_mean_time_to_merge_hours: 9,
+        pr_p90_time_to_merge_hours: 25,
+      }),
+    );
+
+    const out = computeCycleTime(repos, payloads, previousPayloads)!;
+    expect(out.pctMergedWithin24hDelta).toBeCloseTo(0.8 - 0.6, 10);
+    expect(out.medianHoursDelta).toBe(5 - 8);
+    expect(out.meanHoursDelta).toBe(6 - 9);
+    expect(out.p90HoursDelta).toBe(20 - 25);
+  });
+
+  it("returns null deltas when no previous payloads are given (back-compat)", () => {
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set(
+      "r1",
+      metrics({
+        pr_merged_count: 10,
+        pr_cycle_time_buckets: {
+          same_day: 8,
+          one_day: 2,
+          two_to_three_days: 0,
+          four_to_seven_days: 0,
+          seven_plus_days: 0,
+        },
+      }),
+    );
+
+    const out = computeCycleTime(repos, payloads)!;
+    expect(out.pctMergedWithin24hDelta).toBeNull();
+    expect(out.medianHoursDelta).toBeNull();
+    expect(out.meanHoursDelta).toBeNull();
+    expect(out.p90HoursDelta).toBeNull();
+  });
+});
