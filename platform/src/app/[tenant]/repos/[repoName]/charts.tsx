@@ -788,11 +788,9 @@ export function RepoCharts({
   const chartData = timeSeries.map((p) => ({
     date: p.date,
     stabilization_ratio: p.stabilization_ratio,
-    revert_rate: p.revert_rate,
     churn_events: p.churn_events,
     commits_total: p.commits_total,
     ai_detection_coverage_pct: p.ai_detection_coverage_pct,
-    cascade_rate: p.cascade_rate,
   }));
 
   const hasAI = timeSeries.some(
