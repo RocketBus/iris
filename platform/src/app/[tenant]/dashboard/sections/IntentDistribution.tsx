@@ -45,6 +45,12 @@ const intentChartColors: Record<string, string> = {
   UNKNOWN: "var(--color-cat-4)",
 };
 
+// Below this many classified commits, a feature-to-fix ratio is too noisy to
+// narrate confidently (a 2:1 ratio off 3 commits isn't a signal). Mirrors the
+// sample-size gating Cycle Time and DORA already apply on this dashboard —
+// show the number, withhold the verdict.
+const MIN_COMMITS_FOR_VERDICT = 30;
+
 function formatDate(iso: string): string {
   const d = new Date(iso);
   return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
@@ -138,9 +144,14 @@ export function IntentDistribution({ data }: IntentDistributionProps) {
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  {data.featureToFixRatio >= 1
-                    ? t("dashboard.intent.buildingMore")
-                    : t("dashboard.intent.fixingMore")}
+                  {total >= MIN_COMMITS_FOR_VERDICT
+                    ? data.featureToFixRatio >= 1
+                      ? t("dashboard.intent.buildingMore")
+                      : t("dashboard.intent.fixingMore")
+                    : t("dashboard.intent.insufficientSample", {
+                        threshold: MIN_COMMITS_FOR_VERDICT,
+                        actual: total,
+                      })}
                 </p>
               </div>
             )}

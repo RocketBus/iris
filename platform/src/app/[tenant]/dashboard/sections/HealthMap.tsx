@@ -7,22 +7,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
 import { cn } from "@/lib/utils";
 import type { HealthMapEntry } from "@/types/org-summary";
+import { healthFillColor } from "@/types/temporal";
+import type { RepoSummary } from "@/types/temporal";
 
 interface HealthMapProps {
   entries: HealthMapEntry[];
   orgSlug: string;
 }
 
-// Sequential ramp for the stabilization heatmap. Tiles render with a
-// noticeable fillOpacity (see CustomTreemapContent), so we pick saturated
-// colors that survive the alpha blend instead of muddying into brown.
-function stabToColor(value: number): string {
-  if (value >= 0.7) return "var(--color-signal-green)"; // good
-  if (value >= 0.5) return "var(--color-signal-yellow)"; // warn
-  return "var(--color-signal-red)"; // bad
-}
-
-function healthColor(health: string): string {
+// Both the treemap fill and the mobile-list text derive from the same
+// canonical `health` field (see classifyHealth) instead of re-thresholding
+// the raw stabilization number, so a repo can never render as two different
+// colors depending on viewport width.
+function healthColor(health: RepoSummary["health"]): string {
   switch (health) {
     case "healthy":
       return "text-signal-purple";
@@ -41,7 +38,7 @@ interface TreemapContentProps {
   width?: number;
   height?: number;
   name?: string;
-  stabilization?: number;
+  health?: RepoSummary["health"];
 }
 
 function CustomTreemapContent({
@@ -50,11 +47,11 @@ function CustomTreemapContent({
   width = 0,
   height = 0,
   name = "",
-  stabilization = 0,
+  health = "unknown",
 }: TreemapContentProps) {
   if (width < 30 || height < 20) return null;
 
-  const color = stabToColor(stabilization);
+  const color = healthFillColor(health);
   const showLabel = width > 50 && height > 30;
 
   return (
@@ -104,6 +101,7 @@ export function HealthMap({ entries }: HealthMapProps) {
     name: e.name,
     size: Math.max(e.commits, 1),
     stabilization: e.stabilization,
+    health: e.health,
   }));
 
   return (

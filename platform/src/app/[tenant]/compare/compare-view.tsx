@@ -237,22 +237,26 @@ export function CompareView({ repos }: CompareViewProps) {
   // is filtering to focus, not to redefine the comparison universe. A repo
   // with 60% stabilization stays highlighted yellow even when it's the only
   // one matching the filter.
+  //
+  // Both best and worst require at least 2 data points — with only one repo
+  // carrying a metric, it trivially equals its own max and min, and
+  // highlighting it "best" implies a comparison that doesn't exist.
   const allStab = repos
     .map((r) => r.stabilization_ratio)
     .filter((v): v is number => v !== null);
-  const bestStab = allStab.length > 0 ? Math.max(...allStab) : null;
+  const bestStab = allStab.length > 1 ? Math.max(...allStab) : null;
   const worstStab = allStab.length > 1 ? Math.min(...allStab) : null;
 
   const allChurn = repos
     .map((r) => r.churn_events)
     .filter((v): v is number => v !== null);
-  const bestChurn = allChurn.length > 0 ? Math.min(...allChurn) : null;
+  const bestChurn = allChurn.length > 1 ? Math.min(...allChurn) : null;
   const worstChurn = allChurn.length > 1 ? Math.max(...allChurn) : null;
 
   const allRevert = repos
     .map((r) => r.revert_rate)
     .filter((v): v is number => v !== null);
-  const bestRevert = allRevert.length > 0 ? Math.min(...allRevert) : null;
+  const bestRevert = allRevert.length > 1 ? Math.min(...allRevert) : null;
   const worstRevert = allRevert.length > 1 ? Math.max(...allRevert) : null;
 
   const allAI = repos

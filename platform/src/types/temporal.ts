@@ -86,6 +86,25 @@ export function classifyHealth(
   return "critical";
 }
 
+/**
+ * CSS color var for a health classification — shared so a repo at a given
+ * stabilization value always renders the same color everywhere (treemap
+ * fill, bar chart fill, etc.), instead of each chart re-thresholding the
+ * raw number with its own cutoffs.
+ */
+export function healthFillColor(health: RepoSummary["health"]): string {
+  switch (health) {
+    case "healthy":
+      return "var(--color-signal-purple)";
+    case "warning":
+      return "var(--color-signal-yellow)";
+    case "critical":
+      return "var(--color-signal-red)";
+    default:
+      return "var(--color-muted-foreground)";
+  }
+}
+
 /** Health indicator emoji. */
 export function healthIndicator(health: RepoSummary["health"]): string {
   switch (health) {

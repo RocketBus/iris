@@ -3,6 +3,8 @@
  * All interfaces represent pre-computed data passed to client section components.
  */
 
+import type { RepoSummary } from "./temporal";
+
 /** Hero cards — top-level org pulse. */
 export interface OrgPulse {
   totalCommits: number;
@@ -181,7 +183,7 @@ export interface HealthMapEntry {
   commits: number;
   stabilization: number;
   delta: number | null;
-  health: string;
+  health: RepoSummary["health"];
 }
 
 /** A hyper engineer detected across the org. */

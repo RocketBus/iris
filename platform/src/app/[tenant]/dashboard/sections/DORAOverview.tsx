@@ -23,12 +23,24 @@ import type { OrgDORA } from "@/types/org-summary";
  */
 const MIN_FAILED_FOR_CORRELATION = 10;
 
+/**
+ * Below this many evaluated deploys, the four headline KPI cards (CFR in
+ * particular — a ratio) are one-or-two-events noise dressed up as a
+ * precise percentage. Same order of magnitude as MIN_FAILED_FOR_CORRELATION,
+ * applied here to the broader "evaluated" denominator rather than "failed".
+ */
+const MIN_EVALUATED_FOR_KPIS = 10;
+
 interface Props {
   data: OrgDORA;
 }
 
 export function DORAOverview({ data }: Props) {
   const { t } = useTranslation();
+
+  const evaluatedDeploys =
+    data.deploymentsTotal - data.deploymentsPendingEvaluation;
+  const lowSample = evaluatedDeploys < MIN_EVALUATED_FOR_KPIS;
 
   const showCorrelation =
     data.deploymentsFailed >= MIN_FAILED_FOR_CORRELATION &&
@@ -69,6 +81,14 @@ export function DORAOverview({ data }: Props) {
           value={formatHours(data.leadTimeSecondsMedian)}
         />
       </div>
+      {lowSample && (
+        <p className="text-xs text-muted-foreground">
+          {t("dashboard.dora.lowSample", {
+            threshold: MIN_EVALUATED_FOR_KPIS,
+            actual: evaluatedDeploys,
+          })}
+        </p>
+      )}
 
       <div className="grid gap-4 md:grid-cols-3">
         <DORAFactCard

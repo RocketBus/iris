@@ -4,6 +4,7 @@ import {
   computeAIvsHuman,
   computeOrgPulse,
   computePreviousTotals,
+  computePRHealth,
 } from "@/lib/queries/org-summary";
 import type { ReportMetrics } from "@/types/metrics";
 import type { RepoSummary } from "@/types/temporal";
@@ -144,5 +145,81 @@ describe("computeAIvsHuman — attribution gap", () => {
     // 3/10 = 30%, which is what you get using only r1's own (tiny) count.
     expect(out!.attributionGap!.totalHumanCommits).toBe(9000);
     expect(out!.attributionGap!.flaggedPct).toBeCloseTo((3 / 9000) * 100, 5);
+  });
+});
+
+describe("computePRHealth — by-origin weighting", () => {
+  it("weights human/AI single-pass rate and review rounds by commits_in_prs, not by repo count", () => {
+    const repos = [
+      repo({ id: "r1", pr_merged_count: 50 }),
+      repo({ id: "r2", pr_merged_count: 5 }),
+    ];
+    const payloads = new Map<string, ReportMetrics>();
+    payloads.set(
+      "r1",
+      payload({
+        pr_merged_count: 50,
+        acceptance_by_origin: {
+          HUMAN: {
+            total_commits: 100,
+            commits_in_prs: 100,
+            pr_rate: 1,
+            single_pass_rate: 0.9,
+            median_review_rounds: 1,
+          },
+          AI_ASSISTED: {
+            total_commits: 0,
+            commits_in_prs: 0,
+            pr_rate: 0,
+            single_pass_rate: 0,
+            median_review_rounds: 0,
+          },
+          BOT: {
+            total_commits: 0,
+            commits_in_prs: 0,
+            pr_rate: 0,
+            single_pass_rate: 0,
+            median_review_rounds: 0,
+          },
+        },
+      }),
+    );
+    payloads.set(
+      "r2",
+      payload({
+        pr_merged_count: 5,
+        acceptance_by_origin: {
+          HUMAN: {
+            total_commits: 10,
+            commits_in_prs: 10,
+            pr_rate: 1,
+            single_pass_rate: 0.1,
+            median_review_rounds: 5,
+          },
+          AI_ASSISTED: {
+            total_commits: 0,
+            commits_in_prs: 0,
+            pr_rate: 0,
+            single_pass_rate: 0,
+            median_review_rounds: 0,
+          },
+          BOT: {
+            total_commits: 0,
+            commits_in_prs: 0,
+            pr_rate: 0,
+            single_pass_rate: 0,
+            median_review_rounds: 0,
+          },
+        },
+      }),
+    );
+
+    const out = computePRHealth(repos, payloads);
+    expect(out).not.toBeNull();
+    // Weighted: (0.9*100 + 0.1*10) / 110 ≈ 0.827 — not the plain per-repo
+    // average of [0.9, 0.1], which would be 0.5.
+    expect(out!.byOrigin.human!.singlePassRate).toBeCloseTo(91 / 110, 5);
+    // Weighted: (1*100 + 5*10) / 110 ≈ 1.364 — not the plain average (3).
+    expect(out!.byOrigin.human!.medianReviewRounds).toBeCloseTo(150 / 110, 5);
   });
 });

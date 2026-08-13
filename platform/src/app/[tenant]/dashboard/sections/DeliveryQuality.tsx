@@ -21,15 +21,16 @@ import {
 } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
 import type { DeliveryQuality as DeliveryQualityData } from "@/types/org-summary";
+import { classifyHealth, healthFillColor } from "@/types/temporal";
 
 interface DeliveryQualityProps {
   data: DeliveryQualityData;
 }
 
+// Same classifyHealth thresholds and colors the org dashboard's Health Map
+// uses, so a repo's bar here and its treemap tile never disagree.
 function stabColor(value: number): string {
-  if (value >= 0.7) return "var(--color-signal-purple)";
-  if (value >= 0.5) return "var(--color-signal-yellow)";
-  return "var(--color-signal-red)";
+  return healthFillColor(classifyHealth(value));
 }
 
 export function DeliveryQuality({ data }: DeliveryQualityProps) {

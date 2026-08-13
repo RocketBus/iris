@@ -551,14 +551,15 @@ export function computePRHealth(
   const roundsValues: Array<number | null> = [];
   const sizeValues: Array<number | null> = [];
 
-  let humanSPR: number | null = null,
-    humanRounds: number | null = null;
-  let aiSPR: number | null = null,
-    aiRounds: number | null = null;
-  let humanSPRCount = 0,
-    aiSPRCount = 0;
-  let humanRoundsCount = 0,
-    aiRoundsCount = 0;
+  // Weighted by commits_in_prs (same denominator as the guard below), so
+  // this agrees with the top-level singlePassRate's weighting method
+  // instead of averaging each repo equally regardless of its PR volume.
+  let humanSPRSum = 0,
+    humanRoundsSum = 0,
+    humanWeight = 0;
+  let aiSPRSum = 0,
+    aiRoundsSum = 0,
+    aiWeight = 0;
 
   for (const [, p] of payloads) {
     ttmValues.push(p.pr_median_time_to_merge_hours ?? null);
@@ -577,16 +578,16 @@ export function computePRHealth(
     // hash linkage, so it can read 91% while these read 0.
     const acc = p.acceptance_by_origin;
     if (acc?.HUMAN && acc.HUMAN.commits_in_prs > 0) {
-      humanSPR = (humanSPR ?? 0) + acc.HUMAN.single_pass_rate;
-      humanSPRCount++;
-      humanRounds = (humanRounds ?? 0) + acc.HUMAN.median_review_rounds;
-      humanRoundsCount++;
+      const w = acc.HUMAN.commits_in_prs;
+      humanSPRSum += acc.HUMAN.single_pass_rate * w;
+      humanRoundsSum += acc.HUMAN.median_review_rounds * w;
+      humanWeight += w;
     }
     if (acc?.AI_ASSISTED && acc.AI_ASSISTED.commits_in_prs > 0) {
-      aiSPR = (aiSPR ?? 0) + acc.AI_ASSISTED.single_pass_rate;
-      aiSPRCount++;
-      aiRounds = (aiRounds ?? 0) + acc.AI_ASSISTED.median_review_rounds;
-      aiRoundsCount++;
+      const w = acc.AI_ASSISTED.commits_in_prs;
+      aiSPRSum += acc.AI_ASSISTED.single_pass_rate * w;
+      aiRoundsSum += acc.AI_ASSISTED.median_review_rounds * w;
+      aiWeight += w;
     }
   }
 
@@ -598,19 +599,17 @@ export function computePRHealth(
     medianPRSizeLines: simpleAvg(sizeValues),
     byOrigin: {
       human:
-        humanSPRCount > 0
+        humanWeight > 0
           ? {
-              singlePassRate: humanSPR! / humanSPRCount,
-              medianReviewRounds:
-                humanRoundsCount > 0 ? humanRounds! / humanRoundsCount : null,
+              singlePassRate: humanSPRSum / humanWeight,
+              medianReviewRounds: humanRoundsSum / humanWeight,
             }
           : null,
       ai:
-        aiSPRCount > 0
+        aiWeight > 0
           ? {
-              singlePassRate: aiSPR! / aiSPRCount,
-              medianReviewRounds:
-                aiRoundsCount > 0 ? aiRounds! / aiRoundsCount : null,
+              singlePassRate: aiSPRSum / aiWeight,
+              medianReviewRounds: aiRoundsSum / aiWeight,
             }
           : null,
     },
