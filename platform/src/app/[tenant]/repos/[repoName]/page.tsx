@@ -303,6 +303,7 @@ export default async function RepoDetailPage({
           value={latest?.commits_total?.toString() ?? "\u2014"}
           delta={commitsDelta}
           deltaFormat="abs"
+          neutral
         />
       </div>
 

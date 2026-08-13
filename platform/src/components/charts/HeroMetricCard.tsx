@@ -11,6 +11,12 @@ interface HeroMetricCardProps {
   delta?: number | null;
   deltaFormat?: "pp" | "abs" | "pct";
   invertDelta?: boolean;
+  /**
+   * true = this metric is raw activity volume (e.g. commit/PR count), not
+   * an outcome — up or down is neither good nor bad on its own, so the
+   * delta renders in a neutral color instead of purple/red.
+   */
+  neutral?: boolean;
   sparkline?: number[];
   qualifier?: string;
 }
@@ -21,14 +27,15 @@ export function HeroMetricCard({
   delta,
   deltaFormat = "pp",
   invertDelta = false,
+  neutral = false,
   sparkline,
   qualifier,
 }: HeroMetricCardProps) {
   const hasDelta = delta !== null && delta !== undefined && delta !== 0;
   const isPositive = hasDelta && delta > 0;
   const isNegative = hasDelta && delta < 0;
-  const isGood = invertDelta ? isNegative : isPositive;
-  const isBad = invertDelta ? isPositive : isNegative;
+  const isGood = !neutral && (invertDelta ? isNegative : isPositive);
+  const isBad = !neutral && (invertDelta ? isPositive : isNegative);
 
   function formatDelta(d: number): string {
     const abs = Math.abs(d);

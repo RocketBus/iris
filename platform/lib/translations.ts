@@ -303,10 +303,12 @@ export const translations = {
           pending: "Pending Evaluation",
           pendingHint: "Datadog hasn't classified these yet",
         },
+        lowSample:
+          "Based on only {actual} evaluated deploys (below the {threshold} this dashboard treats as a stable read) — treat these four as directional, not precise.",
         correlation: {
           title: "Change Failure Rate by Code Origin",
           subtitle:
-            "Per-commit join of Datadog deploys to local origin classification. Requires ≥ {threshold} failed deploys for signal.",
+            "Per-commit join of Datadog deploys to local origin classification. Requires ≥ {threshold} failed deploys for signal. Counted per commit, not per deploy — not directly comparable to the CFR/rollback cards above.",
           cfrHeader: "CFR by origin",
           rollbackHeader: "Rollback rate by origin",
           cfrDenominator: "({failed} failed / {evaluated} evaluated)",
@@ -353,6 +355,8 @@ export const translations = {
         featureToFix: "Feature-to-Fix Ratio",
         buildingMore: "Building more than fixing",
         fixingMore: "Fixing more than building",
+        insufficientSample:
+          "Need at least {threshold} classified commits for a confident read. Currently {actual}.",
         labels: {
           feature: "Feature",
           fix: "Fix",
@@ -1697,10 +1701,12 @@ export const translations = {
           pending: "Aguardando avaliação",
           pendingHint: "O Datadog ainda não classificou esses deploys",
         },
+        lowSample:
+          "Baseado em apenas {actual} deploys avaliados (abaixo dos {threshold} que este dashboard considera uma leitura estável) — trate esses quatro números como direcionais, não precisos.",
         correlation: {
           title: "Taxa de falha por origem do código",
           subtitle:
-            "Junção por commit dos deploys do Datadog com a classificação local de origem. Requer ≥ {threshold} deploys com falha para gerar sinal.",
+            "Junção por commit dos deploys do Datadog com a classificação local de origem. Requer ≥ {threshold} deploys com falha para gerar sinal. Contado por commit, não por deploy — não é diretamente comparável aos cards de CFR/rollback acima.",
           cfrHeader: "CFR por origem",
           rollbackHeader: "Taxa de rollback por origem",
           cfrDenominator: "({failed} com falha / {evaluated} avaliados)",
@@ -1749,6 +1755,8 @@ export const translations = {
         featureToFix: "Razão Feature/Fix",
         buildingMore: "Construindo mais do que corrigindo",
         fixingMore: "Corrigindo mais do que construindo",
+        insufficientSample:
+          "São necessários pelo menos {threshold} commits classificados para uma leitura confiável. Atualmente {actual}.",
         labels: {
           feature: "Feature",
           fix: "Fix",
