@@ -249,8 +249,12 @@ export interface OrgDORA {
   rollbackRate: number | null;
   /** Seconds. Median of `recovery_time_sec` over failed deploys. */
   mttrPerDeploySecondsMedian: number | null;
+  /** Seconds. Nearest-rank P90 of `recovery_time_sec` over failed deploys. */
+  mttrPerDeploySecondsP90: number | null;
   /** Seconds. Median of `time_to_restore_seconds` over incident events. */
   mttrPerIncidentSecondsMedian: number | null;
+  /** Seconds. Nearest-rank P90 of `time_to_restore_seconds` over incident events. */
+  mttrPerIncidentSecondsP90: number | null;
   /** Seconds. Median across every commit on every deploy in the window. */
   leadTimeSecondsMedian: number | null;
   /** Deploys per calendar day across the queried window. */
@@ -287,6 +291,7 @@ export interface RepoDORA {
   deploymentsPendingEvaluation: number;
   cfr: number | null;
   mttrPerDeploySecondsMedian: number | null;
+  mttrPerDeploySecondsP90: number | null;
   rollbacksTotal: number;
   rollbackRate: number | null;
   leadTimeSecondsMedian: number | null;

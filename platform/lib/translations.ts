@@ -294,6 +294,7 @@ export const translations = {
         metrics: {
           cfr: "Change Failure Rate",
           mttrPerDeploy: "MTTR (per failed deploy)",
+          mttrP90Hint: "P90: {value}",
           deployFrequency: "Deploy Frequency",
           leadTime: "Lead Time",
           deploymentsTotal: "Deployments",
@@ -1692,6 +1693,7 @@ export const translations = {
         metrics: {
           cfr: "Taxa de falha em mudança",
           mttrPerDeploy: "MTTR (por deploy com falha)",
+          mttrP90Hint: "P90: {value}",
           deployFrequency: "Frequência de deploy",
           leadTime: "Lead Time",
           deploymentsTotal: "Deploys",

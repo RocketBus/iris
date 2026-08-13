@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import { __testing } from "@/lib/queries/dora";
 import type { ReportMetrics } from "@/types/metrics";
 
-const { deployDerivedMetrics, aggregateCfrByOriginFromPayloads, median } =
-  __testing;
+const {
+  deployDerivedMetrics,
+  aggregateCfrByOriginFromPayloads,
+  median,
+  percentile,
+} = __testing;
 
 function deploy(over: {
   id?: string;
@@ -196,5 +200,41 @@ describe("median", () => {
 
   it("picks the middle for odd-length input (after sort)", () => {
     expect(median([1, 5, 3])).toBe(3);
+  });
+});
+
+describe("percentile — nearest-rank, mirrors iris/analysis/dora_real.py's _percentile", () => {
+  it("returns null for empty input", () => {
+    expect(percentile([], 0.9)).toBeNull();
+  });
+
+  it("returns the single value regardless of q, for a 1-element input", () => {
+    expect(percentile([42], 0.9)).toBe(42);
+    expect(percentile([42], 0.1)).toBe(42);
+  });
+
+  it("matches the Python nearest-rank formula for n=10, p90 (rank 9 of 10)", () => {
+    const values = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+    // rank = round(0.9 * 10) = 9 -> 9th smallest (1-indexed) = values[8] = 90
+    expect(percentile(values, 0.9)).toBe(90);
+  });
+
+  it("never interpolates — always returns an observed value", () => {
+    // n=4, q=0.9: rank = round(3.6) = 4 -> the max, not an average of two.
+    const values = [1, 2, 3, 100];
+    const p90 = percentile(values, 0.9);
+    expect(values).toContain(p90);
+    expect(p90).toBe(100);
+  });
+
+  it("clamps rank to [1, n] so out-of-range q never indexes past the array", () => {
+    const values = [5, 15, 25];
+    expect(percentile(values, 1.0)).toBe(25); // rank would be exactly n
+    expect(percentile(values, 0.01)).toBe(5); // rank rounds down to 0, clamped to 1
+  });
+
+  it("sorts unsorted input before ranking", () => {
+    const values = [100, 10, 90, 20, 80, 30, 70, 40, 60, 50];
+    expect(percentile(values, 0.9)).toBe(90);
   });
 });
