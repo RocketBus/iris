@@ -593,7 +593,7 @@ EN = {
     ),
     "ai_coverage_none": (
         "No AI-assisted commits detected. If your team uses AI tools "
-        "that don't add co-author tags (Cursor, Windsurf, Copilot inline), "
+        "that don't add an attribution trailer (Cursor, Windsurf, Copilot inline), "
         "commits will appear as Human."
     ),
 
@@ -1457,7 +1457,7 @@ PT_BR = {
     ),
     "ai_coverage_none": (
         "Nenhum commit assistido por AI detectado. Se sua equipe usa ferramentas AI "
-        "que não adicionam co-author tags (Cursor, Windsurf, Copilot inline), "
+        "que não adicionam trailers de atribuição (Cursor, Windsurf, Copilot inline), "
         "os commits aparecerão como Humano."
     ),
 

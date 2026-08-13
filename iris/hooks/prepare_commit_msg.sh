@@ -68,8 +68,12 @@ fi
 # All three trailer keys the engine reads are accepted here: a repo whose
 # policy already writes `Assisted-by:` (or a tool that writes `Made-with:`)
 # is attributed, so appending a Co-Authored-By would only duplicate it.
+#
+# The word boundary keeps a human co-author (`Claudemir`) from suppressing
+# attribution. If a grep build does not support \b, the worst case is a
+# duplicated trailer — never a commit with no attribution.
 
-if grep -qiE "^[[:space:]]*(Co-Authored-By|Assisted-by|Made-with):.*(claude|cursor|windsurf|copilot|anthropic|codeium|tabnine|amazon-q|gemini|devin)" "$COMMIT_MSG_FILE" 2>/dev/null; then
+if grep -qiE "^[[:space:]]*(Co-Authored-By|Assisted-by|Made-with):.*\b(claude|anthropic|cursor|windsurf|copilot|codeium|tabnine|amazon-q|gemini|devin-ai)\b" "$COMMIT_MSG_FILE" 2>/dev/null; then
     exit 0
 fi
 

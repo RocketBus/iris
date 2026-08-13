@@ -44,7 +44,7 @@ Only one trailer per commit is needed. If your policy already writes `Assisted-b
 |---|---|
 | Claude Code | `Co-Authored-By: Claude Code <noreply@anthropic.com>` |
 | GitHub Copilot | `Co-Authored-By: GitHub Copilot <copilot@github.com>` |
-| Cursor | `Made-with: Cursor` |
+| Cursor | `Co-Authored-By: Cursor <cursor@iris.invalid>` (Iris hook) or `Made-with: Cursor` (Cursor's own agent) |
 | Windsurf | `Co-Authored-By: Windsurf <windsurf@iris.invalid>` |
 | Codeium | `Co-Authored-By: Codeium <codeium@iris.invalid>` |
 | Amazon Q | `Co-Authored-By: Amazon Q <amazon-q@iris.invalid>` |

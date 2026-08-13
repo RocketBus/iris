@@ -271,12 +271,12 @@ export const slides: Slide[] = [
       "Humano, assistido por IA ou bot",
     ),
     lede: EB(
-      "No guessing. We read co-author tags and author patterns.",
-      "Sem chute. Lemos co-author tags e padrões de autor.",
+      "No guessing. We read attribution trailers and author patterns.",
+      "Sem chute. Lemos trailers de atribuição e padrões de autor.",
     ),
     what: EB(
-      "Co-author matches Copilot, Claude, Cursor, Codeium, Tabnine, Amazon Q, Gemini, or Windsurf → AI_ASSISTED. Known bot names → BOT. Everything else → HUMAN.",
-      "Co-author bate com Copilot, Claude, Cursor, Codeium, Tabnine, Amazon Q, Gemini ou Windsurf → AI_ASSISTED. Nomes de bot conhecidos → BOT. O resto → HUMAN.",
+      "Attribution trailer matches Copilot, Claude, Cursor, Codeium, Tabnine, Amazon Q, Gemini, Windsurf, or Devin → AI_ASSISTED. Known bot names → BOT. Everything else → HUMAN.",
+      "Trailer de atribuição bate com Copilot, Claude, Cursor, Codeium, Tabnine, Amazon Q, Gemini, Windsurf ou Devin → AI_ASSISTED. Nomes de bot conhecidos → BOT. O resto → HUMAN.",
     ),
     why: EB(
       "Every single other metric in Iris can be segmented by origin. This is the dimension that unlocks AI impact analysis — without surveys, without self-report.",

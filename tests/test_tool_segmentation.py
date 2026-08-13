@@ -17,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from iris.analysis.origin_classifier import (
+    _AI_TOOL_PATTERNS,
     CommitOrigin,
     build_tool_map,
     classify_origins,
@@ -100,10 +101,16 @@ def test_detect_tool_all_patterns():
         (["tabnine@iris.invalid"], "Tabnine"),
         (["amazon-q@iris.invalid"], "Amazon Q"),
         (["gemini@iris.invalid"], "Gemini"),
+        (["windsurf@iris.invalid"], "Windsurf"),
+        (["Devin AI <devin-ai-integration[bot]@users.noreply.github.com>"], "Devin"),
     ]
     for attribution_trailers, expected_tool in cases:
         c = _commit("x", attribution_trailers=attribution_trailers)
         assert detect_tool(c) == expected_tool, f"Failed for {attribution_trailers}"
+
+    covered = {expected_tool for _, expected_tool in cases}
+    declared = {tool_name for _, tool_name in _AI_TOOL_PATTERNS}
+    assert covered == declared, f"Tools without a case: {declared - covered}"
 
 
 def test_detect_tool_none_for_human():

@@ -129,13 +129,15 @@ Heuristic order: (1) Conventional Commit prefix (`feat:`, `fix:`,
 Classification heuristic in `origin_classifier.py`:
 1. An attribution trailer naming an AI tool (`copilot`, `claude`,
    `anthropic`, `cursor`, `codeium`, `tabnine`, `amazon-q`, `gemini`,
-   `windsurf`, `devin`) → `AI_ASSISTED`
+   `windsurf`, `devin-ai`) → `AI_ASSISTED`
 2. Author patterns (`[bot]`, `-bot`, known bot names) → `BOT`
 3. Default → `HUMAN`
 
 Trailers are read from the commit body by `ingestion/git_reader.py`, which
 accepts three keys — `Co-authored-by`, `Assisted-by`, and `Made-with` — and
-matches the tool name anywhere in the trailer value (display name or e-mail).
+matches the tool name as a whole word in either half of the trailer value
+(display name or e-mail); a human co-author whose name merely contains the
+substring (`Claudemir`, `Geminiano`) is therefore not classified as AI.
 `Made-with: Cursor` carries no e-mail and still counts. See
 [guides/ai-attribution-policy.md](guides/ai-attribution-policy.md).
 

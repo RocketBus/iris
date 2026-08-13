@@ -33,10 +33,12 @@ _LOG_FORMAT = _FIELD_SEP.join(["%H", "%an", "%ae", "%aI", "%P", "%s", "%b"]) + _
 # The whole value is captured, not just the e-mail: `Made-with: Cursor` has no
 # e-mail, and in `Assisted-by: Claude Code <noreply@anthropic.com>` the tool
 # name is in the display name while the e-mail is a generic no-reply.
+# The key must start at column 0, as git requires for a trailer — otherwise an
+# indented example inside the commit body would count as attribution.
 # `\r` is trimmed as trailing whitespace: `$` matches before `\n` under
 # MULTILINE, so a CRLF commit body would otherwise leave it inside the value.
 _ATTRIBUTION_TRAILER_RE = re.compile(
-    r"^[ \t]*(?:Co-authored-by|Assisted-by|Made-with)[ \t]*:[ \t]*(\S.*?)[ \t\r]*$",
+    r"^(?:Co-authored-by|Assisted-by|Made-with)[ \t]*:[ \t]*(\S.*?)[ \t\r]*$",
     re.IGNORECASE | re.MULTILINE,
 )
 

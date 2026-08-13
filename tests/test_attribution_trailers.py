@@ -72,9 +72,10 @@ def test_trailer_key_is_case_insensitive() -> None:
     assert c.attribution_trailers == ["Claude Code <noreply@anthropic.com>"]
 
 
-def test_indented_trailer_is_parsed() -> None:
+def test_indented_trailer_is_not_parsed() -> None:
+    # Git only honours trailers at column 0.
     c = _parse_one("  Co-authored-by: Devin AI <devin@example.com>")
-    assert c.attribution_trailers == ["Devin AI <devin@example.com>"]
+    assert c.attribution_trailers == []
 
 
 def test_crlf_body_does_not_leak_carriage_return() -> None:
@@ -135,11 +136,15 @@ def test_devin_is_detected() -> None:
     # Devin's integration co-authors as a bracketed bot account. The [bot]
     # suffix only rules the *author* field, so without a tool pattern these
     # commits fell through to HUMAN.
-    c = _commit(
+    trailers = (
         "Devin AI <158243242+devin-ai-integration[bot]@users.noreply.github.com>",
+        "devin-ai-integration[bot] "
+        "<158243242+devin-ai-integration[bot]@users.noreply.github.com>",
     )
-    assert classify_origin(c) is CommitOrigin.AI_ASSISTED
-    assert detect_tool(c) == "Devin"
+    for trailer in trailers:
+        c = _commit(trailer)
+        assert classify_origin(c) is CommitOrigin.AI_ASSISTED, trailer
+        assert detect_tool(c) == "Devin", trailer
 
 
 def test_tool_name_in_display_name_only_is_detected() -> None:
@@ -161,6 +166,21 @@ def test_human_co_author_stays_human() -> None:
     c = _commit("Bob Souza <bob@example.com>")
     assert classify_origin(c) is CommitOrigin.HUMAN
     assert detect_tool(c) is None
+
+
+def test_human_name_containing_tool_substring_stays_human() -> None:
+    # Tool names are matched as whole words, so a human co-author whose name
+    # merely contains one is not attributed to an AI.
+    names = (
+        "Claudemir Santos <c.santos@clickbus.com>",
+        "Claudete Rocha <claudete@corp.com>",
+        "Geminiano Silva <g.silva@corp.com>",
+        "Devin Kelly <devin.kelly@corp.com>",
+    )
+    for name in names:
+        c = _commit(name)
+        assert classify_origin(c) is CommitOrigin.HUMAN, name
+        assert detect_tool(c) is None, name
 
 
 def test_first_ai_trailer_wins_over_human_one() -> None:
