@@ -9,6 +9,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/queries/temporal";
 import type { ReportMetrics } from "@/types/metrics";
 
+// How many historical pushes per repo to pull when reconstructing the trend
+// chart. Each push's weekly array already covers DEFAULT_WINDOW_DAYS, so a
+// handful of pushes goes a long way — this is a cap on ingestion cadence
+// (typically one push per CI run), not on calendar days of history.
+const HISTORY_DEPTH = 12;
+
 export interface PerRepoUsage {
   organizationSlug: string;
   organizationName: string;
@@ -45,7 +51,7 @@ interface OrgInput {
   name: string;
 }
 
-interface MetricRow {
+export interface MetricRow {
   repository_id: string;
   payload: ReportMetrics | null;
   created_at: string;
@@ -92,6 +98,74 @@ function pickUserAuthor(
   return null;
 }
 
+// Weekly AI commit share aggregated across each repo's full fetched history,
+// not just its latest payload — a single push's weekly array only covers
+// that push's own analysis window, so relying on it alone caps the chart at
+// ~DEFAULT_WINDOW_DAYS of visible history no matter how long the user has
+// been active. Bucket by ACTUAL commit week
+// (author_velocity.authors[].weekly.week_start), not by metrics ingestion
+// timestamp — otherwise a first-time push of N repos all on the same day
+// collapses into one bucket and the chart shows "insufficient data" even
+// though months of history are sitting in the payload. ai_commits per week
+// is emitted by iris >= 1.0.2; older payloads contribute commit counts but
+// no AI share for those weeks.
+export function buildUsageTrend(
+  rowsPerRepo: Map<string, MetricRow[]>,
+  emailCandidates: Set<string>,
+  nameCandidates: Set<string>,
+): UsageTrendPoint[] {
+  type WeekBucket = {
+    commits: number;
+    aiCommits: number;
+    repoIds: Set<string>;
+    hasAiData: boolean;
+  };
+  const weekly = new Map<string, WeekBucket>();
+
+  for (const [repoId, rows] of rowsPerRepo) {
+    // Overlapping pushes can report the same week differently as commit
+    // history is amended/rebased; rows are newest-first, so the first value
+    // seen per week wins and older pushes' values for that same week are
+    // skipped.
+    const seenWeeks = new Set<string>();
+    for (const row of rows) {
+      const match = pickUserAuthor(
+        row.payload,
+        emailCandidates,
+        nameCandidates,
+      );
+      if (!match?.author.weekly) continue;
+      for (const w of match.author.weekly) {
+        if (seenWeeks.has(w.week_start)) continue;
+        seenWeeks.add(w.week_start);
+
+        const bucket: WeekBucket = weekly.get(w.week_start) ?? {
+          commits: 0,
+          aiCommits: 0,
+          repoIds: new Set(),
+          hasAiData: false,
+        };
+        bucket.commits += w.commits;
+        if (typeof w.ai_commits === "number") {
+          bucket.aiCommits += w.ai_commits;
+          bucket.hasAiData = true;
+        }
+        bucket.repoIds.add(repoId);
+        weekly.set(w.week_start, bucket);
+      }
+    }
+  }
+
+  return [...weekly.entries()]
+    .map(([date, b]) => ({
+      date,
+      aiCommitPct:
+        b.hasAiData && b.commits > 0 ? (b.aiCommits / b.commits) * 100 : null,
+      repos: b.repoIds.size,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
 export async function getPersonalAIUsage(
   supabase: SupabaseClient,
   user: { name: string | null; email: string | null },
@@ -133,24 +207,27 @@ export async function getPersonalAIUsage(
   const repos = (repoRows ?? []) as RepoRow[];
   const repoIndex = new Map(repos.map((r) => [r.id, r]));
 
-  // Fetch metrics across all of the user's orgs. Cap by a reasonable history.
-  // Filter by window_days so multi-window ingestion (issue #80) doesn't pull
-  // older AI footprints from a different analysis window into the same view.
+  // Fetch metrics across all of the user's orgs. Multiple rows per repo are
+  // kept (not just the latest) so the trend below can reconstruct real
+  // history across pushes instead of being limited to one payload's own
+  // analysis window. Filter by window_days so multi-window ingestion (issue
+  // #80) doesn't pull older AI footprints from a different analysis window
+  // into the same view.
   const { data: metricRows } = await supabase
     .from("metrics")
     .select("repository_id, payload, created_at, organization_id")
     .in("organization_id", orgIds)
     .eq("window_days", DEFAULT_WINDOW_DAYS)
     .order("created_at", { ascending: false })
-    .limit(orgs.length * 50);
+    .limit(repos.length * HISTORY_DEPTH);
   const metrics = (metricRows ?? []) as MetricRow[];
 
-  // Latest payload per repo
-  const latestPerRepo = new Map<string, MetricRow>();
+  // All rows per repo, newest first (source query is already DESC-ordered).
+  const rowsPerRepo = new Map<string, MetricRow[]>();
   for (const m of metrics) {
-    if (!latestPerRepo.has(m.repository_id)) {
-      latestPerRepo.set(m.repository_id, m);
-    }
+    const rows = rowsPerRepo.get(m.repository_id);
+    if (rows) rows.push(m);
+    else rowsPerRepo.set(m.repository_id, [m]);
   }
 
   const perRepo: PerRepoUsage[] = [];
@@ -158,7 +235,8 @@ export async function getPersonalAIUsage(
   let aiCount = 0;
   let maxHv = 0;
 
-  for (const [repoId, row] of latestPerRepo) {
+  for (const [repoId, rows] of rowsPerRepo) {
+    const row = rows[0]; // newest row — summary table shows current snapshot only.
     const match = pickUserAuthor(row.payload, emailCandidates, nameCandidates);
     if (!match) continue;
     const repo = repoIndex.get(repoId);
@@ -184,49 +262,7 @@ export async function getPersonalAIUsage(
       maxHv = match.author.high_velocity_weeks;
   }
 
-  // Trend: weekly AI commit share aggregated from each repo's latest payload.
-  // Bucket by ACTUAL commit week (author_velocity.authors[].weekly.week_start),
-  // not by metrics ingestion timestamp — otherwise a first-time push of N repos
-  // all on the same day collapses into one bucket and the chart shows
-  // "insufficient data" even though months of history are sitting in the
-  // payload. ai_commits per week is emitted by iris >= 1.0.2; older payloads
-  // contribute commit counts but no AI share for those weeks.
-  type WeekBucket = {
-    commits: number;
-    aiCommits: number;
-    repoIds: Set<string>;
-    hasAiData: boolean;
-  };
-  const weekly = new Map<string, WeekBucket>();
-
-  for (const [repoId, row] of latestPerRepo) {
-    const match = pickUserAuthor(row.payload, emailCandidates, nameCandidates);
-    if (!match?.author.weekly) continue;
-    for (const w of match.author.weekly) {
-      const bucket: WeekBucket = weekly.get(w.week_start) ?? {
-        commits: 0,
-        aiCommits: 0,
-        repoIds: new Set(),
-        hasAiData: false,
-      };
-      bucket.commits += w.commits;
-      if (typeof w.ai_commits === "number") {
-        bucket.aiCommits += w.ai_commits;
-        bucket.hasAiData = true;
-      }
-      bucket.repoIds.add(repoId);
-      weekly.set(w.week_start, bucket);
-    }
-  }
-
-  const trend: UsageTrendPoint[] = [...weekly.entries()]
-    .map(([date, b]) => ({
-      date,
-      aiCommitPct:
-        b.hasAiData && b.commits > 0 ? (b.aiCommits / b.commits) * 100 : null,
-      repos: b.repoIds.size,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const trend = buildUsageTrend(rowsPerRepo, emailCandidates, nameCandidates);
 
   perRepo.sort((a, b) => b.aiCommitPct - a.aiCommitPct);
 
