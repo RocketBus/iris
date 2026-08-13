@@ -165,6 +165,12 @@ class ReportMetrics:
     merge_strategy_dominant_share: float | None = None  # 0.0–1.0
     commit_metrics_reliable: bool | None = None
 
+    # Repository kind — CODE when a project manifest is tracked, NON_CODE for
+    # documentation / issue-board repos where nothing is built or deployed.
+    # Every metric below is still computed for a NON_CODE repo; the flag says
+    # they describe prose, so the repo doesn't belong in a delivery comparison.
+    repo_kind: str | None = None  # CODE|NON_CODE
+
     # DORA (real) — populated only when external Datadog events were fetched
     # for this run. None across the board when the org has no active Datadog
     # integration. ``dora_source`` is "datadog" when populated, None otherwise.

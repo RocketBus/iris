@@ -164,9 +164,18 @@ def write_report_md(
         f"",
         f"> *{s['system_disclaimer']}*",
         f"",
+    ]
+
+    if metrics.repo_kind == "NON_CODE":
+        lines.extend([
+            f"> ⚠️ {s['non_code_repo_caveat']}",
+            f"",
+        ])
+
+    lines.extend([
         f"---",
         f"",
-    ]
+    ])
 
     if narrative_sections:
         lines.append(narrative_sections)
