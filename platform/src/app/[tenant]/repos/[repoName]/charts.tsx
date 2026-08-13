@@ -96,10 +96,14 @@ function DistributionBar({
   labels: Record<string, string>;
   colors: Record<string, string>;
 }) {
-  const total = Object.values(data).reduce((a, b) => a + b, 0);
-  if (total === 0) return null;
-
   const order = Object.keys(labels);
+  // Sum only over the keys this bar actually renders, matching
+  // FlowEfficiencyCard's totalHours below — if the engine ever adds an
+  // intent/origin value with no matching label here, that bucket's count
+  // would otherwise inflate `total` while never appearing in the bar,
+  // making the rendered segments silently sum to less than 100%.
+  const total = order.reduce((sum, key) => sum + (data[key] ?? 0), 0);
+  if (total === 0) return null;
 
   return (
     <div className="space-y-2">

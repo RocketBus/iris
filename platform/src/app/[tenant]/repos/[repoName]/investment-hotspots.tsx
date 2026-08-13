@@ -77,6 +77,13 @@ function HotspotRow({ hotspot }: { hotspot: InvestmentHotspot }) {
   }
 
   if (hotspot.kind === "tight_coupling") {
+    // The engine's own floor for even surfacing a coupling hotspot is 3
+    // joint changes (COUPLING_MIN_OCCURRENCES in invest-here.ts) — right at
+    // that floor, "90% coupled" is 3-for-3, not a real trend. Below this
+    // (still low but arbitrary) bar, say so instead of badging it exactly
+    // like a hotspot backed by dozens of occurrences.
+    const isLowSample = hotspot.coOccurrences < 5;
+
     return (
       <div className="flex items-start gap-3 border-b border-border px-4 py-3 last:border-0">
         <Link2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -95,6 +102,13 @@ function HotspotRow({ hotspot }: { hotspot: InvestmentHotspot }) {
               count: hotspot.coOccurrences,
             })}
           </p>
+          {isLowSample && (
+            <p className="text-xs text-signal-yellow">
+              {t("investHere.tightCouplingLowSample", {
+                count: hotspot.coOccurrences,
+              })}
+            </p>
+          )}
         </div>
       </div>
     );

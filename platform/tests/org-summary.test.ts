@@ -6,6 +6,7 @@ import {
   computeOrgPulse,
   computePreviousTotals,
   computePRHealth,
+  isHyperEngineer,
 } from "@/lib/queries/org-summary";
 import type { ReportMetrics } from "@/types/metrics";
 import type { RepoSummary } from "@/types/temporal";
@@ -318,5 +319,28 @@ describe("computePRHealth — previous-period deltas", () => {
     expect(out!.medianTimeToMergeHoursDelta).toBeNull();
     expect(out!.singlePassRateDelta).toBeNull();
     expect(out!.medianReviewRoundsDelta).toBeNull();
+  });
+});
+
+describe("isHyperEngineer — shared threshold", () => {
+  it("qualifies on high_velocity_weeks alone", () => {
+    expect(isHyperEngineer({ high_velocity_weeks: 1, ai_commit_pct: 0 })).toBe(
+      true,
+    );
+  });
+
+  it("qualifies on ai_commit_pct >= 80 alone", () => {
+    expect(isHyperEngineer({ high_velocity_weeks: 0, ai_commit_pct: 80 })).toBe(
+      true,
+    );
+    expect(isHyperEngineer({ high_velocity_weeks: 0, ai_commit_pct: 79 })).toBe(
+      false,
+    );
+  });
+
+  it("does not qualify when neither condition holds", () => {
+    expect(isHyperEngineer({ high_velocity_weeks: 0, ai_commit_pct: 0 })).toBe(
+      false,
+    );
   });
 });

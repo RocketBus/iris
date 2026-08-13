@@ -471,6 +471,8 @@ export const translations = {
       tightCouplingTitle: "Tight coupling",
       tightCouplingReason:
         "{fileA} and {fileB} change together {rate}% of the time ({count} joint changes). Decoupling would reduce rework cost across the area.",
+      tightCouplingLowSample:
+        "Based on only {count} joint changes — treat as a hypothesis, not a confirmed pattern.",
       fixMagnetTitle: "{origin} attracts fixes",
       fixMagnetReason:
         "Commits from {origin} represent {codeShare}% of changes but {fixShare}% of fixes ({disp}× the baseline, {count} fixes in window). Review patterns may need adjustment for this origin.",
@@ -492,10 +494,13 @@ export const translations = {
       detected: "AI adoption detected on {date} ({count} AI commits)",
       hypothesisNote:
         "Deltas compare pre-adoption and post-adoption windows. Correlation, not causation — other changes may have overlapped.",
+      // No "insufficient" entry: AdoptionTimelineCard returns its own
+      // dedicated empty state for that confidence level before ever
+      // reaching the badge that reads this key (see adoption.insufficient
+      // below for that copy) — a badge label here would be dead code.
       confidence: {
         clear: "Clear",
         sparse: "Sparse",
-        insufficient: "Insufficient",
       },
       columns: {
         metric: "Metric",
@@ -575,7 +580,9 @@ export const translations = {
     },
     repos: {
       title: "Repositories",
-      subtitle: "{count} repositories in {org}",
+      subtitle: "{count} {noun} in {org}",
+      repositorySingular: "repository",
+      repositoryPlural: "repositories",
       deleteButton: "Delete repository",
       deleteDialog: {
         title: "Delete Repository",
@@ -610,6 +617,8 @@ export const translations = {
             "Deployment metrics scoped to this repository over the last {days} days — live from Datadog as of now. The rest of this page reflects the last analysis run, which may be older.",
           lowSample:
             "Based on only {actual} evaluated deploys (below the {threshold} this page treats as a stable read) — treat these four as directional, not precise.",
+          empty:
+            "No deployment data in this window — either no Datadog integration is connected, or this repository had zero deploys in the selected period.",
           incidentDisclaimer:
             "MTTR by incident isn't shown per-repo — Datadog failure events don't carry repository attribution, so any per-repo number would be a misleading copy of the org-wide one. See the dashboard for the incident-level view.",
         },
@@ -1878,6 +1887,8 @@ export const translations = {
       tightCouplingTitle: "Acoplamento alto",
       tightCouplingReason:
         "{fileA} e {fileB} mudam juntos {rate}% das vezes ({count} mudanças conjuntas). Desacoplar reduziria o custo de retrabalho na área.",
+      tightCouplingLowSample:
+        "Baseado em apenas {count} mudanças conjuntas — trate como hipótese, não como padrão confirmado.",
       fixMagnetTitle: "{origin} atrai fixes",
       fixMagnetReason:
         "Commits de {origin} representam {codeShare}% das mudanças mas {fixShare}% dos fixes ({disp}× o baseline, {count} fixes na janela). Os padrões de review podem precisar de ajuste para essa origem.",
@@ -1903,7 +1914,6 @@ export const translations = {
       confidence: {
         clear: "Claro",
         sparse: "Esparso",
-        insufficient: "Insuficiente",
       },
       columns: {
         metric: "Métrica",
@@ -1983,7 +1993,9 @@ export const translations = {
     },
     repos: {
       title: "Repositórios",
-      subtitle: "{count} repositórios em {org}",
+      subtitle: "{count} {noun} em {org}",
+      repositorySingular: "repositório",
+      repositoryPlural: "repositórios",
       deleteButton: "Excluir repositório",
       deleteDialog: {
         title: "Excluir Repositório",
@@ -2019,6 +2031,8 @@ export const translations = {
             "Métricas de deploy deste repositório nos últimos {days} dias — direto do Datadog, a partir de agora. O resto desta página reflete a última análise, que pode ser mais antiga.",
           lowSample:
             "Baseado em apenas {actual} deploys avaliados (abaixo dos {threshold} que esta página considera uma leitura estável) — trate esses quatro números como direcionais, não precisos.",
+          empty:
+            "Sem dados de deploy nessa janela — ou não há integração com o Datadog conectada, ou esse repositório teve zero deploys no período selecionado.",
           incidentDisclaimer:
             "MTTR por incidente não aparece per-repo — os eventos de falha do Datadog não carregam atribuição de repositório, então qualquer número per-repo seria uma cópia enganosa do org-wide. Veja a visão de incidentes no dashboard.",
         },

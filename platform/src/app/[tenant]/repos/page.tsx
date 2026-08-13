@@ -14,6 +14,7 @@ import {
 } from "@/lib/queries/temporal";
 import { getServerTranslation } from "@/lib/server-translation";
 import { supabaseAdmin } from "@/lib/supabase";
+import { checkTenantAccess } from "@/lib/tenant";
 
 export default async function ReposPage({
   params,
@@ -29,28 +30,22 @@ export default async function ReposPage({
   const { window: windowParam } = await searchParams;
   const { t } = await getServerTranslation();
 
-  const { data: org } = await supabaseAdmin
-    .from("organizations")
-    .select("id, name")
-    .eq("slug", tenant)
-    .single();
+  // Deduped (React cache()) against the [tenant] layout's own call for the
+  // same (tenant, userId) — this used to re-run its own org-by-slug and
+  // membership-by-user queries here, duplicating exactly what the layout
+  // had already fetched to decide whether to render this page at all.
+  const { hasAccess, role, orgId, orgName } = await checkTenantAccess(
+    tenant,
+    session.user.id,
+  );
+  if (!hasAccess || !orgId || !orgName) notFound();
 
-  if (!org) notFound();
-
-  const { data: membership } = await supabaseAdmin
-    .from("organization_members")
-    .select("role")
-    .eq("user_id", session.user.id)
-    .eq("organization_id", org.id)
-    .single();
-
-  const role = membership?.role as "owner" | "admin" | "member" | undefined;
   const canDelete = role === "owner" || role === "admin";
 
   // Analysis window (issue #80): resolve to a window the org actually has
   // data for, instead of defaulting to 90d and showing every repo as "0
   // runs" when the org ingests under a different window.
-  const availableWindows = await getAvailableWindowDays(supabaseAdmin, org.id);
+  const availableWindows = await getAvailableWindowDays(supabaseAdmin, orgId);
   const windowDays = resolveWindowDays(
     parseWindowParam(windowParam),
     availableWindows,
@@ -58,7 +53,7 @@ export default async function ReposPage({
 
   const repoSummaries = await getOrgReposSummary(
     supabaseAdmin,
-    org.id,
+    orgId,
     windowDays,
   );
 
@@ -70,7 +65,11 @@ export default async function ReposPage({
           <p className="text-sm text-muted-foreground">
             {t("repos.subtitle", {
               count: repoSummaries.length,
-              org: org.name,
+              org: orgName,
+              noun:
+                repoSummaries.length === 1
+                  ? t("repos.repositorySingular")
+                  : t("repos.repositoryPlural"),
             })}
           </p>
         </div>
@@ -80,7 +79,7 @@ export default async function ReposPage({
       <RepoList
         repos={repoSummaries}
         orgSlug={tenant}
-        organizationId={org.id}
+        organizationId={orgId}
         canDelete={canDelete}
         showSearch
       />

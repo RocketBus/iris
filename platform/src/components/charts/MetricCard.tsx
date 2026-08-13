@@ -8,6 +8,13 @@ interface MetricCardProps {
   value: string;
   delta?: number | null;
   deltaFormat?: "pp" | "abs" | "pct";
+  /**
+   * Decimal places for a "pp"/"pct" delta. Defaults to 0. Set this to match
+   * the value's own precision — e.g. a value shown as "2.3%" pairing with a
+   * "+0pp" delta (rounded from +0.6) reads as a mismatch even though both
+   * numbers are correct.
+   */
+  deltaDecimals?: number;
   invertDelta?: boolean; // true = negative delta is good (e.g. revert rate)
   /**
    * true = this metric is raw activity volume (e.g. commit count), not an
@@ -24,6 +31,7 @@ export function MetricCard({
   value,
   delta,
   deltaFormat = "pp",
+  deltaDecimals = 0,
   invertDelta = false,
   neutral = false,
   hint,
@@ -39,9 +47,9 @@ export function MetricCard({
     const sign = d > 0 ? "+" : "";
     switch (deltaFormat) {
       case "pp":
-        return `${sign}${(abs * 100).toFixed(0)}pp`;
+        return `${sign}${(abs * 100).toFixed(deltaDecimals)}pp`;
       case "pct":
-        return `${sign}${(abs * 100).toFixed(0)}%`;
+        return `${sign}${(abs * 100).toFixed(deltaDecimals)}%`;
       case "abs":
         return `${sign}${abs.toFixed(0)}`;
     }

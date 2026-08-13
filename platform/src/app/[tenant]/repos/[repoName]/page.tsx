@@ -16,6 +16,7 @@ import { authOptions } from "@/lib/auth";
 import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
 import { computeRepoDORA } from "@/lib/queries/dora";
 import { computeInvestmentHotspots } from "@/lib/queries/invest-here";
+import { isHyperEngineer } from "@/lib/queries/org-summary";
 import {
   getAvailableWindowDays,
   resolveWindowDays,
@@ -189,7 +190,7 @@ export default async function RepoDetailPage({
     }) ?? {};
   const hyperEngineers = new Set(
     (authorVelocity.authors ?? [])
-      .filter((a) => a.high_velocity_weeks > 0 || a.ai_commit_pct >= 80)
+      .filter((a) => isHyperEngineer(a))
       .map((a) => a.name),
   );
 
@@ -297,6 +298,7 @@ export default async function RepoDetailPage({
               : "\u2014"
           }
           delta={revertDelta}
+          deltaDecimals={1}
           invertDelta
           // Same defaulting issue as stabilization above, but toward 0.0%.
           hint={
@@ -327,7 +329,7 @@ export default async function RepoDetailPage({
         aiImpact={aiImpact}
       />
 
-      {repoDORA && <DORARepoCard data={repoDORA} />}
+      <DORARepoCard data={repoDORA} windowDays={windowDays} />
 
       <AdoptionTimelineCard summary={adoptionSummary} compact />
 
