@@ -6,6 +6,7 @@ import { MetricCard } from "@/components/charts/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
+import { MIN_EVALUATED_FOR_KPIS } from "@/lib/queries/dora";
 import type { RepoDORA } from "@/types/org-summary";
 
 interface Props {
@@ -14,6 +15,10 @@ interface Props {
 
 export function DORARepoCard({ data }: Props) {
   const { t } = useTranslation();
+
+  const evaluatedDeploys =
+    data.deploymentsTotal - data.deploymentsPendingEvaluation;
+  const lowSample = evaluatedDeploys < MIN_EVALUATED_FOR_KPIS;
 
   return (
     <section className="space-y-3">
@@ -55,6 +60,14 @@ export function DORARepoCard({ data }: Props) {
           value={formatHours(data.leadTimeSecondsMedian)}
         />
       </div>
+      {lowSample && (
+        <p className="text-xs text-muted-foreground">
+          {t("repos.detail.dora.lowSample", {
+            threshold: MIN_EVALUATED_FOR_KPIS,
+            actual: evaluatedDeploys,
+          })}
+        </p>
+      )}
 
       <div className="grid gap-3 md:grid-cols-3">
         <RepoFactCard

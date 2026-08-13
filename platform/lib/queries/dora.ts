@@ -25,6 +25,16 @@ const PROVIDER = "datadog" as const;
 const COMMIT_CHUNK_SIZE = 100;
 const DEFAULT_WINDOW_DAYS = 30;
 
+/**
+ * Below this many evaluated deploys, the headline KPI cards (CFR in
+ * particular — a ratio) are one-or-two-events noise dressed up as a
+ * precise percentage. Shared by the org dashboard's DORAOverview and the
+ * repo-detail page's DORARepoCard — a single repo is, if anything, MORE
+ * likely to sit below this floor than the org aggregate, so it needs the
+ * same guard, not a laxer one.
+ */
+export const MIN_EVALUATED_FOR_KPIS = 10;
+
 const ORIGINS = ["HUMAN", "AI_ASSISTED", "BOT"] as const;
 type Origin = (typeof ORIGINS)[number];
 

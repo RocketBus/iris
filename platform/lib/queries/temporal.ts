@@ -16,6 +16,18 @@ import { classifyHealth } from "@/types/temporal";
 const SPARKLINE_POINTS = 12;
 
 /**
+ * Canonical percentage-point significance thresholds, mirrored from
+ * `iris/analysis/trend_delta.py` (see docs/METRICS.md): delta < PP_STABLE is
+ * noise, PP_STABLE <= delta < PP_NOTABLE is worth mentioning, >= PP_NOTABLE
+ * is significant. Shared here so every platform-side "is this delta worth
+ * an alert" decision (detectChanges below, the adoption timeline's
+ * up/down/flat classification) uses the same floor as the engine's own
+ * narrative instead of independently hand-picked numbers.
+ */
+export const PP_STABLE = 5.0;
+export const PP_NOTABLE = 15.0;
+
+/**
  * Default lookback window in days. Mirrors the engine CLI's
  * `iris analyze --days` default. Every read from `metrics` filters by
  * `window_days` so a tenant ingesting multiple windows per repo (issue
@@ -304,13 +316,14 @@ export function detectChanges(
     }
   }
 
-  // Stabilization drop > 10pp
+  // Stabilization drop >= PP_STABLE (the engine's own "no longer noise"
+  // floor — was 10pp, matching neither PP_STABLE nor PP_NOTABLE).
   check(
     "stabilization_ratio",
     `Stabilization ${current.stabilization_ratio !== null && previous.stabilization_ratio !== null && current.stabilization_ratio < previous.stabilization_ratio ? "dropped" : "improved"} by ${Math.abs(((current.stabilization_ratio ?? 0) - (previous.stabilization_ratio ?? 0)) * 100).toFixed(0)}pp`,
     current.stabilization_ratio,
     previous.stabilization_ratio,
-    0.1,
+    PP_STABLE / 100,
     current.stabilization_ratio !== null &&
       previous.stabilization_ratio !== null &&
       current.stabilization_ratio < previous.stabilization_ratio
@@ -318,13 +331,13 @@ export function detectChanges(
       : "info",
   );
 
-  // Revert rate increase > 5pp
+  // Revert rate increase >= PP_STABLE (already matched this by coincidence).
   check(
     "revert_rate",
     `Revert rate changed by ${Math.abs(((current.revert_rate ?? 0) - (previous.revert_rate ?? 0)) * 100).toFixed(0)}pp`,
     current.revert_rate,
     previous.revert_rate,
-    0.05,
+    PP_STABLE / 100,
     current.revert_rate !== null &&
       previous.revert_rate !== null &&
       current.revert_rate > previous.revert_rate
@@ -332,13 +345,14 @@ export function detectChanges(
       : "info",
   );
 
-  // AI coverage change > 15pp
+  // AI coverage change >= PP_STABLE (was 15pp, i.e. PP_NOTABLE — a much
+  // higher bar than the other two metrics here for no documented reason).
   check(
     "ai_detection_coverage_pct",
     `AI adoption changed by ${Math.abs((current.ai_detection_coverage_pct ?? 0) - (previous.ai_detection_coverage_pct ?? 0)).toFixed(0)}pp`,
     current.ai_detection_coverage_pct,
     previous.ai_detection_coverage_pct,
-    15,
+    PP_STABLE,
     "info",
   );
 

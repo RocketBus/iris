@@ -137,6 +137,14 @@ export function InvestmentHotspots({ data }: InvestmentHotspotsProps) {
   const { t } = useTranslation();
 
   if (data.hotspots.length === 0) {
+    // Distinguish "nothing was even evaluated" from "evaluated and
+    // healthy" — both used to render the same reassuring message, which
+    // reads as a false-positive "all good" for a repo with no signal at
+    // all (e.g. no stability_map/churn_couplings/fix_target_by_origin in
+    // the payload yet).
+    const { directories, couplings, origins } = data.sourceCounts;
+    const hasNoData = directories + couplings + origins === 0;
+
     return (
       <Card>
         <CardHeader>
@@ -144,9 +152,23 @@ export function InvestmentHotspots({ data }: InvestmentHotspotsProps) {
           <CardDescription>{t("investHere.subtitle")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-3 rounded-md border border-signal-purple/30 bg-signal-purple/5 p-4 text-sm text-muted-foreground">
-            <AlertOctagon className="size-4 shrink-0 text-signal-purple" />
-            <span>{t("investHere.empty")}</span>
+          <div
+            className={cn(
+              "flex items-center gap-3 rounded-md border p-4 text-sm text-muted-foreground",
+              hasNoData
+                ? "border-border bg-muted/30"
+                : "border-signal-purple/30 bg-signal-purple/5",
+            )}
+          >
+            <AlertOctagon
+              className={cn(
+                "size-4 shrink-0",
+                hasNoData ? "text-muted-foreground" : "text-signal-purple",
+              )}
+            />
+            <span>
+              {hasNoData ? t("investHere.noData") : t("investHere.empty")}
+            </span>
           </div>
         </CardContent>
       </Card>

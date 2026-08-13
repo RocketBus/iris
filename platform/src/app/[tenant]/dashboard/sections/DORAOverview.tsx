@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
+import { MIN_EVALUATED_FOR_KPIS } from "@/lib/queries/dora";
 import type { OrgDORA } from "@/types/org-summary";
 
 /**
@@ -22,14 +23,6 @@ import type { OrgDORA } from "@/types/org-summary";
  * of data on a mid-traffic tenant.
  */
 const MIN_FAILED_FOR_CORRELATION = 10;
-
-/**
- * Below this many evaluated deploys, the four headline KPI cards (CFR in
- * particular — a ratio) are one-or-two-events noise dressed up as a
- * precise percentage. Same order of magnitude as MIN_FAILED_FOR_CORRELATION,
- * applied here to the broader "evaluated" denominator rather than "failed".
- */
-const MIN_EVALUATED_FOR_KPIS = 10;
 
 interface Props {
   data: OrgDORA;
