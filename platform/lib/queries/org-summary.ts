@@ -173,12 +173,12 @@ export function computeOrgPulse(
     })),
   );
 
-  const withAI = repos.filter(
-    (r) =>
-      r.ai_detection_coverage_pct !== null && r.ai_detection_coverage_pct > 0,
-  );
+  // 0% is a legitimate value (repo has activity, none of it AI-tagged) — only
+  // exclude repos with no data at all (null), or the aggregate over-weights
+  // whichever repos happen to have some AI usage.
+  const withAIData = repos.filter((r) => r.ai_detection_coverage_pct !== null);
   const aiAdoptionPct = weightedAvg(
-    withAI.map((r) => ({
+    withAIData.map((r) => ({
       value: r.ai_detection_coverage_pct,
       weight: r.commits_total ?? 0,
     })),
@@ -326,7 +326,6 @@ export function computeAIvsHuman(
 
   // Attribution gap
   let totalFlagged = 0;
-  let totalHumanCommits = 0;
   let hasAttributionGap = false;
 
   for (const [, p] of payloads) {
@@ -386,11 +385,14 @@ export function computeAIvsHuman(
       }
     }
 
-    // Attribution gap
+    // Attribution gap. The engine omits this field for repos with fewer than
+    // 3 flagged commits, so its own total_human_commits only covers flagged
+    // repos — using totalHuman (summed above from every repo's origin
+    // distribution) as the denominator instead avoids dropping "clean" repos
+    // out of the percentage entirely.
     if (p.attribution_gap) {
       hasAttributionGap = true;
       totalFlagged += p.attribution_gap.flagged_commits;
-      totalHumanCommits += p.attribution_gap.total_human_commits;
     }
   }
 
@@ -448,12 +450,9 @@ export function computeAIvsHuman(
     toolBreakdown,
     attributionGap: hasAttributionGap
       ? {
-          flaggedPct:
-            totalHumanCommits > 0
-              ? (totalFlagged / totalHumanCommits) * 100
-              : 0,
+          flaggedPct: totalHuman > 0 ? (totalFlagged / totalHuman) * 100 : 0,
           flaggedCommits: totalFlagged,
-          totalHumanCommits,
+          totalHumanCommits: totalHuman,
         }
       : null,
     reposWithAI,
@@ -649,7 +648,8 @@ export function computeCycleTime(
   let totalWithin24h = 0;
   let medianWeightedSum = 0;
   let meanWeightedSum = 0;
-  let weightTotal = 0;
+  let medianWeightTotal = 0;
+  let meanWeightTotal = 0;
   let maxP90: number | null = null;
 
   for (const [repoId, p] of payloads) {
@@ -694,10 +694,11 @@ export function computeCycleTime(
 
     if (p.pr_median_time_to_merge_hours !== undefined) {
       medianWeightedSum += p.pr_median_time_to_merge_hours * merged;
-      weightTotal += merged;
+      medianWeightTotal += merged;
     }
     if (p.pr_mean_time_to_merge_hours !== undefined) {
       meanWeightedSum += p.pr_mean_time_to_merge_hours * merged;
+      meanWeightTotal += merged;
     }
     if (p.pr_p90_time_to_merge_hours !== undefined) {
       maxP90 =
@@ -718,8 +719,9 @@ export function computeCycleTime(
     reposWithData: rows.length,
     totalPRsMerged: totalMerged,
     pctMergedWithin24h: totalMerged > 0 ? totalWithin24h / totalMerged : null,
-    medianHours: weightTotal > 0 ? medianWeightedSum / weightTotal : null,
-    meanHours: weightTotal > 0 ? meanWeightedSum / weightTotal : null,
+    medianHours:
+      medianWeightTotal > 0 ? medianWeightedSum / medianWeightTotal : null,
+    meanHours: meanWeightTotal > 0 ? meanWeightedSum / meanWeightTotal : null,
     p90Hours: maxP90,
     flow: summarizeFlow(flowRows, totalMerged),
     perRepo: rows,
@@ -850,7 +852,7 @@ export function computePreviousTotals(
 
   let commits = 0;
   let prsMerged = 0;
-  const aiValues: number[] = [];
+  const aiRows: Array<{ value: number | null; weight: number }> = [];
 
   for (const repo of repos) {
     const rows = byRepo.get(repo.id) ?? [];
@@ -858,21 +860,20 @@ export function computePreviousTotals(
     if (!prev) continue;
     commits += prev.commits_total ?? 0;
     prsMerged += prev.pr_merged_count ?? 0;
-    if (
-      prev.ai_detection_coverage_pct != null &&
-      prev.ai_detection_coverage_pct > 0
-    ) {
-      aiValues.push(prev.ai_detection_coverage_pct);
-    }
+    // 0% is a legitimate value (see computeOrgPulse) — only skip repos with
+    // no data at all, and weight by commits so this matches how the current
+    // period's aiAdoptionPct is computed (otherwise the delta compares a
+    // weighted value against a plain average).
+    aiRows.push({
+      value: prev.ai_detection_coverage_pct,
+      weight: prev.commits_total ?? 0,
+    });
   }
 
   return {
     commits,
     prsMerged,
-    aiPct:
-      aiValues.length > 0
-        ? aiValues.reduce((s, v) => s + v, 0) / aiValues.length
-        : null,
+    aiPct: weightedAvg(aiRows),
   };
 }
 
