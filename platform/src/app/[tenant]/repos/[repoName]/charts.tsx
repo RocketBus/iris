@@ -881,14 +881,26 @@ export function RepoCharts({
                   BOT: "bg-signal-gray",
                 }}
               />
-              {insights.stabilizationByOrigin && (
-                <div className="mt-3">
-                  <p className="mb-1 text-xs text-muted-foreground">
-                    {t("repoCharts.origin.stabByOrigin")}
-                  </p>
-                  <div className="space-y-1">
-                    {Object.entries(insights.stabilizationByOrigin).map(
-                      ([origin, data]) => (
+              {(() => {
+                // The engine defaults stabilization_ratio to 1.0 when
+                // files_touched is 0 (nothing to destabilize — see
+                // iris/metrics/stabilization.py), the same 0/0 sentinel the
+                // report writer already guards against (writer.py skips any
+                // origin with a zero commit count). Showing that default
+                // here reads as "Bot 100%" / "Humano 100%" for origins that
+                // made zero commits in the window, right next to a real 23%
+                // for the origin that actually has data.
+                const stabEntries = Object.entries(
+                  insights.stabilizationByOrigin ?? {},
+                ).filter(([, data]) => data.files_touched > 0);
+                if (stabEntries.length === 0) return null;
+                return (
+                  <div className="mt-3">
+                    <p className="mb-1 text-xs text-muted-foreground">
+                      {t("repoCharts.origin.stabByOrigin")}
+                    </p>
+                    <div className="space-y-1">
+                      {stabEntries.map(([origin, data]) => (
                         <div
                           key={origin}
                           className="flex justify-between text-sm"
@@ -900,11 +912,11 @@ export function RepoCharts({
                             {(data.stabilization_ratio * 100).toFixed(0)}%
                           </span>
                         </div>
-                      ),
-                    )}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </CardContent>
           </Card>
         )}
