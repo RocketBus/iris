@@ -22,8 +22,25 @@ _COMMIT_SEP = "<<<COMMIT>>>"
 # git log format: hash, author, email, date (ISO), parents (merge detection), subject, body
 _LOG_FORMAT = _FIELD_SEP.join(["%H", "%an", "%ae", "%aI", "%P", "%s", "%b"]) + _COMMIT_SEP
 
-# Co-author extraction from commit body
-_CO_AUTHOR_RE = re.compile(r"Co-[Aa]uthored-[Bb]y: .+ <(.+)>", re.MULTILINE)
+# Attribution trailer extraction from the commit body.
+#
+# Three keys are read because the ecosystem never settled on one:
+#   Co-authored-by  GitHub's convention — what the Iris hook writes
+#   Assisted-by     used by orgs that attribute assistance without claiming
+#                   co-authorship (e.g. ClickBus RFC 0020)
+#   Made-with       what Cursor's agent writes; carries no e-mail at all
+#
+# The whole value is captured, not just the e-mail: `Made-with: Cursor` has no
+# e-mail, and in `Assisted-by: Claude Code <noreply@anthropic.com>` the tool
+# name is in the display name while the e-mail is a generic no-reply.
+# The key must start at column 0, as git requires for a trailer — otherwise an
+# indented example inside the commit body would count as attribution.
+# `\r` is trimmed as trailing whitespace: `$` matches before `\n` under
+# MULTILINE, so a CRLF commit body would otherwise leave it inside the value.
+_ATTRIBUTION_TRAILER_RE = re.compile(
+    r"^(?:Co-authored-by|Assisted-by|Made-with)[ \t]*:[ \t]*(\S.*?)[ \t\r]*$",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def read_commits(
@@ -130,7 +147,7 @@ def _parse_log_output(raw: str, include_merges: bool) -> list[Commit]:
                     message=prev.message,
                     files=prev.files + extra_files,
                     is_merge=prev.is_merge,
-                    co_authors=prev.co_authors,
+                    attribution_trailers=prev.attribution_trailers,
                 )
             continue
 
@@ -161,7 +178,7 @@ def _parse_log_output(raw: str, include_merges: bool) -> list[Commit]:
                 message=prev.message,
                 files=prev.files + extra_files,
                 is_merge=prev.is_merge,
-                co_authors=prev.co_authors,
+                attribution_trailers=prev.attribution_trailers,
             )
 
         # Parse this commit's metadata
@@ -185,8 +202,8 @@ def _parse_log_output(raw: str, include_merges: bool) -> list[Commit]:
 
         date = datetime.fromisoformat(date_str)
 
-        # Extract co-author emails from body
-        co_authors = _CO_AUTHOR_RE.findall(body)
+        # Extract AI/human attribution trailers from body
+        attribution_trailers = _ATTRIBUTION_TRAILER_RE.findall(body)
 
         files = _parse_numstat(numstat_lines)
 
@@ -198,7 +215,7 @@ def _parse_log_output(raw: str, include_merges: bool) -> list[Commit]:
             message=message.strip(),
             files=files,
             is_merge=is_merge,
-            co_authors=co_authors,
+            attribution_trailers=attribution_trailers,
         ))
 
     # Sort by date ascending (oldest first)

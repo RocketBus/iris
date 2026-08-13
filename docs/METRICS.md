@@ -128,10 +128,19 @@ Heuristic order: (1) Conventional Commit prefix (`feat:`, `fix:`,
 ## 4. Origin (AI vs Human vs Bot)
 
 Classification heuristic in `origin_classifier.py`:
-1. Co-author patterns (`copilot`, `claude`, `anthropic`, `cursor`,
-   `codeium`, `tabnine`, `amazon-q`, `gemini`, `windsurf`) → `AI_ASSISTED`
+1. An attribution trailer naming an AI tool (`copilot`, `claude`,
+   `anthropic`, `cursor`, `codeium`, `tabnine`, `amazon-q`, `gemini`,
+   `windsurf`, `devin-ai`) → `AI_ASSISTED`
 2. Author patterns (`[bot]`, `-bot`, known bot names) → `BOT`
 3. Default → `HUMAN`
+
+Trailers are read from the commit body by `ingestion/git_reader.py`, which
+accepts three keys — `Co-authored-by`, `Assisted-by`, and `Made-with` — and
+matches the tool name as a whole word in either half of the trailer value
+(display name or e-mail); a human co-author whose name merely contains the
+substring (`Claudemir`, `Geminiano`) is therefore not classified as AI.
+`Made-with: Cursor` carries no e-mail and still counts. See
+[guides/ai-attribution-policy.md](guides/ai-attribution-policy.md).
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
@@ -141,8 +150,8 @@ Classification heuristic in `origin_classifier.py`:
 | `churn_by_origin` | `Record<origin, {churn_events, churn_lines_affected}>` | `analysis/origin_metrics.py` | same as above |
 
 **`ai_detection_coverage_pct`** — `ai_commits / (total_non_bot_commits) × 100`.
-A lower number means more AI work is slipping through without co-author
-tags. Pair with `attribution_gap` for confidence.
+A lower number means more AI work is slipping through without an
+attribution trailer. Pair with `attribution_gap` for confidence.
 
 ---
 
@@ -843,7 +852,7 @@ Per-**repository** classification of how PRs land on the default branch,
 plus a per-commit reliability flag. A repo's merge strategy decides how
 much per-commit signal survives in history: **squash** collapses N commits
 into 1 — discarding commit counts, temporal distribution, bursts, cascades,
-and (depending on GitHub config) the `Co-Authored-By` trailers AI
+and (depending on GitHub config) the attribution trailers AI
 attribution relies on. Comparing per-commit metrics across repos with
 different strategies compares things that aren't comparable, and can
 under-report AI adoption in squash repos.

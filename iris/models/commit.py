@@ -15,7 +15,15 @@ class FileChange:
 
 @dataclass(frozen=True)
 class Commit:
-    """A single Git commit with metadata and file-level changes."""
+    """A single Git commit with metadata and file-level changes.
+
+    ``attribution_trailers`` holds the raw value of every attribution trailer
+    found in the commit body — ``"Claude Code <noreply@anthropic.com>"`` for
+    ``Assisted-by: Claude Code <noreply@anthropic.com>``, ``"Cursor"`` for
+    ``Made-with: Cursor``. Values are kept verbatim (name *and* email, when
+    present) because the tool name lives in either half depending on the
+    trailer key. See ``ingestion/git_reader.py`` for the accepted keys.
+    """
 
     hash: str
     author: str
@@ -24,4 +32,4 @@ class Commit:
     message: str = ""
     files: list[FileChange] = field(default_factory=list)
     is_merge: bool = False
-    co_authors: list[str] = field(default_factory=list)
+    attribution_trailers: list[str] = field(default_factory=list)

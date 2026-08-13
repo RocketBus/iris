@@ -55,7 +55,7 @@ def _pr(
 
 def _commit(
     hash: str,
-    co_authors: list[str] | None = None,
+    attribution_trailers: list[str] | None = None,
     days_offset: int = 0,
     files: list[FileChange] | None = None,
     message: str = "feat: something",
@@ -63,7 +63,7 @@ def _commit(
     return Commit(
         hash=hash,
         author="Alice",
-        co_authors=co_authors or [],
+        attribution_trailers=attribution_trailers or [],
         date=_BASE_DATE + timedelta(days=days_offset),
         files=files or [FileChange(path="src/main.py", lines_added=10, lines_removed=2)],
         message=message,
@@ -78,8 +78,8 @@ def _commit(
 def test_analyze_pr_basic_composition():
     pr = _pr()
     commits = [
-        _commit("aaa", co_authors=["copilot@users.noreply.github.com"]),
-        _commit("bbb", co_authors=["claude-code@iris.invalid"]),
+        _commit("aaa", attribution_trailers=["copilot@users.noreply.github.com"]),
+        _commit("bbb", attribution_trailers=["claude-code@iris.invalid"]),
         _commit("ccc"),
     ]
     result = analyze_pr(pr, commits)
@@ -207,7 +207,7 @@ def test_analyze_pr_no_context_no_churn_insight():
 
 def test_format_contains_pr_number():
     pr = _pr(number=123)
-    commits = [_commit("aaa", co_authors=["copilot@users.noreply.github.com"])]
+    commits = [_commit("aaa", attribution_trailers=["copilot@users.noreply.github.com"])]
     result = analyze_pr(pr, commits)
     markdown = format_pr_comment(result)
 
@@ -217,8 +217,8 @@ def test_format_contains_pr_number():
 def test_format_contains_tool_names():
     pr = _pr()
     commits = [
-        _commit("aaa", co_authors=["copilot@users.noreply.github.com"]),
-        _commit("bbb", co_authors=["claude-code@iris.invalid"]),
+        _commit("aaa", attribution_trailers=["copilot@users.noreply.github.com"]),
+        _commit("bbb", attribution_trailers=["claude-code@iris.invalid"]),
     ]
     result = analyze_pr(pr, commits)
     markdown = format_pr_comment(result)

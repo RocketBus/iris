@@ -14,8 +14,12 @@ from iris.analysis.origin_classifier import CommitOrigin, classify_origin
 from iris.models.commit import Commit
 
 
-def _commit(author: str, co_authors: list[str] | None = None) -> Commit:
-    return Commit(hash="deadbeef", author=author, co_authors=co_authors or [])
+def _commit(author: str, attribution_trailers: list[str] | None = None) -> Commit:
+    return Commit(
+        hash="deadbeef",
+        author=author,
+        attribution_trailers=attribution_trailers or [],
+    )
 
 
 def test_dependabot_bracketed_is_bot() -> None:
@@ -66,11 +70,11 @@ def test_human_with_ai_suffix_in_name_stays_human() -> None:
 
 
 def test_ai_co_author_still_wins_over_bot_author() -> None:
-    c = _commit("dependabot[bot]", co_authors=["copilot@users.noreply.github.com"])
+    c = _commit("dependabot[bot]", attribution_trailers=["copilot@users.noreply.github.com"])
     assert classify_origin(c) is CommitOrigin.AI_ASSISTED
 
 
-def test_human_without_co_authors() -> None:
+def test_human_without_attribution_trailers() -> None:
     assert classify_origin(_commit("Alice")) is CommitOrigin.HUMAN
 
 
@@ -80,7 +84,7 @@ def test_human_name_containing_bot_substring_not_misclassified() -> None:
 
 
 def test_copilot_co_author_is_ai_assisted() -> None:
-    c = _commit("Alice", co_authors=["copilot@users.noreply.github.com"])
+    c = _commit("Alice", attribution_trailers=["copilot@users.noreply.github.com"])
     assert classify_origin(c) is CommitOrigin.AI_ASSISTED
 
 

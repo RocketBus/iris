@@ -21,11 +21,11 @@ def _commit(
     hash: str,
     days: int = 0,
     message: str = "feat: x",
-    co_authors: list[str] | None = None,
+    attribution_trailers: list[str] | None = None,
     files: list[FileChange] | None = None,
 ) -> Commit:
     return Commit(
-        hash=hash, author="Alice", co_authors=co_authors or [],
+        hash=hash, author="Alice", attribution_trailers=attribution_trailers or [],
         date=_BASE + timedelta(days=days), message=message,
         files=files or [FileChange("src/main.py", 10, 0)],
     )
@@ -83,7 +83,7 @@ def test_ai_code_disproportionate_fix_attraction():
     for i in range(3):
         commits.append(_commit(
             f"ai_{i}", i, f"feat: ai {i}",
-            co_authors=["copilot@users.noreply.github.com"],
+            attribution_trailers=["copilot@users.noreply.github.com"],
             files=[FileChange(f"src/ai_{i}.py", 20, 0)],
         ))
     # 5 human features
@@ -126,7 +126,7 @@ def test_tool_attribution():
     for i in range(MIN_FIX_EVENTS):
         commits.append(_commit(
             f"claude_{i}", i * 3, f"feat: claude {i}",
-            co_authors=["claude-code@iris.invalid"],
+            attribution_trailers=["claude-code@iris.invalid"],
             files=[FileChange(f"src/c_{i}.py", 20, 0)],
         ))
         commits.append(_commit(
@@ -148,7 +148,7 @@ def test_fix_on_fix_skipped():
     """Fix targeting should look for the last non-fix commit, not chain fixes."""
     commits = [
         _commit("feat", 0, "feat: original",
-                co_authors=["copilot@users.noreply.github.com"],
+                attribution_trailers=["copilot@users.noreply.github.com"],
                 files=[FileChange("f.py", 20, 0)]),
         _commit("fix1", 1, "fix: first fix", files=[FileChange("f.py", 3, 1)]),
         _commit("fix2", 2, "fix: second fix", files=[FileChange("f.py", 2, 1)]),

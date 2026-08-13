@@ -63,7 +63,7 @@ class AuthorVelocity:
     avg_loc_per_week: float
     max_loc_week: int
     high_velocity_weeks: int
-    ai_commit_pct: float = 0.0  # % of this author's commits with AI co-author
+    ai_commit_pct: float = 0.0  # % of this author's commits with an AI attribution trailer
     weekly: list[AuthorWeek] = field(default_factory=list)
 
     @property

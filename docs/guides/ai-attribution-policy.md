@@ -16,7 +16,7 @@ Three reasons to adopt attribution:
 
 ## How to Attribute
 
-Add a `Co-Authored-By` trailer to commit messages:
+Add an attribution trailer to commit messages:
 
 ```
 feat: add payment validation
@@ -26,19 +26,34 @@ Co-Authored-By: Claude Code <claude-code@iris.invalid>
 
 This is the same format GitHub uses for co-authored commits. Iris reads these tags to classify commits by origin and tool.
 
+### Accepted Trailer Keys
+
+The ecosystem never settled on one key, so Iris reads three. Adopt whichever your policy already mandates — none is preferred over the others:
+
+| Trailer | Who writes it |
+|---|---|
+| `Co-Authored-By:` | GitHub's convention, and what the Iris hook writes |
+| `Assisted-by:` | orgs that attribute assistance without claiming co-authorship (e.g. ClickBus RFC 0020) |
+| `Made-with:` | Cursor's agent — a bare tool name, no e-mail |
+
+Only one trailer per commit is needed. If your policy already writes `Assisted-by:`, the Iris hook leaves the message alone instead of appending a second tag.
+
 ### Accepted Formats
 
-| Tool | Co-Authored-By |
+| Tool | Example trailer |
 |---|---|
 | Claude Code | `Co-Authored-By: Claude Code <noreply@anthropic.com>` |
 | GitHub Copilot | `Co-Authored-By: GitHub Copilot <copilot@github.com>` |
-| Cursor | `Co-Authored-By: Cursor <cursor@iris.invalid>` |
+| Cursor | `Co-Authored-By: Cursor <cursor@iris.invalid>` (Iris hook) or `Made-with: Cursor` (Cursor's own agent) |
 | Windsurf | `Co-Authored-By: Windsurf <windsurf@iris.invalid>` |
 | Codeium | `Co-Authored-By: Codeium <codeium@iris.invalid>` |
 | Amazon Q | `Co-Authored-By: Amazon Q <amazon-q@iris.invalid>` |
 | Gemini | `Co-Authored-By: Gemini <gemini@iris.invalid>` |
+| Devin | `Co-Authored-By: Devin AI <devin-ai-integration[bot]@users.noreply.github.com>` |
 
-Iris detects any of these patterns (case-insensitive).
+Iris matches the tool name as a whole word — bounded by any non-alphanumeric character — in either half of the trailer value (display name or e-mail), case-insensitive. A human co-author whose name merely contains the substring (`Claudemir`, `Geminiano`) is therefore not classified as AI. For the same reason `devin` alone does not count: only the `devin-ai` marker does. Any key from the table above works with any tool.
+
+The trailer must also start at the beginning of the line, as git requires for a trailer (`git interpret-trailers` ignores an indented line). A trailer quoted inside an indented block in the commit body is an example, not attribution, and does not count.
 
 ---
 

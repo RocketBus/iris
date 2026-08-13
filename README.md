@@ -101,6 +101,8 @@ iris hook uninstall /path/to/repo       # remove hook
 
 The hook detects `$CLAUDE_CODE`, `$AI_AGENT`, `$CURSOR_SESSION`, `$WINDSURF_SESSION` and adds a `Co-Authored-By` tag before the commit is created. No history rewriting.
 
+Analysis doesn't depend on the hook: Iris reads `Co-Authored-By`, `Assisted-by`, and `Made-with` trailers, so a repo that already follows its own attribution policy is measured without changing anything. See [docs/guides/ai-attribution-policy.md](docs/guides/ai-attribution-policy.md).
+
 ### PR Analysis
 
 ```bash
