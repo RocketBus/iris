@@ -378,8 +378,23 @@ export const translations = {
         title: "Cycle Time",
         subtitle:
           "How long engineering takes to deliver, from PR open to merge.",
-        insight:
-          "Engineering ships fast. {pct} of PRs are merged within a day. Median cycle time is {median}. Lead-time bottlenecks live before (demand/product) and after (infra, environments, deploy) — not in code execution.",
+        verdict:
+          "Within the code window (PR open → merge), the stage that consumes the most time is {phase}: {phaseHours} median, {sharePct} of measured phase time. Median cycle time: {median} · {pct} of PRs within 1 day. Based on {n} PRs with phase decomposition ({coverage} coverage).",
+        verdictLowCoverage:
+          "Partial sample: only {coverage} of merged PRs carry a phase decomposition — a hint, not a verdict. Where data exists, the longest stage is {phase} ({phaseHours}).",
+        verdictNoFlow:
+          "Median cycle time {median}; {pct} of PRs within 1 day. Phase decomposition isn't available for this view yet — without it, the dashboard makes no claim about where the bottleneck is.",
+        flowBarTitle: "Where PR time goes",
+        flowBarSubtitle:
+          "Code-window time by phase (median, weighted by decomposed PRs).",
+        waitNote: "Hatched = queue (wait) time.",
+        phaseLabels: {
+          coding: "Coding",
+          awaiting_first_review: "Awaiting first review",
+          in_review_active: "In review · active",
+          in_review_wait: "In review · wait",
+          awaiting_merge: "Awaiting merge",
+        },
         kpi: {
           pctWithin24h: "PRs merged within 1 day",
           median: "Median cycle time",
@@ -1757,8 +1772,23 @@ export const translations = {
         title: "Cycle Time",
         subtitle:
           "Quanto tempo a engenharia leva para entregar, do PR aberto ao merge.",
-        insight:
-          "A engenharia entrega rápido. {pct} dos PRs são mesclados em até 1 dia. A mediana do cycle time é {median}. Os gargalos de lead time estão antes (definição de demanda/produto) e depois (infra, ambientes, deploy) — não na execução do código.",
+        verdict:
+          "Dentro da janela de código (PR aberto → merge), a etapa que mais consome tempo é {phase}: mediana {phaseHours}, {sharePct} do tempo das fases medidas. Mediana do cycle time: {median} · {pct} dos PRs em ≤1 dia. Base: {n} PRs com decomposição de fase ({coverage} de cobertura).",
+        verdictLowCoverage:
+          "Amostra parcial: só {coverage} dos PRs mesclados têm decomposição de fase — indício, não veredito. Onde há dado, a etapa mais longa é {phase} ({phaseHours}).",
+        verdictNoFlow:
+          "Mediana do cycle time {median}; {pct} dos PRs em ≤1 dia. A decomposição por fase ainda não está disponível para este recorte — sem ela, o dashboard não afirma onde está o gargalo.",
+        flowBarTitle: "Onde o tempo do PR é gasto",
+        flowBarSubtitle:
+          "Tempo da janela de código por fase (mediana, ponderada por PRs decompostos).",
+        waitNote: "Hachurado = tempo em fila (espera).",
+        phaseLabels: {
+          coding: "Escrita de código",
+          awaiting_first_review: "Espera pelo 1º review",
+          in_review_active: "Em review · ativo",
+          in_review_wait: "Em review · espera",
+          awaiting_merge: "Espera pelo merge",
+        },
         kpi: {
           pctWithin24h: "PRs merged em até 1 dia",
           median: "Mediana do cycle time",

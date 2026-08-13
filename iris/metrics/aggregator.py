@@ -311,6 +311,9 @@ def aggregate(
             flow_efficiency_kwargs["time_in_phase_median_hours"] = (
                 flow_efficiency_result.time_in_phase_median_hours
             )
+            flow_efficiency_kwargs["flow_pr_count"] = (
+                flow_efficiency_result.pr_count
+            )
             if flow_efficiency_result.median_time_to_first_review_hours is not None:
                 flow_efficiency_kwargs["median_time_to_first_review_hours"] = (
                     flow_efficiency_result.median_time_to_first_review_hours
