@@ -1,5 +1,3 @@
-import tseslint from "@typescript-eslint/eslint-plugin";
-import tsparser from "@typescript-eslint/parser";
 import nextConfig from "eslint-config-next";
 
 const eslintConfig = [
@@ -15,12 +13,6 @@ const eslintConfig = [
   },
   ...nextConfig,
   {
-    plugins: {
-      "@typescript-eslint": tseslint,
-    },
-    languageOptions: {
-      parser: tsparser,
-    },
     rules: {
       "@next/next/no-html-link-for-pages": "off",
       "react/jsx-key": "off",
