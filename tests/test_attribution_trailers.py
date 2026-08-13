@@ -77,6 +77,11 @@ def test_indented_trailer_is_parsed() -> None:
     assert c.attribution_trailers == ["Devin AI <devin@example.com>"]
 
 
+def test_crlf_body_does_not_leak_carriage_return() -> None:
+    c = _parse_one("Assisted-by: Claude Code <noreply@anthropic.com>\r\n")
+    assert c.attribution_trailers == ["Claude Code <noreply@anthropic.com>"]
+
+
 def test_multiple_trailers_are_all_parsed() -> None:
     body = (
         "Some description\n"
