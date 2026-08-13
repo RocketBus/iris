@@ -95,16 +95,21 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
                 labelStyle={{ color: "var(--color-foreground)" }}
                 itemStyle={{ color: "var(--color-muted-foreground)" }}
                 labelFormatter={(label) => formatDate(String(label))}
-                formatter={(value, name) => {
+                formatter={(value, name, entry) => {
+                  // Recharts passes each series' `name` PROP here (already the
+                  // translated label, e.g. "Estabilização"), not its dataKey —
+                  // matching against the dataKey strings below always missed,
+                  // silently falling through to the raw untruncated decimal.
                   const v = Number(value);
-                  if (name === "commits")
+                  const dataKey = entry?.dataKey;
+                  if (dataKey === "commits")
                     return [v.toFixed(0), t("dashboard.orgTimeline.commits")];
-                  if (name === "stabilization")
+                  if (dataKey === "stabilization")
                     return [
                       `${(v * 100).toFixed(0)}%`,
                       t("dashboard.orgTimeline.stabilization"),
                     ];
-                  if (name === "aiPctNorm")
+                  if (dataKey === "aiPctNorm")
                     return [
                       `${(v * 100).toFixed(0)}%`,
                       t("dashboard.orgTimeline.aiAdoption"),
