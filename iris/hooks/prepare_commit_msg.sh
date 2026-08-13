@@ -62,10 +62,14 @@ fi
 
 # --- Check if attribution already present in the message ---
 # Read the current message file (may be a template or empty).
-# Match by tool name (local part) so this works regardless of email domain
-# — including legacy trailers from older domains.
+# Match by tool name so this works regardless of email domain — including
+# legacy trailers from older domains.
+#
+# All three trailer keys the engine reads are accepted here: a repo whose
+# policy already writes `Assisted-by:` (or a tool that writes `Made-with:`)
+# is attributed, so appending a Co-Authored-By would only duplicate it.
 
-if grep -qi "Co-Authored-By:.*\(claude-code\|cursor\|windsurf\|copilot\|anthropic\|codeium\|tabnine\|amazon-q\|gemini\)" "$COMMIT_MSG_FILE" 2>/dev/null; then
+if grep -qiE "^[[:space:]]*(Co-Authored-By|Assisted-by|Made-with):.*(claude|cursor|windsurf|copilot|anthropic|codeium|tabnine|amazon-q|gemini|devin)" "$COMMIT_MSG_FILE" 2>/dev/null; then
     exit 0
 fi
 
