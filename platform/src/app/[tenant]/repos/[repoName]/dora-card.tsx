@@ -4,17 +4,53 @@ import { Activity } from "lucide-react";
 
 import { MetricCard } from "@/components/charts/MetricCard";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
 import { MIN_EVALUATED_FOR_KPIS } from "@/lib/queries/dora";
 import type { RepoDORA } from "@/types/org-summary";
 
 interface Props {
-  data: RepoDORA;
+  data: RepoDORA | null;
+  /** Needed for the empty state's subtitle — `data` has no windowDays when null. */
+  windowDays: number;
 }
 
-export function DORARepoCard({ data }: Props) {
+export function DORARepoCard({ data, windowDays }: Props) {
   const { t } = useTranslation();
+
+  if (!data) {
+    // Investment Hotspots and Adoption Timeline both always render an
+    // explanatory card when they have nothing to show — this section used
+    // to just vanish instead, leaving no indication of why (no Datadog
+    // integration? zero deploys in the window? disabled?).
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {t("repos.detail.dora.title")}
+            <Badge variant="outline" className="border-primary/40 text-primary">
+              <Activity className="mr-1 size-3" />
+              {t("dashboard.dora.sourceBadge")}
+            </Badge>
+          </CardTitle>
+          <CardDescription>
+            {t("repos.detail.dora.subtitle", { days: windowDays })}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            {t("repos.detail.dora.empty")}
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const evaluatedDeploys =
     data.deploymentsTotal - data.deploymentsPendingEvaluation;

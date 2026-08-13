@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { headers } from "next/headers";
 
 import { debugDatabase, logError } from "./debug";
@@ -68,12 +70,24 @@ export async function getTenantFromRequest(): Promise<TenantContext> {
 }
 
 /**
- * Check if user has access to tenant
+ * Check if user has access to tenant.
+ *
+ * Wrapped in React's `cache()` so calling this again with the same
+ * (tenant, userId) elsewhere in the same request — e.g. a page that needs
+ * the caller's role for a permission check — dedupes to the layout's
+ * existing call instead of re-running the same two queries. Also returns
+ * the resolved org id/name so a page needing "org + role" never has to
+ * hand-roll its own lookup of data the layout already fetched.
  */
-export async function checkTenantAccess(
+export const checkTenantAccess = cache(async function checkTenantAccess(
   tenant: string,
   userId: string,
-): Promise<{ hasAccess: boolean; role?: string }> {
+): Promise<{
+  hasAccess: boolean;
+  role?: string;
+  orgId?: string;
+  orgName?: string;
+}> {
   try {
     debugDatabase("Checking tenant access", { tenant, userId });
 
@@ -143,9 +157,11 @@ export async function checkTenantAccess(
     return {
       hasAccess: true,
       role: membership.role,
+      orgId: org.id,
+      orgName: org.name,
     };
   } catch (error) {
     logError(error, "checkTenantAccess");
     return { hasAccess: false };
   }
-}
+});

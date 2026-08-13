@@ -1088,6 +1088,18 @@ function diff(current: number | null, previous: number | null): number | null {
 // computeHyperEngineers — aggregate across repos, deduplicate by name
 // ---------------------------------------------------------------------------
 
+/**
+ * The "hyper engineer" threshold, shared so the org-wide aggregate here and
+ * the repo-detail page's per-author badge never drift apart by having the
+ * same comparison hand-copied in two places.
+ */
+export function isHyperEngineer(author: {
+  high_velocity_weeks: number;
+  ai_commit_pct: number;
+}): boolean {
+  return author.high_velocity_weeks > 0 || author.ai_commit_pct >= 80;
+}
+
 export function computeHyperEngineers(
   payloads: Map<string, ReportMetrics>,
   userMap: Map<string, { name: string; github?: string }>,
@@ -1110,8 +1122,7 @@ export function computeHyperEngineers(
 
     for (const a of av.authors) {
       const key = a.name.toLowerCase();
-      const isHyper = a.high_velocity_weeks > 0 || a.ai_commit_pct >= 80;
-      if (!isHyper) continue;
+      if (!isHyperEngineer(a)) continue;
 
       const existing = authors.get(key) ?? {
         name: a.name,
