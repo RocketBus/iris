@@ -44,6 +44,8 @@ export interface AIvsHumanData {
     ai: number;
     bot: number;
   }>;
+  /** Share (0.0-1.0) of total commits in the selected period, by origin. */
+  commitShare: { human: number; ai: number; bot: number } | null;
   stabilization: { human: number | null; ai: number | null };
   durability: { human: number | null; ai: number | null };
   cascadeRate: { human: number | null; ai: number | null };

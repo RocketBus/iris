@@ -420,8 +420,18 @@ export function computeAIvsHuman(
     .map(([tool, commits]) => ({ tool, commits }))
     .sort((a, b) => b.commits - a.commits);
 
+  const totalCommits = totalHuman + totalAI + totalBot;
+
   return {
     commitMix,
+    commitShare:
+      totalCommits > 0
+        ? {
+            human: totalHuman / totalCommits,
+            ai: totalAI / totalCommits,
+            bot: totalBot / totalCommits,
+          }
+        : null,
     stabilization: {
       human: stabHumanWeight > 0 ? stabHumanSum / stabHumanWeight : null,
       ai: stabAIWeight > 0 ? stabAISum / stabAIWeight : null,

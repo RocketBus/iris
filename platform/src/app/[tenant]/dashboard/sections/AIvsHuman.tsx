@@ -83,6 +83,38 @@ export function AIvsHuman({ data, tenantSlug }: AIvsHumanProps) {
         </p>
       </div>
 
+      {/* Share of total commits in the selected period, by origin (sum, not an average) */}
+      {data.commitShare && (
+        <div className="flex flex-wrap gap-6">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-muted-foreground">
+              {t("dashboard.aiVsHuman.human")}
+            </span>
+            <span className="font-mono text-2xl">
+              {(data.commitShare.human * 100).toFixed(0)}%
+            </span>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-xs text-primary">
+              {t("dashboard.aiVsHuman.ai")}
+            </span>
+            <span className="font-mono text-2xl text-primary">
+              {(data.commitShare.ai * 100).toFixed(0)}%
+            </span>
+          </div>
+          {data.commitShare.bot > 0 && (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">
+                {t("dashboard.aiVsHuman.bot")}
+              </span>
+              <span className="font-mono text-2xl">
+                {(data.commitShare.bot * 100).toFixed(0)}%
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Commit mix timeline */}
       {data.commitMix.length >= 2 && (
         <Card>
