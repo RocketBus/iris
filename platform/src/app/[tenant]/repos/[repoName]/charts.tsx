@@ -696,13 +696,38 @@ function CommitMixChart({
   );
   if (!hasData) return null;
 
+  // Share of total commits across the whole window, by origin — same
+  // "headline percentage above the timeline" pattern as the org dashboard's
+  // AIvsHuman commit mix (dashboard/sections/AIvsHuman.tsx).
+  const totalHuman = data.reduce((sum, p) => sum + (p.commits_human ?? 0), 0);
+  const totalAi = data.reduce((sum, p) => sum + (p.commits_ai ?? 0), 0);
+  const totalCommits = totalHuman + totalAi;
+  const humanPct = totalCommits > 0 ? (totalHuman / totalCommits) * 100 : null;
+  const aiPct = totalCommits > 0 ? (totalAi / totalCommits) * 100 : null;
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
+        {humanPct !== null && aiPct !== null && (
+          <div className="flex flex-wrap gap-6">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-muted-foreground">
+                {humanLabel}
+              </span>
+              <span className="font-mono text-2xl">{humanPct.toFixed(0)}%</span>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <span className="text-xs text-primary">{aiLabel}</span>
+              <span className="font-mono text-2xl text-primary">
+                {aiPct.toFixed(0)}%
+              </span>
+            </div>
+          </div>
+        )}
         <ResponsiveContainer width="100%" height={200}>
           <AreaChart data={data}>
             <CartesianGrid
