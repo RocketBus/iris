@@ -124,10 +124,9 @@ function simpleAvg(values: Array<number | null>): number | null {
   return valid.reduce((s, v) => s + v, 0) / valid.length;
 }
 
-/** Build the org-wide sparkline by summing or averaging per-position across repos. */
+/** Build the org-wide sparkline by averaging per-position across repos. */
 function buildOrgSparkline(
   repos: RepoSummary[],
-  mode: "sum" | "avg",
   accessor: (r: RepoSummary) => number[],
 ): number[] {
   const maxLen = Math.max(...repos.map((r) => accessor(r).length), 0);
@@ -146,7 +145,7 @@ function buildOrgSparkline(
         count++;
       }
     }
-    result.push(mode === "sum" ? sum : count > 0 ? sum / count : 0);
+    result.push(count > 0 ? sum / count : 0);
   }
   return result;
 }
@@ -207,10 +206,8 @@ export function computeOrgPulse(
       ? aiAdoptionPct - previousTotals.aiPct!
       : null;
 
-  // Sparklines
-  const commitSparkline = buildOrgSparkline(repos, "sum", () => []);
-  // Use stabilization sparklines from repos
-  const stabSparkline = buildOrgSparkline(repos, "avg", (r) => r.sparkline);
+  // Sparkline — from each repo's own stabilization history.
+  const stabSparkline = buildOrgSparkline(repos, (r) => r.sparkline);
 
   return {
     totalCommits,
@@ -224,9 +221,7 @@ export function computeOrgPulse(
     aiAdoptionPct,
     aiAdoptionDelta,
     sparklines: {
-      commits: commitSparkline,
       stabilization: stabSparkline,
-      aiAdoption: [],
     },
   };
 }

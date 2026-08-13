@@ -10,10 +10,6 @@ export interface TimeSeriesPoint {
   churn_events: number | null;
   commits_total: number | null;
   ai_detection_coverage_pct: number | null;
-  pr_merged_count: number | null;
-  pr_single_pass_rate: number | null;
-  fix_latency_median_hours: number | null;
-  cascade_rate: number | null;
 }
 
 /** Summary of a repo's current state + trend. */
