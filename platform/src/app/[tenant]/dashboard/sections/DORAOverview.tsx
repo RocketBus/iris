@@ -71,6 +71,13 @@ export function DORAOverview({ data }: Props) {
         <MetricCard
           label={t("dashboard.dora.metrics.mttrPerDeploy")}
           value={formatHours(data.mttrPerDeploySecondsMedian)}
+          hint={
+            data.mttrPerDeploySecondsP90 !== null
+              ? t("dashboard.dora.metrics.mttrP90Hint", {
+                  value: formatHours(data.mttrPerDeploySecondsP90),
+                })
+              : undefined
+          }
         />
         <MetricCard
           label={t("dashboard.dora.metrics.deployFrequency")}

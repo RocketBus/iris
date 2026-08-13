@@ -105,7 +105,9 @@ export async function computeOrgDORA(
     rollbacksTotal: deployMetrics.rollbacksTotal,
     rollbackRate: deployMetrics.rollbackRate,
     mttrPerDeploySecondsMedian: deployMetrics.mttrPerDeploySecondsMedian,
+    mttrPerDeploySecondsP90: deployMetrics.mttrPerDeploySecondsP90,
     mttrPerIncidentSecondsMedian: median(ttrs),
+    mttrPerIncidentSecondsP90: percentile(ttrs, 0.9),
     leadTimeSecondsMedian: deployMetrics.leadTimeSecondsMedian,
     deployFrequencyPerDay: deployMetrics.deployFrequencyPerDay,
     cfrByOrigin,
@@ -139,6 +141,7 @@ export async function computeRepoDORA(
     deploymentsPendingEvaluation: m.deploymentsPendingEvaluation,
     cfr: m.cfr,
     mttrPerDeploySecondsMedian: m.mttrPerDeploySecondsMedian,
+    mttrPerDeploySecondsP90: m.mttrPerDeploySecondsP90,
     rollbacksTotal: m.rollbacksTotal,
     rollbackRate: m.rollbackRate,
     leadTimeSecondsMedian: m.leadTimeSecondsMedian,
@@ -226,6 +229,7 @@ function deployDerivedMetrics(
     cfr: evaluated.length > 0 ? failed.length / evaluated.length : null,
     rollbackRate: failed.length > 0 ? rollbacks.length / failed.length : null,
     mttrPerDeploySecondsMedian: median(recoveryTimes),
+    mttrPerDeploySecondsP90: percentile(recoveryTimes, 0.9),
     leadTimeSecondsMedian: median(leadTimes),
     deployFrequencyPerDay:
       windowDays > 0 ? deployments.length / windowDays : null,
@@ -302,6 +306,23 @@ function median(values: number[]): number | null {
     : sorted[mid];
 }
 
+/**
+ * Nearest-rank percentile — always returns an observed value, never an
+ * interpolation between two. Matches `iris/analysis/dora_real.py`'s
+ * `_percentile` (same method, `q` in the 0-1 range), so a P90 read the same
+ * way whether it came from the engine's own report or this live query.
+ */
+function percentile(values: number[], q: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  if (sorted.length === 1) return sorted[0];
+  const rank = Math.min(
+    Math.max(1, Math.round(q * sorted.length)),
+    sorted.length,
+  );
+  return sorted[rank - 1];
+}
+
 function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 86_400_000).toISOString();
 }
@@ -310,4 +331,5 @@ export const __testing = {
   deployDerivedMetrics,
   aggregateCfrByOriginFromPayloads,
   median,
+  percentile,
 };
