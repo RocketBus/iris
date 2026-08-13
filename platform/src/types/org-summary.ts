@@ -18,9 +18,7 @@ export interface OrgPulse {
   aiAdoptionPct: number | null;
   aiAdoptionDelta: number | null;
   sparklines: {
-    commits: number[];
     stabilization: number[];
-    aiAdoption: number[];
   };
 }
 

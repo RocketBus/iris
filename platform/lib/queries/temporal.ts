@@ -92,7 +92,7 @@ export async function getRepoTimeSeries(
   const { data } = await supabase
     .from("metrics")
     .select(
-      "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
+      "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct",
     )
     .eq("repository_id", repositoryId)
     .eq("window_days", windowDays)
@@ -106,10 +106,6 @@ export async function getRepoTimeSeries(
     churn_events: row.churn_events,
     commits_total: row.commits_total,
     ai_detection_coverage_pct: row.ai_detection_coverage_pct,
-    pr_merged_count: row.pr_merged_count,
-    pr_single_pass_rate: row.pr_single_pass_rate,
-    fix_latency_median_hours: row.fix_latency_median_hours,
-    cascade_rate: row.cascade_rate,
   }));
 }
 
