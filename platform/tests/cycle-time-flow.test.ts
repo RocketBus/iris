@@ -360,3 +360,48 @@ describe("computeCycleTime — flow decomposition", () => {
     expect(out.flow).toBeNull();
   });
 });
+
+describe("computeCycleTime — median/mean weighting", () => {
+  it("weights meanHours by its own repo set, independent of which repos have a median", () => {
+    const payloads = new Map<string, ReportMetrics>();
+    // r1 reports only a mean (no median) — must not be excluded from the
+    // mean's weight total just because it's missing from the median's.
+    payloads.set(
+      "r1",
+      metrics({
+        pr_merged_count: 100,
+        pr_mean_time_to_merge_hours: 50,
+        pr_cycle_time_buckets: {
+          same_day: 100,
+          one_day: 0,
+          two_to_three_days: 0,
+          four_to_seven_days: 0,
+          seven_plus_days: 0,
+        },
+      }),
+    );
+    payloads.set(
+      "r2",
+      metrics({
+        pr_merged_count: 20,
+        pr_median_time_to_merge_hours: 10,
+        pr_mean_time_to_merge_hours: 10,
+        pr_cycle_time_buckets: {
+          same_day: 20,
+          one_day: 0,
+          two_to_three_days: 0,
+          four_to_seven_days: 0,
+          seven_plus_days: 0,
+        },
+      }),
+    );
+
+    const out = computeCycleTime(repos, payloads)!;
+    // median: only r2 reports one → 10.
+    expect(out.medianHours).toBe(10);
+    // mean: (50*100 + 10*20) / (100+20) = 5200/120 — weighted by merged PRs
+    // across BOTH repos that reported a mean, not by r2's median-only weight
+    // (which would wrongly give 5200/20 = 260).
+    expect(out.meanHours).toBeCloseTo(5200 / 120, 5);
+  });
+});

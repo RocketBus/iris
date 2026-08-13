@@ -26,7 +26,7 @@ const healthColors: Record<string, string> = {
   gray: "text-muted-foreground",
 };
 
-type MetricFormat = "pct" | "number" | "rate";
+type MetricFormat = "pct" | "number" | "rate" | "pctRaw";
 
 // Columns the table can be sorted by. `name` and `health` are non-numeric;
 // the rest map directly to numeric RepoSummary fields.
@@ -72,8 +72,14 @@ function formatMetric(value: number, format: MetricFormat): string {
       return `${(value * 100).toFixed(0)}%`;
     case "rate":
       return `${(value * 100).toFixed(1)}%`;
+    case "pctRaw":
+      return `${value < 10 ? value.toFixed(1) : value.toFixed(0)}%`;
     case "number":
       return value.toFixed(0);
+    default: {
+      const exhaustive: never = format;
+      return exhaustive;
+    }
   }
 }
 
@@ -551,8 +557,13 @@ export function CompareView({ repos }: CompareViewProps) {
                     {hasAnyAI && (
                       <MetricStat
                         label={t("compare.columns.ai")}
-                        value={repo.ai_detection_coverage_pct}
-                        format="rate"
+                        value={
+                          repo.ai_detection_coverage_pct != null &&
+                          repo.ai_detection_coverage_pct > 0
+                            ? repo.ai_detection_coverage_pct
+                            : null
+                        }
+                        format="pctRaw"
                       />
                     )}
                     {repo.merge_strategy &&
