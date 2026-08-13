@@ -76,6 +76,9 @@ fi
 # Only the body is scanned — the same slice the engine reads (`%b`, the message
 # minus its first paragraph): a trailer glued to the subject is folded into
 # `%s`, so the engine would see no attribution and the hook must append one.
+# The separator address tolerates blanks so a line carrying only whitespace
+# still ends the first paragraph — including the lone `\r` of a CRLF message,
+# where a bare `/^$/` would find no separator and drop the whole file.
 #
 # Tool names are bounded by a non-alphanumeric class instead of \b: POSIX ERE
 # leaves \b undefined, so BSD/macOS grep may read it as a literal `b` (and
@@ -89,7 +92,7 @@ fi
 # by the pattern, so without that branch a value glued to the colon
 # (`Made-with:Cursor`) would have no boundary left to match.
 
-if sed '1,/^$/d' "$COMMIT_MSG_FILE" 2>/dev/null | grep -qiE "^(Co-Authored-By|Assisted-by|Made-with):([[:space:]]*|.*[^[:alnum:]])(claude|anthropic|cursor|windsurf|copilot|codeium|tabnine|amazon-q|gemini|devin[- ]?ai)([^[:alnum:]]|$)"; then
+if sed '1,/^[[:space:]]*$/d' "$COMMIT_MSG_FILE" 2>/dev/null | grep -qiE "^(Co-Authored-By|Assisted-by|Made-with):([[:space:]]*|.*[^[:alnum:]])(claude|anthropic|cursor|windsurf|copilot|codeium|tabnine|amazon-q|gemini|devin[- ]?ai)([^[:alnum:]]|$)"; then
     exit 0
 fi
 
