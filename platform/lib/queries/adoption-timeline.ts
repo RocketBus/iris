@@ -9,6 +9,8 @@
  * list of comparable rows (stabilization, durability, cascade, revert, new-code churn).
  */
 
+import { PP_STABLE } from "./temporal";
+
 import type {
   AdoptionConfidence,
   AdoptionTimeline,
@@ -33,7 +35,7 @@ export interface AdoptionDelta {
 }
 
 export interface AdoptionSummary {
-  inflection: string;                  // YYYY-MM-DD
+  inflection: string; // YYYY-MM-DD
   rampEnd: string | null;
   confidence: AdoptionConfidence;
   totalAiCommits: number;
@@ -46,9 +48,14 @@ export interface RepoAdoption extends AdoptionSummary {
   headlineDeltaPp: number | null;
 }
 
-const FLAT_THRESHOLD_PP = 2;
+// Was 2pp — well under the engine's own PP_STABLE floor (5pp) for "this
+// delta isn't noise," so moves the engine's own trend narrative would call
+// stable were rendering as a confident up/down arrow here.
+const FLAT_THRESHOLD_PP = PP_STABLE;
 
-function weightedDurabilitySurvival(m: ReportMetrics | undefined): number | null {
+function weightedDurabilitySurvival(
+  m: ReportMetrics | undefined,
+): number | null {
   if (!m?.durability_by_origin) return null;
   let surviving = 0;
   let introduced = 0;

@@ -280,6 +280,14 @@ export default async function RepoDetailPage({
               : "\u2014"
           }
           delta={stabDelta}
+          // stabilization_ratio defaults to 1.0 (100%) when there are no
+          // touched files \u2014 without this, an empty window reads as
+          // "perfectly stable" instead of "nothing to measure."
+          hint={
+            latest?.commits_total === 0
+              ? t("repos.detail.metrics.noActivityHint")
+              : undefined
+          }
         />
         <MetricCard
           label={t("repos.detail.metrics.revertRate")}
@@ -290,6 +298,12 @@ export default async function RepoDetailPage({
           }
           delta={revertDelta}
           invertDelta
+          // Same defaulting issue as stabilization above, but toward 0.0%.
+          hint={
+            latest?.commits_total === 0
+              ? t("repos.detail.metrics.noActivityHint")
+              : undefined
+          }
         />
         <MetricCard
           label={t("repos.detail.metrics.churnEvents")}

@@ -460,6 +460,8 @@ export const translations = {
         "Systemic patterns that drive the most rework in this repository.",
       empty:
         "No systemic hotspots detected. Stabilization, coupling and fix distribution all look within healthy ranges.",
+      noData:
+        "Not enough data to evaluate yet — this repo has no stability map, coupling, or fix-targeting data in this window.",
       severityHigh: "High",
       severityMedium: "Medium",
       severityLow: "Low",
@@ -593,6 +595,7 @@ export const translations = {
           revertRate: "Revert Rate",
           churnEvents: "Churn Events",
           commits: "Commits",
+          noActivityHint: "No commits in this window",
         },
         mergeStrategy: {
           label: "Merge",
@@ -604,7 +607,9 @@ export const translations = {
         dora: {
           title: "DORA",
           subtitle:
-            "Deployment metrics scoped to this repository over the last {days} days.",
+            "Deployment metrics scoped to this repository over the last {days} days — live from Datadog as of now. The rest of this page reflects the last analysis run, which may be older.",
+          lowSample:
+            "Based on only {actual} evaluated deploys (below the {threshold} this page treats as a stable read) — treat these four as directional, not precise.",
           incidentDisclaimer:
             "MTTR by incident isn't shown per-repo — Datadog failure events don't carry repository attribution, so any per-repo number would be a misleading copy of the org-wide one. See the dashboard for the incident-level view.",
         },
@@ -1862,6 +1867,8 @@ export const translations = {
         "Padrões sistêmicos que geram mais retrabalho neste repositório.",
       empty:
         "Nenhum hotspot sistêmico detectado. Estabilização, acoplamento e distribuição de fixes estão dentro de faixas saudáveis.",
+      noData:
+        "Ainda não há dados suficientes pra avaliar — esse repositório não tem stability map, acoplamento ou dados de fix-targeting nessa janela.",
       severityHigh: "Alto",
       severityMedium: "Médio",
       severityLow: "Baixo",
@@ -1997,6 +2004,7 @@ export const translations = {
           revertRate: "Taxa de revert",
           churnEvents: "Eventos de churn",
           commits: "Commits",
+          noActivityHint: "Sem commits nessa janela",
         },
         mergeStrategy: {
           label: "Merge",
@@ -2008,7 +2016,9 @@ export const translations = {
         dora: {
           title: "DORA",
           subtitle:
-            "Métricas de deploy deste repositório nos últimos {days} dias.",
+            "Métricas de deploy deste repositório nos últimos {days} dias — direto do Datadog, a partir de agora. O resto desta página reflete a última análise, que pode ser mais antiga.",
+          lowSample:
+            "Baseado em apenas {actual} deploys avaliados (abaixo dos {threshold} que esta página considera uma leitura estável) — trate esses quatro números como direcionais, não precisos.",
           incidentDisclaimer:
             "MTTR por incidente não aparece per-repo — os eventos de falha do Datadog não carregam atribuição de repositório, então qualquer número per-repo seria uma cópia enganosa do org-wide. Veja a visão de incidentes no dashboard.",
         },
