@@ -80,8 +80,12 @@ fi
 # co-author (`Claudemir`) from suppressing attribution. If a grep degrades on
 # the `$` inside the closing group, the worst case is a duplicated trailer —
 # never a commit with no attribution.
+#
+# The left bound also accepts leading blanks because the key's `:` is consumed
+# by the pattern, so without that branch a value glued to the colon
+# (`Made-with:Cursor`) would have no boundary left to match.
 
-if grep -qiE "^(Co-Authored-By|Assisted-by|Made-with):.*[^[:alnum:]](claude|anthropic|cursor|windsurf|copilot|codeium|tabnine|amazon-q|gemini|devin-ai)([^[:alnum:]]|$)" "$COMMIT_MSG_FILE" 2>/dev/null; then
+if grep -qiE "^(Co-Authored-By|Assisted-by|Made-with):([[:space:]]*|.*[^[:alnum:]])(claude|anthropic|cursor|windsurf|copilot|codeium|tabnine|amazon-q|gemini|devin[- ]?ai)([^[:alnum:]]|$)" "$COMMIT_MSG_FILE" 2>/dev/null; then
     exit 0
 fi
 
