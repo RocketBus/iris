@@ -753,7 +753,7 @@ export const translations = {
     aiExposure: {
       title: "Shadow AI Exposure",
       subtitle:
-        "How much AI-assisted code is being produced — and how much is attributed.",
+        "How much AI-assisted code is being produced — and how much is attributed. The per-repo breakdown behind the dashboard's Attribution Gap card.",
       empty:
         "No origin data yet. Run the CLI on a repository to start measuring.",
       summary: {
@@ -2161,7 +2161,7 @@ export const translations = {
     aiExposure: {
       title: "Exposição a Shadow AI",
       subtitle:
-        "Quanto código assistido por IA está sendo produzido — e quanto está atribuído.",
+        'Quanto código assistido por IA está sendo produzido — e quanto está atribuído. O detalhamento por repositório por trás do card "Lacuna de Atribuição" do dashboard.',
       empty:
         "Ainda não há dados de origem. Rode a CLI em um repositório para começar a medir.",
       summary: {
