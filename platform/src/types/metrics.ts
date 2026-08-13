@@ -74,7 +74,9 @@ export interface RevertMetrics {
 
 export interface FixTargetMetrics {
   fixes_attracted: number;
+  /** Despite the name, a 0-1 fraction (iris/analysis/fix_targeting.py). Scale by 100 before display. */
   code_share_pct: number;
+  /** Despite the name, a 0-1 fraction (iris/analysis/fix_targeting.py). Scale by 100 before display. */
   fix_share_pct: number;
   disproportionality: number;
 }

@@ -45,21 +45,21 @@ const severityRank: Record<HotspotSeverity, number> = {
 };
 
 function weakDirSeverity(ratio: number): HotspotSeverity {
-  if (ratio < WEAK_DIR_HIGH_RATIO) return 'high';
-  if (ratio < WEAK_DIR_MED_RATIO) return 'medium';
-  return 'low';
+  if (ratio < WEAK_DIR_HIGH_RATIO) return "high";
+  if (ratio < WEAK_DIR_MED_RATIO) return "medium";
+  return "low";
 }
 
 function couplingSeverity(rate: number): HotspotSeverity {
-  if (rate >= COUPLING_HIGH_RATE) return 'high';
-  if (rate >= COUPLING_MED_RATE) return 'medium';
-  return 'low';
+  if (rate >= COUPLING_HIGH_RATE) return "high";
+  if (rate >= COUPLING_MED_RATE) return "medium";
+  return "low";
 }
 
 function fixSeverity(disp: number): HotspotSeverity {
-  if (disp >= FIX_HIGH_DISPROPORTIONALITY) return 'high';
-  if (disp >= FIX_MED_DISPROPORTIONALITY) return 'medium';
-  return 'low';
+  if (disp >= FIX_HIGH_DISPROPORTIONALITY) return "high";
+  if (disp >= FIX_MED_DISPROPORTIONALITY) return "medium";
+  return "low";
 }
 
 export function computeInvestmentHotspots(
@@ -91,7 +91,7 @@ export function computeInvestmentHotspots(
     })
     .slice(0, WEAK_DIR_LIMIT)
     .map((d) => ({
-      kind: 'weak_directory',
+      kind: "weak_directory",
       severity: weakDirSeverity(d.stabilization_ratio),
       directory: d.directory,
       stabilizationRatio: d.stabilization_ratio,
@@ -118,7 +118,7 @@ export function computeInvestmentHotspots(
     })
     .slice(0, COUPLING_LIMIT)
     .map((c) => ({
-      kind: 'tight_coupling',
+      kind: "tight_coupling",
       severity: couplingSeverity(c.coupling_rate),
       fileA: c.file_a,
       fileB: c.file_b,
@@ -142,12 +142,15 @@ export function computeInvestmentHotspots(
     .sort(([, a], [, b]) => b.disproportionality - a.disproportionality)
     .slice(0, FIX_LIMIT)
     .map(([origin, m]) => ({
-      kind: 'fix_magnet',
+      kind: "fix_magnet",
       severity: fixSeverity(m.disproportionality),
       origin,
       disproportionality: m.disproportionality,
-      codeSharePct: m.code_share_pct,
-      fixSharePct: m.fix_share_pct,
+      // The engine names these "_pct" but returns 0-1 fractions
+      // (iris/analysis/fix_targeting.py) — scale to 0-100 here so the
+      // field actually holds what its name promises.
+      codeSharePct: m.code_share_pct * 100,
+      fixSharePct: m.fix_share_pct * 100,
       fixesAttracted: m.fixes_attracted,
     }));
 

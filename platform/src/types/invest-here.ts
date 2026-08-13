@@ -5,10 +5,10 @@
  * All hotspots are systemic (directory, file coupling, origin). No per-person fields.
  */
 
-export type HotspotSeverity = 'high' | 'medium' | 'low';
+export type HotspotSeverity = "high" | "medium" | "low";
 
 export interface WeakDirectoryHotspot {
-  kind: 'weak_directory';
+  kind: "weak_directory";
   severity: HotspotSeverity;
   directory: string;
   stabilizationRatio: number;
@@ -18,7 +18,7 @@ export interface WeakDirectoryHotspot {
 }
 
 export interface TightCouplingHotspot {
-  kind: 'tight_coupling';
+  kind: "tight_coupling";
   severity: HotspotSeverity;
   fileA: string;
   fileB: string;
@@ -27,11 +27,13 @@ export interface TightCouplingHotspot {
 }
 
 export interface FixMagnetHotspot {
-  kind: 'fix_magnet';
+  kind: "fix_magnet";
   severity: HotspotSeverity;
   origin: string;
   disproportionality: number;
+  /** 0-100. */
   codeSharePct: number;
+  /** 0-100. */
   fixSharePct: number;
   fixesAttracted: number;
 }

@@ -1121,8 +1121,13 @@ export function RepoCharts({
                     const totalIntent =
                       Object.values(intent).reduce((a, b) => a + b, 0) || 1;
                     const origin = w.origin ?? {};
-                    const totalOrigin =
-                      Object.values(origin).reduce((a, b) => a + b, 0) || 1;
+                    // Excludes BOT, matching ai_detection_coverage_pct's own
+                    // denominator (ai_commits / total_non_bot_commits) — the
+                    // "AI Adoption" chart on this same page uses that field.
+                    // Including bot commits here understated AI share on any
+                    // week with dependency-bump activity.
+                    const totalOriginNonBot =
+                      (origin.HUMAN ?? 0) + (origin.AI_ASSISTED ?? 0) || 1;
                     return (
                       <tr
                         key={w.week_start}
@@ -1146,7 +1151,7 @@ export function RepoCharts({
                         </td>
                         <td className="py-2">
                           {(
-                            ((origin.AI_ASSISTED ?? 0) / totalOrigin) *
+                            ((origin.AI_ASSISTED ?? 0) / totalOriginNonBot) *
                             100
                           ).toFixed(0)}
                           %
