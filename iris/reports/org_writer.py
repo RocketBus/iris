@@ -111,13 +111,11 @@ def write_org_report(
     non_code_repos = [r for r in org_result.repos if r.metrics.repo_kind == "NON_CODE"]
 
     if non_code_repos:
-        lines.extend([
-            s["org_non_code_excluded"].format(
-                count=len(non_code_repos),
-                repos=", ".join(sorted(r.repo_name for r in non_code_repos)),
-            ),
-            "",
-        ])
+        excluded = s["org_non_code_excluded"].format(
+            count=len(non_code_repos),
+            repos=", ".join(sorted(r.repo_name for r in non_code_repos)),
+        )
+        lines.extend([f"> {excluded}", ""])
 
     # AI Impact Across Organization (conditional — only when AI commits exist)
     ai_repos = [
@@ -221,9 +219,9 @@ def write_org_report(
         r.metrics.pr_merged_count or 0 for r in org_result.repos
     )
     stab_values = [r.metrics.stabilization_ratio for r in code_repos]
-    median_stab = median(stab_values) if stab_values else 0.0
+    median_stab = f"{median(stab_values):.1%}" if stab_values else "N/A"
     revert_values = [r.metrics.revert_rate for r in code_repos]
-    median_revert = median(revert_values) if revert_values else 0.0
+    median_revert = f"{median(revert_values):.1%}" if revert_values else "N/A"
 
     lines.extend([
         f"## {s['org_section_metrics_summary']}",
@@ -233,8 +231,14 @@ def write_org_report(
         f"| {s['org_metric_total_commits']} | {total_commits} |",
         f"| {s['org_metric_total_prs_merged']} | {total_prs} |",
         f"| {s['org_metric_repos_analyzed']} | {len(org_result.repos)} |",
-        f"| {s['org_metric_median_stabilization']} | {median_stab:.1%} |",
-        f"| {s['org_metric_median_revert_rate']} | {median_revert:.1%} |",
+    ])
+    if non_code_repos:
+        lines.append(
+            f"| {s['org_metric_repos_compared']} | {len(code_repos)} |"
+        )
+    lines.extend([
+        f"| {s['org_metric_median_stabilization']} | {median_stab} |",
+        f"| {s['org_metric_median_revert_rate']} | {median_revert} |",
         "",
     ])
 
@@ -329,8 +333,8 @@ def write_org_metrics(
         "analysis_window_days": days,
         "total_commits": total_commits,
         "total_prs_merged": total_prs,
-        "median_stabilization_ratio": round(
-            median(stab_values) if stab_values else 0.0, 3,
+        "median_stabilization_ratio": (
+            round(median(stab_values), 3) if stab_values else None
         ),
         "median_stabilization_repos": len(code_repos),
         "repos": repo_entries,

@@ -515,7 +515,7 @@ EN = {
     "metric_origin_ai_assisted": "AI-Assisted",
     "metric_origin_bot": "Bot",
     "org_non_code_excluded": (
-        "> {count} repository(ies) excluded from the comparisons below — no "
+        "{count} repository(ies) excluded from the comparisons below — no "
         "project manifest, so their metrics describe documentation rather than "
         "delivery: {repos}."
     ),
@@ -641,6 +641,7 @@ EN = {
     "org_metric_total_commits": "Total commits",
     "org_metric_total_prs_merged": "Total PRs merged",
     "org_metric_repos_analyzed": "Repos analyzed",
+    "org_metric_repos_compared": "Repos in comparisons",
     "org_metric_median_stabilization": "Median stabilization",
     "org_metric_median_revert_rate": "Median revert rate",
 
@@ -1395,7 +1396,7 @@ PT_BR = {
     "metric_origin_ai_assisted": "Assistido por IA",
     "metric_origin_bot": "Bot",
     "org_non_code_excluded": (
-        "> {count} repositório(s) fora das comparações abaixo — sem manifesto "
+        "{count} repositório(s) fora das comparações abaixo — sem manifesto "
         "de projeto, então suas métricas descrevem documentação e não "
         "entrega: {repos}."
     ),
@@ -1521,6 +1522,7 @@ PT_BR = {
     "org_metric_total_commits": "Total de commits",
     "org_metric_total_prs_merged": "Total de PRs merged",
     "org_metric_repos_analyzed": "Repositórios analisados",
+    "org_metric_repos_compared": "Repositórios nas comparações",
     "org_metric_median_stabilization": "Mediana de estabilização",
     "org_metric_median_revert_rate": "Mediana de taxa de revert",
 

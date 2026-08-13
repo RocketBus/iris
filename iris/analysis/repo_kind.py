@@ -82,8 +82,6 @@ _MANIFEST_FILES: frozenset[str] = frozenset({
     "Makefile.PL",
     # Zig / Nim / Lua
     "build.zig",
-    "nimble.toml",
-    "rockspec",
     # Build & deploy
     "Makefile",
     "makefile",
@@ -91,7 +89,6 @@ _MANIFEST_FILES: frozenset[str] = frozenset({
     "docker-compose.yml",
     "docker-compose.yaml",
     "Chart.yaml",
-    "main.tf",
     "serverless.yml",
     "template.yaml",
     "Vagrantfile",
@@ -108,6 +105,7 @@ _MANIFEST_SUFFIXES: tuple[str, ...] = (
     ".cabal",
     ".nimble",
     ".rockspec",
+    ".tf",
 )
 
 
@@ -135,15 +133,22 @@ def classify_repo_kind(repo_path: str) -> RepoKind:
 
 
 def _tracked_files(repo_path: str) -> list[str]:
-    """List files tracked by Git. Empty list when the tree can't be read."""
+    """List files tracked by Git.
+
+    Empty list when the tree can't be read: `git ls-files` failing, timing
+    out, or its output failing to decode. Paths come back with
+    `surrogateescape`, so a non-UTF-8 file name never aborts the run.
+    """
     try:
         result = subprocess.run(
             ["git", "-C", repo_path, "ls-files", "-z"],
             capture_output=True,
             text=True,
+            errors="surrogateescape",
             check=True,
+            timeout=60,
         )
-    except (subprocess.CalledProcessError, OSError):
+    except (subprocess.SubprocessError, OSError):
         return []
 
     return [path for path in result.stdout.split("\0") if path]

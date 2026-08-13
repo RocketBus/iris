@@ -907,12 +907,12 @@ comparison the same way mixing merge strategies does.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `repo_kind` | `CODE\|NON_CODE` | `analysis/repo_kind.py` | never (every run stamps it) |
+| `repo_kind` | `CODE\|NON_CODE` | `analysis/repo_kind.py` | absent on payloads pushed by a CLI older than this version |
 
 Classification: `CODE` when any tracked file is a recognized project
 manifest — the file a build, package manager, or deploy step needs
 (`package.json`, `pom.xml`, `go.mod`, `pyproject.toml`, `Dockerfile`,
-`Chart.yaml`, `main.tf`, `*.csproj`, …; full list in the module). Nested
+`Chart.yaml`, `*.tf`, `*.csproj`, …; full list in the module). Nested
 manifests count, so monorepos classify as `CODE`. An unreadable tree
 classifies as `CODE` — a repo is never downgraded because Git failed.
 
@@ -933,13 +933,20 @@ Consumers:
   reports how many repos the median covers.
 - A repo with no `repo_kind` (pushed by an older CLI) counts as `CODE`, so
   history never silently drops out of a median.
+- **Engine only, for now.** The platform receives `repo_kind` in the ingest
+  payload and types it in `platform/src/types/metrics.ts`, but nothing
+  consumes it yet: no indexed column on `metrics`, no filter in the
+  comparison query, no badge on `/compare`. A `NON_CODE` repo can still show
+  up as the org's best stabilization in the dashboard. Closing that gap —
+  mirroring how `merge_strategy` is indexed and surfaced (section 28) — is
+  follow-up work.
 
 Privacy / ranking risk (Principle #2): **none by construction.** A property
 of the file tree, never of people.
 
 ---
 
-## 29. Adoption timeline (post-report, not on `ReportMetrics`)
+## 30. Adoption timeline (post-report, not on `ReportMetrics`)
 
 When AI-assisted commits started appearing, and how the pre-adoption vs
 post-adoption metrics compare.
