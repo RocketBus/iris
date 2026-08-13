@@ -1,6 +1,10 @@
 "use client";
 
+import { useTransition } from "react";
+
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+
+import { Loader2 } from "lucide-react";
 
 import {
   Select,
@@ -32,13 +36,21 @@ export function WindowSelector({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
   if (options.length < 2) return null;
 
   function handleChange(value: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set(paramKey, value);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    // Wrapping the navigation in a transition keeps this page visible with
+    // isPending=true instead of unmounting to the route's loading.tsx — the
+    // right feel for a filter (instant feedback on the control itself)
+    // rather than a full-page flash. Also blocks a second click from firing
+    // another replace() before the first one resolves.
+    startTransition(() => {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    });
   }
 
   return (
@@ -46,9 +58,17 @@ export function WindowSelector({
       <span className="text-xs text-muted-foreground">
         {t("common.windowSelector.label")}
       </span>
-      <Select value={String(windowDays)} onValueChange={handleChange}>
+      <Select
+        value={String(windowDays)}
+        onValueChange={handleChange}
+        disabled={isPending}
+      >
         <SelectTrigger className="h-8 w-[112px]">
-          <SelectValue />
+          {isPending ? (
+            <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
+          ) : (
+            <SelectValue />
+          )}
         </SelectTrigger>
         <SelectContent>
           {options.map((days) => (
