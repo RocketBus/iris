@@ -452,6 +452,9 @@ export const translations = {
       repoList: {
         empty: "No repositories yet.",
         searchPlaceholder: "Search repositories...",
+        human: "Human",
+        ai: "AI",
+        sortByAi: "Most AI first",
       },
     },
     investHere: {
@@ -1868,6 +1871,9 @@ export const translations = {
       repoList: {
         empty: "Nenhum repositório ainda.",
         searchPlaceholder: "Buscar repositórios...",
+        human: "Humano",
+        ai: "IA",
+        sortByAi: "Mais IA primeiro",
       },
     },
     investHere: {
