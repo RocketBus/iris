@@ -158,12 +158,25 @@ minutes apart.
 
 | Gate | Detects | Why it matters |
 |---|---|---|
-| `synthetic_items` | Test-looking titles; same-minute bursts that also died within minutes | Scaffolding lands in the fast tail and collapses the median |
+| `synthetic_items` | Placeholder titles (`dummy`, `asdf`, `lorem`); ambiguous ones only with a short lifetime | Scaffolding lands in the fast tail and collapses the median |
+| `mass_import` | Same-minute creation batches also closed within minutes | Board import/backfill, not flow: near-zero lead time and a fake throughput spike |
 | `done_not_closed` | Terminal column with an open issue | Makes `closedAt` unusable as the lead-time fallback |
 | `bulk_movement` | 5+ items moved within 2 minutes; GitHub's `wasAutomated` | Records board maintenance, not flow |
 | `field_completeness` | Fill rate of priority / size / iteration / assignee | Decides which cuts are trustworthy |
 | `assignee_concentration` | Share held by the most-assigned account | Board may be a personal list, not group work |
 | `history_coverage` | Share of items with real history | The honest ceiling on duration analysis |
+
+### Two lessons from running this on a live board
+
+**Testing is real work.** An earlier `synthetic_items` matched `test`/`teste` on
+their own. On a 198-item board it flagged three genuine items ("Permitir teste
+de cenários de rebooking") and caught zero placeholders. Ambiguous words now
+require a short lifetime to corroborate; only unambiguous markers fire alone.
+
+**Import is not scaffolding.** 91 of those 198 items were created in
+same-minute batches and closed minutes later — all real work, imported when the
+board was set up. Same distortion, different remedy: you delete a placeholder,
+you exclude an import from duration analysis. Hence two separate gates.
 
 Each gate returns a severity, the measured value, the affected items and a
 plain statement of the impact on the reading. Metrics are still computed when a
@@ -207,6 +220,32 @@ Computed by `platform/lib/queries/board-flow.ts` — pure functions, no I/O.
 - **Little's Law is a check, not a headline.** Predicted and observed lead time
   are returned together; a large divergence usually means phantom WIP or a
   mis-mapped terminal column.
+- **Renamed columns are one column.** Per-phase stats key on the normalized
+  name, because renaming leaves the old spelling on historical events —
+  otherwise "Ready for Deploy" and "Ready for deploy" split into two rows with a
+  misleadingly small `n` each. The most frequent spelling becomes the label.
+  Genuinely different names for the same stage ("Ready for dev" vs "Ready for
+  Development") stay separate; merging those needs explicit `statusConfig`,
+  since guessing would be wrong elsewhere.
+- **The terminal column is excluded from time-per-phase.** An item sits in Done
+  until archived, so time there measures age since delivery, not flow.
+
+---
+
+## Validating before you trust it
+
+`platform/scripts/board-flow-dryrun.ts` reads a real board through the real
+client, runs the real gates and metrics, and prints the result — touching no
+database. Use it to check the column classification and the gates against a
+board before applying the migration or reading a dashboard.
+
+```bash
+npx tsx scripts/board-flow-dryrun.ts <owner> <projectNumber> [--user]
+```
+
+Token comes from `$GITHUB_TOKEN` or `gh auth token`. On a 198-item board with
+754 status events it made ~14 GraphQL requests in about 17 seconds, which is
+also the honest way to size the daily sync cost for a given board.
 
 ---
 

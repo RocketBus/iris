@@ -218,6 +218,7 @@ export type GateSeverity = "ok" | "warning" | "critical";
 
 export type GateId =
   | "synthetic_items"
+  | "mass_import"
   | "done_not_closed"
   | "bulk_movement"
   | "field_completeness"
