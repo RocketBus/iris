@@ -2,9 +2,9 @@
  * Data-quality gates for board flow analysis.
  *
  * These run *before* any metric is trusted, and they are not a footnote. On a
- * real board, board-setup noise — a batch of test cards created and closed
- * minutes apart — dragged the median lead time down to a fraction of a day.
- * The number was flattering and completely false.
+ * real 198-item board, 91 items had been created in same-minute batches and
+ * closed minutes later — a board import — which dragged the median lead time
+ * to zero. The number was flattering and completely false.
  *
  * Every gate returns a measured value, a severity, the items responsible, and
  * a plain statement of what it does to the reading. Metrics are still computed
