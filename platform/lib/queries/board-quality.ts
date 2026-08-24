@@ -24,17 +24,30 @@ import type {
 } from "@/types/board-flow";
 
 /**
- * Titles that look like board scaffolding rather than work. Deliberately
- * conservative: a false positive here silently drops real work from the
- * numbers, which is worse than a missed test card.
+ * Titles that can only be scaffolding. These fire on their own.
+ *
+ * Nothing here doubles as real engineering vocabulary — that distinction was
+ * learned the hard way. An earlier version also matched `test`/`teste` on their
+ * own and flagged three real items on a live board ("Teste não moderado nova
+ * UI mobile", "Permitir teste de cenários de rebooking") while catching zero
+ * actual test cards. On an engineering board, testing *is* the work.
  */
-const SYNTHETIC_TITLE_RE =
-  /\b(test|teste|testando|exemplo|example|dummy|sample|placeholder|lorem|foo|bar|baz|asdf|xxx|tbd)\b/i;
+const UNAMBIGUOUS_SYNTHETIC_RE =
+  /\b(dummy|lorem|asdf|qwerty|placeholder|foo|bar|baz|tbd|xxx+|test card|card de teste|delete me|ignore me)\b/i;
 
-/** A burst this size created within one minute reads as scaffolding. */
+/**
+ * Titles that *might* be scaffolding. These only count when corroborated by a
+ * very short lifetime, so a real item about testing is never dropped.
+ */
+const WEAK_SYNTHETIC_RE =
+  /\b(test|teste|testing|testando|sample|example|exemplo)\b/i;
+
+/** A burst this size created within one minute is treated as one event. */
 export const SYNTHETIC_BURST_MIN_ITEMS = 5;
-/** ...and closed this fast, it never represented real flow. */
+/** Lifetime under which an item never represented real flow. */
 export const SYNTHETIC_BURST_MAX_LIFETIME_MINUTES = 30;
+/** Share of the board created-and-closed in bulk that becomes critical. */
+export const MASS_IMPORT_CRITICAL_PCT = 25;
 
 /** This many status events inside the window reads as a board tidy-up. */
 export const BULK_MOVE_MIN_ITEMS = 5;
@@ -63,6 +76,7 @@ export function evaluateQuality(
 ): QualityReport {
   const gates: QualityGate[] = [
     syntheticItemsGate(items),
+    massImportGate(items),
     doneNotClosedGate(items, classification),
     bulkMovementGate(events),
     fieldCompletenessGate(items),
@@ -83,45 +97,23 @@ export function evaluateQuality(
 // ---------------------------------------------------------------------------
 
 /**
- * Synthetic items: obvious test titles, plus same-minute creation bursts with
- * a very short lifetime. Both patterns come from setting a board up, and both
- * land in the fast tail of the lead-time distribution where they do the most
- * damage to the median.
+ * Synthetic items: placeholder cards left behind from setting a board up.
+ *
+ * Unambiguous markers fire on their own. Ambiguous ones (`test`, `sample`)
+ * require a very short lifetime to corroborate, because on an engineering board
+ * testing is real work — matching those words alone produced only false
+ * positives on a live board.
  */
 function syntheticItemsGate(items: BoardItemInput[]): QualityGate {
   const flagged = new Set<string>();
 
   for (const item of items) {
-    if (SYNTHETIC_TITLE_RE.test(item.title)) flagged.add(item.id);
-  }
-
-  const byMinute = new Map<string, BoardItemInput[]>();
-  for (const item of items) {
-    if (!item.sourceCreatedAt) continue;
-    const ms = Date.parse(item.sourceCreatedAt);
-    if (!Number.isFinite(ms)) continue;
-    const key = String(Math.floor(ms / MINUTE_MS));
-    const bucket = byMinute.get(key);
-    if (bucket) bucket.push(item);
-    else byMinute.set(key, [item]);
-  }
-
-  for (const burst of byMinute.values()) {
-    if (burst.length < SYNTHETIC_BURST_MIN_ITEMS) continue;
-    const shortLived = burst.filter((item) => {
-      if (!item.sourceCreatedAt || !item.sourceClosedAt) return false;
-      const lifetime =
-        Date.parse(item.sourceClosedAt) - Date.parse(item.sourceCreatedAt);
-      return (
-        Number.isFinite(lifetime) &&
-        lifetime >= 0 &&
-        lifetime <= SYNTHETIC_BURST_MAX_LIFETIME_MINUTES * MINUTE_MS
-      );
-    });
-    // Only a burst that *also* died young is scaffolding; a big planning
-    // session legitimately creates many cards at once.
-    if (shortLived.length >= SYNTHETIC_BURST_MIN_ITEMS) {
-      for (const item of shortLived) flagged.add(item.id);
+    if (UNAMBIGUOUS_SYNTHETIC_RE.test(item.title)) {
+      flagged.add(item.id);
+      continue;
+    }
+    if (WEAK_SYNTHETIC_RE.test(item.title) && isShortLived(item)) {
+      flagged.add(item.id);
     }
   }
 
@@ -134,10 +126,77 @@ function syntheticItemsGate(items: BoardItemInput[]): QualityGate {
     affectedItemIds: [...flagged],
     summary:
       flagged.size === 0
-        ? "No synthetic or test-looking items detected."
-        : `${flagged.size} item(s) (${pct}%) look like board scaffolding rather than real work. ` +
+        ? "No placeholder or scaffolding items detected."
+        : `${flagged.size} item(s) (${pct}%) look like placeholder cards rather than real work. ` +
           "They cluster in the fast tail and pull the lead-time median down; exclude them before reading any duration.",
   };
+}
+
+/**
+ * Bulk creation that was also bulk-completed: items created within the same
+ * minute and closed minutes later.
+ *
+ * This is a separate finding from synthetic items, and the distinction came
+ * from real data. On a live board, 91 of 198 items matched this pattern —
+ * every one of them real work, imported when the board was set up. The
+ * distortion is severe (a zero-day lead time for half the board, plus a
+ * throughput spike in one artificial week) but the fix is different: you drop
+ * these from duration analysis, you do not delete them.
+ */
+function massImportGate(items: BoardItemInput[]): QualityGate {
+  const byMinute = new Map<string, BoardItemInput[]>();
+  for (const item of items) {
+    if (!item.sourceCreatedAt) continue;
+    const ms = Date.parse(item.sourceCreatedAt);
+    if (!Number.isFinite(ms)) continue;
+    const key = String(Math.floor(ms / MINUTE_MS));
+    const bucket = byMinute.get(key);
+    if (bucket) bucket.push(item);
+    else byMinute.set(key, [item]);
+  }
+
+  const flagged = new Set<string>();
+  for (const burst of byMinute.values()) {
+    if (burst.length < SYNTHETIC_BURST_MIN_ITEMS) continue;
+    const shortLived = burst.filter(isShortLived);
+    // A planning session legitimately creates many cards at once; only a burst
+    // that was also *completed* immediately looks like an import.
+    if (shortLived.length >= SYNTHETIC_BURST_MIN_ITEMS) {
+      for (const item of shortLived) flagged.add(item.id);
+    }
+  }
+
+  const pct = percentOf(flagged.size, items.length);
+  return {
+    id: "mass_import",
+    severity:
+      flagged.size === 0
+        ? "ok"
+        : pct >= MASS_IMPORT_CRITICAL_PCT
+          ? "critical"
+          : "warning",
+    value: pct,
+    unit: "percent",
+    affectedItemIds: [...flagged],
+    summary:
+      flagged.size === 0
+        ? "No bulk create-and-close pattern detected."
+        : `${flagged.size} item(s) (${pct}%) were created in same-minute batches and closed within ` +
+          `${SYNTHETIC_BURST_MAX_LIFETIME_MINUTES} minutes — the signature of a board import or backfill, ` +
+          "not of work flowing. They carry a near-zero lead time and concentrate throughput into one " +
+          "artificial week; exclude them from duration and throughput readings.",
+  };
+}
+
+function isShortLived(item: BoardItemInput): boolean {
+  if (!item.sourceCreatedAt || !item.sourceClosedAt) return false;
+  const lifetime =
+    Date.parse(item.sourceClosedAt) - Date.parse(item.sourceCreatedAt);
+  return (
+    Number.isFinite(lifetime) &&
+    lifetime >= 0 &&
+    lifetime <= SYNTHETIC_BURST_MAX_LIFETIME_MINUTES * MINUTE_MS
+  );
 }
 
 /**

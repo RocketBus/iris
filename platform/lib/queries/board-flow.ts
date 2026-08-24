@@ -374,39 +374,75 @@ function computeCoverage(
   };
 }
 
+interface PhaseAccumulator {
+  /** Every spelling seen for this column, with how often each appeared. */
+  labels: Map<string, number>;
+  hours: number[];
+  total: number;
+  reentered: number;
+}
+
+/**
+ * Per-column time, keyed by *normalized* column name.
+ *
+ * Normalizing matters on real boards: renaming a column leaves the old
+ * spelling on historical events, so "Ready for Deploy" and "Ready for deploy"
+ * are one column whose stats would otherwise split in two, each with a
+ * misleadingly small `n`. The most frequent spelling becomes the label.
+ */
 function computePhaseStats(
   flows: ItemFlow[],
   classification: StatusClassification,
 ): PhaseStat[] {
-  const perStatus = new Map<
-    string,
-    { hours: number[]; total: number; reentered: number }
-  >();
+  const perStatus = new Map<string, PhaseAccumulator>();
 
   for (const flow of flows) {
     for (const [status, hours] of Object.entries(flow.hoursByStatus)) {
-      const entry = perStatus.get(status) ?? {
+      // A terminal column has no meaningful duration: the item sits in "Done"
+      // until somebody archives it, so time there measures age since delivery,
+      // not flow. Left in, it dominates the ranking.
+      if (bucketOf(status, classification) === "done") continue;
+
+      const key = status.trim().toLowerCase();
+      const entry = perStatus.get(key) ?? {
+        labels: new Map<string, number>(),
         hours: [],
         total: 0,
         reentered: 0,
       };
+      entry.labels.set(status, (entry.labels.get(status) ?? 0) + 1);
       entry.hours.push(hours);
       entry.total += hours;
       if ((flow.passesByStatus[status] ?? 0) > 1) entry.reentered += 1;
-      perStatus.set(status, entry);
+      perStatus.set(key, entry);
     }
   }
 
   return [...perStatus.entries()]
-    .map(([status, entry]) => ({
-      status,
-      bucket: bucketOf(status, classification),
+    .map(([key, entry]) => ({
+      status: mostFrequentLabel(entry.labels, key),
+      bucket: bucketOf(key, classification),
       n: entry.hours.length,
       medianHours: median(entry.hours),
       totalHours: round(entry.total, 2),
       reentered: entry.reentered,
     }))
     .sort((a, b) => b.totalHours - a.totalHours);
+}
+
+function mostFrequentLabel(
+  labels: Map<string, number>,
+  fallback: string,
+): string {
+  let best = fallback;
+  let bestCount = -1;
+  for (const [label, count] of labels) {
+    if (count > bestCount) {
+      best = label;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 function computeBalance(flows: ItemFlow[]): FlowBalance[] {

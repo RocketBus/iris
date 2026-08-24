@@ -52,19 +52,58 @@ describe("synthetic_items gate", () => {
     expect(g("synthetic_items").value).toBe(0);
   });
 
-  it("flags test-looking titles", () => {
+  it("flags unambiguous placeholder titles on their own", () => {
     const g = gate([
       item(),
-      item({ id: "b", title: "teste de fluxo" }),
-      item({ id: "c", title: "dummy card" }),
+      item({ id: "b", title: "dummy card" }),
+      item({ id: "c", title: "asdf" }),
     ]);
     const result = g("synthetic_items");
     expect(result.affectedItemIds.sort()).toEqual(["b", "c"]);
     expect(result.severity).toBe("critical");
   });
 
-  it("flags a same-minute burst that also died within minutes", () => {
-    // Nine cards created together and closed 25 minutes later: board setup,
+  /**
+   * Regression guard from a live board: an earlier version matched `test` and
+   * `teste` on their own, flagged three real engineering items, and caught zero
+   * actual placeholder cards. On an engineering board, testing is the work.
+   */
+  it("does not flag real work that merely mentions testing", () => {
+    const items = [
+      item({ id: "a", title: "Teste não moderado nova UI mobile + cupons" }),
+      item({ id: "b", title: "Permitir teste de cenários de rebooking" }),
+      item({ id: "c", title: "Finalizar teste de pagamento combinado" }),
+      item({ id: "d", title: "Add integration tests to the booking service" }),
+    ];
+
+    const result = gate(items)("synthetic_items");
+    expect(result.affectedItemIds).toEqual([]);
+    expect(result.severity).toBe("ok");
+  });
+
+  it("flags an ambiguous title only when a short lifetime corroborates it", () => {
+    const longLived = item({ id: "long", title: "teste de carga" });
+    const shortLived = item({
+      id: "short",
+      title: "teste de carga",
+      sourceCreatedAt: "2026-03-01T10:00:00Z",
+      sourceClosedAt: "2026-03-01T10:02:00Z",
+    });
+
+    expect(gate([longLived])("synthetic_items").affectedItemIds).toEqual([]);
+    expect(gate([shortLived])("synthetic_items").affectedItemIds).toEqual([
+      "short",
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mass import — edge case 3
+// ---------------------------------------------------------------------------
+
+describe("mass_import gate", () => {
+  it("flags a same-minute burst that was also closed within minutes", () => {
+    // Nine cards created together and closed 25 minutes later: a board import,
     // not delivery. Left in, they collapse the lead-time median.
     const burst = Array.from({ length: 9 }, (_, i) =>
       item({
@@ -77,14 +116,14 @@ describe("synthetic_items gate", () => {
       }),
     );
 
-    const result = gate([...burst, item({ id: "real" })])("synthetic_items");
+    const result = gate([...burst, item({ id: "real" })])("mass_import");
     expect(result.affectedItemIds).toHaveLength(9);
     expect(result.severity).toBe("critical");
-    expect(result.summary).toContain("scaffolding");
+    expect(result.summary).toContain("import or backfill");
   });
 
   it("does not flag a planning session that creates many cards at once", () => {
-    // Same burst shape, but the cards live on — that is grooming, not setup.
+    // Same burst shape, but the cards live on — that is grooming, not import.
     const burst = Array.from(
       { length: SYNTHETIC_BURST_MIN_ITEMS + 4 },
       (_, i) =>
@@ -96,7 +135,26 @@ describe("synthetic_items gate", () => {
         }),
     );
 
-    expect(gate(burst)("synthetic_items").severity).toBe("ok");
+    expect(gate(burst)("mass_import").severity).toBe("ok");
+  });
+
+  it("keeps imported items separate from placeholder items", () => {
+    // The two findings call for different actions: you delete a placeholder,
+    // you exclude an import from duration analysis.
+    const burst = Array.from({ length: SYNTHETIC_BURST_MIN_ITEMS }, (_, i) =>
+      item({
+        id: `imported-${i}`,
+        title: `BUSV-${i}: real delivered work`,
+        sourceCreatedAt: "2026-03-01T10:00:00Z",
+        sourceClosedAt: "2026-03-01T10:05:00Z",
+      }),
+    );
+
+    const g = gate(burst);
+    expect(g("mass_import").affectedItemIds).toHaveLength(
+      SYNTHETIC_BURST_MIN_ITEMS,
+    );
+    expect(g("synthetic_items").affectedItemIds).toEqual([]);
   });
 });
 
@@ -310,7 +368,7 @@ describe("evaluateQuality", () => {
 
     expect(report.overall).toBe("critical");
     expect(report.degraded).toBe(true);
-    expect(report.gates).toHaveLength(6);
+    expect(report.gates).toHaveLength(7);
   });
 
   it("reports a clean board as not degraded", () => {

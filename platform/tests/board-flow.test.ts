@@ -445,6 +445,81 @@ describe("summarizeBoard", () => {
     expect(inProgress?.reentered).toBe(0);
   });
 
+  /**
+   * From a live board: a renamed column leaves the old spelling on historical
+   * events, so "Ready for Deploy" and "Ready for deploy" arrived as two rows
+   * with a misleadingly small `n` each.
+   */
+  it("merges spellings of a renamed column into one phase", () => {
+    const items = [
+      item({ id: "a", currentStatus: "Done" }),
+      item({ id: "b", currentStatus: "Done" }),
+      item({ id: "c", currentStatus: "Done" }),
+    ];
+    const events: StatusEventInput[] = [
+      // Two items moved through the old spelling, one through the new.
+      event({ itemId: "a", status: "Ready for deploy" }),
+      event({
+        itemId: "a",
+        previousStatus: "Ready for deploy",
+        status: "Done",
+        occurredAt: "2026-03-02T09:00:00Z",
+      }),
+      event({ itemId: "b", status: "Ready for deploy" }),
+      event({
+        itemId: "b",
+        previousStatus: "Ready for deploy",
+        status: "Done",
+        occurredAt: "2026-03-02T09:00:00Z",
+      }),
+      event({ itemId: "c", status: "Ready for Deploy" }),
+      event({
+        itemId: "c",
+        previousStatus: "Ready for Deploy",
+        status: "Done",
+        occurredAt: "2026-03-03T09:00:00Z",
+      }),
+    ];
+
+    const summary = summarizeBoard(items, events, {
+      boardId: "board-1",
+      title: "Team Alpha",
+      now: NOW,
+    });
+
+    const queues = summary.phases.filter((p) => p.bucket === "queue");
+    expect(queues).toHaveLength(1);
+    expect(queues[0].n).toBe(3);
+    // The most frequent spelling wins the label.
+    expect(queues[0].status).toBe("Ready for deploy");
+  });
+
+  it("excludes the terminal column from time-per-phase", () => {
+    // An item sits in Done until archived, so its time there measures age
+    // since delivery. Left in, it dominates the ranking.
+    const items = [item({ id: "a", currentStatus: "Done" })];
+    const events: StatusEventInput[] = [
+      event({ itemId: "a", status: "In Progress" }),
+      event({
+        itemId: "a",
+        previousStatus: "In Progress",
+        status: "Done",
+        occurredAt: "2026-03-02T09:00:00Z",
+      }),
+    ];
+
+    const summary = summarizeBoard(items, events, {
+      boardId: "board-1",
+      title: "Team Alpha",
+      now: NOW,
+    });
+
+    expect(summary.phases.map((p) => p.status)).toEqual(["In Progress"]);
+    // The raw per-item accumulation still records it; only the board-level
+    // phase ranking drops it.
+    expect(summary.leadTime.p50).toBe(24);
+  });
+
   it("tracks inflow against outflow and the cumulative backlog delta", () => {
     const items = [
       item({ id: "a", currentStatus: "Done" }),
