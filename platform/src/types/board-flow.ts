@@ -208,6 +208,14 @@ export interface BoardFlowSummary {
   cfd: CfdPoint[];
   littlesLaw: LittlesLawCheck;
   unmappedStatuses: string[];
+  /**
+   * Resolved bucket for every column seen, keyed by the column's own spelling.
+   *
+   * The UI needs it to group a cumulative-flow diagram by lifecycle stage: a
+   * real board can carry a dozen-plus columns, and stacking that many series is
+   * unreadable, while five buckets make accumulation obvious.
+   */
+  statusBuckets: Record<string, LifecycleBucket>;
 }
 
 // ---------------------------------------------------------------------------
