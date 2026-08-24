@@ -357,7 +357,24 @@ export function summarizeBoard(
     cfd: computeCfd(flows, now),
     littlesLaw: computeLittlesLaw(flows, wipFlows.length),
     unmappedStatuses: classification.unmapped,
+    statusBuckets: buildStatusBuckets(seen, classification),
   };
+}
+
+/**
+ * Bucket per column, keyed by the column's own spelling (not normalized) so a
+ * caller holding a raw status string can look it up directly.
+ */
+function buildStatusBuckets(
+  seen: Set<string>,
+  classification: StatusClassification,
+): Record<string, LifecycleBucket> {
+  const out: Record<string, LifecycleBucket> = {};
+  for (const status of seen) {
+    const bucket = bucketOf(status, classification);
+    if (bucket) out[status] = bucket;
+  }
+  return out;
 }
 
 function computeCoverage(

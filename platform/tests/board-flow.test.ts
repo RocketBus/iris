@@ -657,6 +657,47 @@ describe("summarizeBoard", () => {
     expect(summary.littlesLaw.divergenceRatio).toBe(2.5);
   });
 
+  /**
+   * The UI groups the cumulative-flow diagram by bucket rather than by column —
+   * a real board carries a dozen-plus columns and stacking that many bands is
+   * unreadable. That grouping needs the resolved bucket per column.
+   */
+  it("exposes the resolved bucket for every column seen", () => {
+    const items = [item({ id: "a", currentStatus: "Done" })];
+    const events: StatusEventInput[] = [
+      event({ itemId: "a", status: "Ready for Development" }),
+      event({
+        itemId: "a",
+        previousStatus: "Ready for Development",
+        status: "Done",
+        occurredAt: "2026-03-02T09:00:00Z",
+      }),
+    ];
+
+    const summary = summarizeBoard(items, events, {
+      boardId: "board-1",
+      title: "Team Alpha",
+      now: NOW,
+    });
+
+    expect(summary.statusBuckets).toEqual({
+      "Ready for Development": "queue",
+      Done: "done",
+    });
+  });
+
+  it("omits unmapped columns from the bucket map", () => {
+    const items = [item({ id: "a", currentStatus: "Zephyr" })];
+    const summary = summarizeBoard(
+      items,
+      [event({ itemId: "a", status: "Zephyr" })],
+      { boardId: "board-1", title: "Team Alpha", now: NOW },
+    );
+
+    expect(summary.statusBuckets).toEqual({});
+    expect(summary.unmappedStatuses).toEqual(["Zephyr"]);
+  });
+
   it("handles an empty board without throwing", () => {
     const summary = summarizeBoard([], [], {
       boardId: "board-1",

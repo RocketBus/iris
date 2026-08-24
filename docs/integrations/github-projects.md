@@ -205,6 +205,22 @@ Computed by `platform/lib/queries/board-flow.ts` — pure functions, no I/O.
 | CFD | Item count per column at the end of each week |
 | Percentiles | P50 / P70 / P85 / P95, with a sample guard |
 
+### Where it surfaces
+
+`/[tenant]/flow`, reachable from the sidebar as **Delivery Flow**. Section order
+is deliberate — quality gates first, so the reader knows what the figures can
+carry before reading them; then durations, time per column, WIP aging,
+throughput, the CFD, stalled items, and the Little's Law check.
+
+Two presentation notes worth keeping if the page is reworked:
+
+- The CFD groups by **lifecycle bucket**, not by column. A real board carries a
+  dozen-plus columns and stacking that many bands is unreadable; five buckets
+  make accumulation obvious.
+- The product's categorical ramp passes colour-vision separation but sits below
+  3:1 against the page surface, so every mark is paired with a visible label or
+  rendered as a table. Identity is never carried by colour alone.
+
 ### Honesty rules
 
 - **Fallback ladder for lead time.** Transitions (exact) → `closedAt` →
