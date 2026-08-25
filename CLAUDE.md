@@ -53,6 +53,7 @@ Work that lands should fit Stage 2 refinement or prepare Stage 3 — not re-open
 3. Avoid premature architecture — especially for features not yet in Stage 2/3 scope.
 4. Metrics are hypotheses, not truths.
 5. Analyze systems, never rank or score individuals.
+6. Iris is open source — code, scripts, docs, and examples must be generic and organization-agnostic. Never hardcode ClickBus/RocketBus names, URLs, sample data, or defaults into anything committed to the repo; any org-specific value must come from a required flag, env var, or config, never a baked-in default.
 
 ---
 

@@ -33,7 +33,7 @@ The ecosystem never settled on one key, so Iris reads three. Adopt whichever you
 | Trailer | Who writes it |
 |---|---|
 | `Co-Authored-By:` | GitHub's convention, and what the Iris hook writes |
-| `Assisted-by:` | orgs that attribute assistance without claiming co-authorship (e.g. ClickBus RFC 0020) |
+| `Assisted-by:` | orgs that attribute assistance without claiming co-authorship, via an internal attribution policy RFC |
 | `Made-with:` | Cursor's agent — a bare tool name, no e-mail |
 
 Only one trailer per commit is needed. If your policy already writes `Assisted-by:`, the Iris hook leaves the message alone instead of appending a second tag.
