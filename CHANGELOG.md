@@ -4,6 +4,22 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.5.2 — Churn window capped to lookback (2026-08-25)
+
+### Fixed
+
+- **`--churn-days` no longer overstates the churn window on short lookbacks**
+  (#175). It defaults to 14 regardless of `--days`/`--windows`, so the `7d`
+  leg of a multi-window run (or an explicit `--days 7`) printed
+  "Churn window: 14 days" while only 7 days of commits were ever loaded — a
+  churn pair more than 7 days apart can't exist in that data. Added
+  `_effective_churn_days()`, capping the reported/used window to
+  `min(churn_days, days)` per window. No computed churn numbers change —
+  `calculate_churn` was already silently bounded by the loaded commits; this
+  just makes the reported window match what the run actually did.
+
+---
+
 ## v1.5.1 — Multi-window ingestion resilience (2026-08-25)
 
 ### Fixed
