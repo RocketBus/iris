@@ -10,6 +10,9 @@ import {
   CartesianGrid,
 } from "recharts";
 
+import { useTranslation } from "@/hooks/useTranslation";
+import { formatChartDate } from "@/lib/date-format";
+
 interface DataPoint {
   date: string;
   [key: string]: string | number | null;
@@ -22,11 +25,6 @@ interface MetricLineChartProps {
   color?: string;
   format?: "pct" | "pct_raw" | "number" | "hours";
   height?: number;
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
 }
 
 function formatValue(value: number, format: string): string {
@@ -50,6 +48,8 @@ export function MetricLineChart({
   format = "pct",
   height = 200,
 }: MetricLineChartProps) {
+  const { language } = useTranslation();
+
   if (data.length === 0) {
     return (
       <div
@@ -73,7 +73,7 @@ export function MetricLineChart({
           />
           <XAxis
             dataKey="date"
-            tickFormatter={formatDate}
+            tickFormatter={(v) => formatChartDate(String(v), language)}
             tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
             tickLine={false}
             axisLine={false}
@@ -94,7 +94,7 @@ export function MetricLineChart({
               borderRadius: "0.5rem",
               fontSize: 12,
             }}
-            labelFormatter={(label) => formatDate(String(label))}
+            labelFormatter={(label) => formatChartDate(String(label), language)}
             formatter={(value) => [formatValue(Number(value), format), label]}
           />
           <Line

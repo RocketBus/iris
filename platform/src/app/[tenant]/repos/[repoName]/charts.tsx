@@ -23,6 +23,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
+import { formatChartDate } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import type { TimeSeriesPoint, AIImpactPoint } from "@/types/temporal";
 
@@ -142,11 +143,6 @@ function DistributionBar({
   );
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
-}
-
 function ComparisonChart({
   data,
   humanKey,
@@ -166,6 +162,7 @@ function ComparisonChart({
   aiLabel: string;
   format?: "pct" | "number";
 }) {
+  const { language } = useTranslation();
   const hasData = data.some((p) => p[humanKey] !== null || p[aiKey] !== null);
   if (!hasData) return null;
 
@@ -188,7 +185,7 @@ function ComparisonChart({
             />
             <XAxis
               dataKey="date"
-              tickFormatter={formatDate}
+              tickFormatter={(v) => formatChartDate(String(v), language)}
               tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickLine={false}
               axisLine={false}
@@ -209,7 +206,9 @@ function ComparisonChart({
                 borderRadius: "0.5rem",
                 fontSize: 12,
               }}
-              labelFormatter={(label) => formatDate(String(label))}
+              labelFormatter={(label) =>
+                formatChartDate(String(label), language)
+              }
               formatter={(value, name) => [
                 formatValue(Number(value)),
                 String(name) === humanKey ? humanLabel : aiLabel,
@@ -691,6 +690,7 @@ function CommitMixChart({
   humanLabel: string;
   aiLabel: string;
 }) {
+  const { language } = useTranslation();
   const hasData = data.some(
     (p) => p.commits_human !== null || p.commits_ai !== null,
   );
@@ -737,7 +737,7 @@ function CommitMixChart({
             />
             <XAxis
               dataKey="date"
-              tickFormatter={formatDate}
+              tickFormatter={(v) => formatChartDate(String(v), language)}
               tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
               tickLine={false}
               axisLine={false}
@@ -757,7 +757,9 @@ function CommitMixChart({
                 borderRadius: "0.5rem",
                 fontSize: 12,
               }}
-              labelFormatter={(label) => formatDate(String(label))}
+              labelFormatter={(label) =>
+                formatChartDate(String(label), language)
+              }
               formatter={(value, name) => [
                 Number(value).toFixed(0),
                 String(name) === "commits_human" ? humanLabel : aiLabel,
@@ -1174,7 +1176,9 @@ export function RepoCharts({
                         key={w.week_start}
                         className="border-b border-border/50"
                       >
-                        <td className="py-2 pr-4">{w.week_start.slice(5)}</td>
+                        <td className="py-2 pr-4">
+                          {formatChartDate(w.week_start, numberLocale)}
+                        </td>
                         <td className="py-2 pr-4">{w.commits}</td>
                         <td className="py-2 pr-4">
                           {w.lines_changed.toLocaleString(numberLocale)}

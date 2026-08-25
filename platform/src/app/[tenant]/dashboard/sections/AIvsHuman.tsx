@@ -23,16 +23,12 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
+import { formatChartDate } from "@/lib/date-format";
 import type { AIvsHumanData } from "@/types/org-summary";
 
 interface AIvsHumanProps {
   data: AIvsHumanData;
   tenantSlug?: string;
-}
-
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
 }
 
 function ComparisonStat({
@@ -71,7 +67,7 @@ function ComparisonStat({
 }
 
 export function AIvsHuman({ data, tenantSlug }: AIvsHumanProps) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   return (
     <section className="space-y-4">
       <div>
@@ -134,7 +130,7 @@ export function AIvsHuman({ data, tenantSlug }: AIvsHumanProps) {
                 />
                 <XAxis
                   dataKey="date"
-                  tickFormatter={formatDate}
+                  tickFormatter={(v) => formatChartDate(String(v), language)}
                   tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                   tickLine={false}
                   axisLine={false}
@@ -157,7 +153,9 @@ export function AIvsHuman({ data, tenantSlug }: AIvsHumanProps) {
                   }}
                   labelStyle={{ color: "var(--color-foreground)" }}
                   itemStyle={{ color: "var(--color-muted-foreground)" }}
-                  labelFormatter={(label) => formatDate(String(label))}
+                  labelFormatter={(label) =>
+                    formatChartDate(String(label), language)
+                  }
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Area

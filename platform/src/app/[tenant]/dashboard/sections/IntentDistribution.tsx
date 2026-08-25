@@ -19,6 +19,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
+import { formatChartDate } from "@/lib/date-format";
 import { cn } from "@/lib/utils";
 import type { IntentData } from "@/types/org-summary";
 
@@ -51,13 +52,8 @@ const intentChartColors: Record<string, string> = {
 // show the number, withhold the verdict.
 const MIN_COMMITS_FOR_VERDICT = 30;
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
-}
-
 export function IntentDistribution({ data }: IntentDistributionProps) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   const intentLabels: Record<string, string> = {
     FEATURE: t("dashboard.intent.labels.feature"),
     FIX: t("dashboard.intent.labels.fix"),
@@ -177,7 +173,7 @@ export function IntentDistribution({ data }: IntentDistributionProps) {
                   />
                   <XAxis
                     dataKey="date"
-                    tickFormatter={formatDate}
+                    tickFormatter={(v) => formatChartDate(String(v), language)}
                     tick={{
                       fontSize: 10,
                       fill: "var(--color-muted-foreground)",
@@ -206,7 +202,9 @@ export function IntentDistribution({ data }: IntentDistributionProps) {
                     }}
                     labelStyle={{ color: "var(--color-foreground)" }}
                     itemStyle={{ color: "var(--color-muted-foreground)" }}
-                    labelFormatter={(label) => formatDate(String(label))}
+                    labelFormatter={(label) =>
+                      formatChartDate(String(label), language)
+                    }
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   {order
