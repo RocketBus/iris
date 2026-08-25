@@ -10,18 +10,12 @@ import {
   YAxis,
 } from "recharts";
 
+import { formatChartDate } from "@/lib/date-format";
 import type { UsageTrendPoint } from "@/lib/queries/personal-ai-usage";
 
 interface TrendChartProps {
   data: UsageTrendPoint[];
   locale: string;
-}
-
-function formatDate(iso: string, locale: string): string {
-  return new Date(iso).toLocaleDateString(locale, {
-    month: "short",
-    day: "2-digit",
-  });
 }
 
 export function TrendChart({ data, locale }: TrendChartProps) {
@@ -35,7 +29,7 @@ export function TrendChart({ data, locale }: TrendChartProps) {
         />
         <XAxis
           dataKey="date"
-          tickFormatter={(v) => formatDate(String(v), locale)}
+          tickFormatter={(v) => formatChartDate(String(v), locale)}
           tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
           tickLine={false}
           axisLine={false}
@@ -58,7 +52,7 @@ export function TrendChart({ data, locale }: TrendChartProps) {
             fontSize: 12,
             color: "var(--color-foreground)",
           }}
-          labelFormatter={(label) => formatDate(String(label), locale)}
+          labelFormatter={(label) => formatChartDate(String(label), locale)}
           formatter={(value) => [`${Number(value).toFixed(0)}%`, ""]}
         />
         <Area

@@ -14,19 +14,15 @@ import {
 
 import { Card, CardContent } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
+import { formatChartDate } from "@/lib/date-format";
 import type { OrgTimelineWeek } from "@/types/org-summary";
 
 interface OrgTimelineProps {
   data: OrgTimelineWeek[];
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return `${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getDate().toString().padStart(2, "0")}`;
-}
-
 export function OrgTimeline({ data }: OrgTimelineProps) {
-  const { t } = useTranslation();
+  const { t, language } = useTranslation();
   if (data.length < 2) return null;
 
   // The right axis shows percentages with `(v * 100).toFixed(0)%`. Stabilization
@@ -60,7 +56,7 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
               />
               <XAxis
                 dataKey="weekStart"
-                tickFormatter={(v) => formatDate(String(v))}
+                tickFormatter={(v) => formatChartDate(String(v), language)}
                 tick={{ fontSize: 10, fill: "var(--color-muted-foreground)" }}
                 tickLine={false}
                 axisLine={false}
@@ -94,7 +90,9 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
                 }}
                 labelStyle={{ color: "var(--color-foreground)" }}
                 itemStyle={{ color: "var(--color-muted-foreground)" }}
-                labelFormatter={(label) => formatDate(String(label))}
+                labelFormatter={(label) =>
+                  formatChartDate(String(label), language)
+                }
                 formatter={(value, name, entry) => {
                   // Recharts passes each series' `name` PROP here (already the
                   // translated label, e.g. "Estabilização"), not its dataKey —
