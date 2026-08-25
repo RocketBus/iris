@@ -4,6 +4,30 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.5.1 — Multi-window ingestion resilience (2026-08-25)
+
+### Fixed
+
+- **Multi-window `iris analyze` no longer starves narrower windows on a
+  partial failure** (#173, #174). The `--windows 7,15,30,60,90` loop
+  processes widest-to-narrowest and previously aborted the entire run on any
+  unhandled exception, silently leaving narrower windows (7d being last in
+  the order, most exposed) stuck on stale data from the last fully
+  successful cycle while wider windows kept refreshing — the platform's
+  window selector could show a 90-day chart current to today next to a
+  7-day chart weeks out of date, with no indication anything had failed.
+  Each window now fails in isolation (logged, run continues); the process
+  exits non-zero only if any window failed, so CI surfaces the problem
+  instead of the dashboard silently going stale.
+- **Dashboard chart dates now render in the viewer's own locale**
+  (pt-BR/en-US/es-ES) instead of a hardcoded month-first format, and no
+  longer shift a day earlier for viewers west of UTC (Brazil included) —
+  `week_start` is a date-only value that parses as UTC midnight, so
+  formatting it in the browser's local timezone previously misread the
+  date.
+
+---
+
 ## v1.5.0 — Silent self-update (2026-06-12)
 
 ### Added
