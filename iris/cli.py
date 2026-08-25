@@ -1690,10 +1690,22 @@ def main(argv: list[str] | None = None) -> None:
 
     if len(windows) == 1:
         args.days = windows[0]
+        args.churn_days = _effective_churn_days(args.churn_days, args.days)
         runner(args)
         return
 
     _run_multi_window(runner, args, windows)
+
+
+def _effective_churn_days(churn_days: int, days: int) -> int:
+    """Cap the churn window to the lookback.
+
+    A churn pair can't be more than `days` apart when only `days` of
+    commits were loaded in the first place — without this, a 7-day run
+    reports "Churn window: 14 days" while silently never finding anything
+    past day 7.
+    """
+    return min(churn_days, days)
 
 
 def _run_multi_window(
@@ -1713,11 +1725,13 @@ def _run_multi_window(
     stale data behind for the failed windows.
     """
     ordered = sorted(windows, reverse=True)
+    requested_churn_days = args.churn_days
     window_cache.enable()
     failed_windows: list[int] = []
     try:
         for idx, window in enumerate(ordered, start=1):
             args.days = window
+            args.churn_days = _effective_churn_days(requested_churn_days, window)
             print(f"\n=== Window {window}d ({idx}/{len(ordered)}) ===\n")
             try:
                 runner(args)

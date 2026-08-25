@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from iris.cli import (
     RECOMMENDED_WINDOWS,
+    _effective_churn_days,
     _infer_window_days,
     _parse_windows,
     _resolve_windows,
@@ -76,7 +77,7 @@ def test_resolve_windows_explicit_windows_wins_over_days():
 
 def test_multi_window_runs_widest_first():
     seen: list[int] = []
-    _run_multi_window(lambda args: seen.append(args.days), argparse.Namespace(), [7, 90, 30])
+    _run_multi_window(lambda args: seen.append(args.days), argparse.Namespace(churn_days=14), [7, 90, 30])
     assert seen == [90, 30, 7]
 
 
@@ -92,7 +93,7 @@ def test_multi_window_crash_does_not_starve_narrower_windows():
         seen.append(args.days)
 
     with pytest.raises(SystemExit) as exc:
-        _run_multi_window(runner, argparse.Namespace(), [7, 90, 30])
+        _run_multi_window(runner, argparse.Namespace(churn_days=14), [7, 90, 30])
 
     assert seen == [90, 7]
     assert exc.value.code == 1
@@ -108,7 +109,7 @@ def test_multi_window_no_commits_is_not_a_failure():
             sys.exit(0)
         seen.append(args.days)
 
-    _run_multi_window(runner, argparse.Namespace(), [7, 90, 30])
+    _run_multi_window(runner, argparse.Namespace(churn_days=14), [7, 90, 30])
     assert seen == [90, 7]
 
 
@@ -120,5 +121,27 @@ def test_multi_window_genuine_exit_aborts_remaining_windows():
             sys.exit(1)
 
     with pytest.raises(SystemExit) as exc:
-        _run_multi_window(runner, argparse.Namespace(), [7, 90, 30])
+        _run_multi_window(runner, argparse.Namespace(churn_days=14), [7, 90, 30])
     assert exc.value.code == 1
+
+
+def test_effective_churn_days_caps_to_the_lookback():
+    # A churn pair can't be more than `days` apart when only `days` of
+    # commits were loaded, so churn_days must never exceed days.
+    assert _effective_churn_days(14, 90) == 14
+    assert _effective_churn_days(14, 7) == 7
+    assert _effective_churn_days(14, 14) == 14
+
+
+def test_multi_window_caps_churn_days_per_window():
+    # Each window in a batch gets its own effective churn window, capped
+    # from the originally requested value — not from whatever the previous
+    # (wider) window left args.churn_days at.
+    seen: list[tuple[int, int]] = []
+    args = argparse.Namespace(churn_days=14)
+    _run_multi_window(
+        lambda a: seen.append((a.days, a.churn_days)),
+        args,
+        [7, 15, 90],
+    )
+    assert seen == [(90, 14), (15, 14), (7, 7)]
