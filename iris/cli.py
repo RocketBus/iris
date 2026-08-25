@@ -763,6 +763,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     record_metric("iris.metrics.revert_rate", metrics.revert_rate, {"repo": repo_name})
 
     # Push or write to filesystem
+    push_ok: bool | None = None
     if will_push:
         import shutil
         # Extract unique commit authors using GitHub API to resolve real names.
@@ -879,14 +880,17 @@ def _run_single_repo(args: argparse.Namespace) -> None:
                 print(f"  {u['name']:<30} {status}")
             print()
         with span("push", {"repo": repo_name}):
-            _push_after_analysis(
+            push_ok = _push_after_analysis(
                 metrics_path,
                 repo_name,
                 args.days,
                 repo_path=ctx.repo_path,
                 active_users=active_users,
             )
-        record_counter("iris.push.success", 1, {"repo": repo_name})
+        if push_ok:
+            record_counter("iris.push.success", 1, {"repo": repo_name})
+        elif push_ok is False:
+            record_counter("iris.push.failure", 1, {"repo": repo_name})
         shutil.rmtree(tmp_out, ignore_errors=True)
     else:
         print()
@@ -894,6 +898,12 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         print(f"{s['cli_label_metrics']:<14}: {metrics_path}")
 
     flush()
+
+    if push_ok is False:
+        raise RuntimeError(
+            f"push failed for {repo_name} ({args.days}d): metrics were "
+            "generated but not sent to the platform"
+        )
 
 
 def _run_org(args: argparse.Namespace) -> None:
@@ -1191,15 +1201,20 @@ def _push_after_analysis(
     window_days: int,
     repo_path: str | None = None,
     active_users: list | None = None,
-) -> None:
-    """Push metrics to platform after analysis."""
+) -> bool | None:
+    """Push metrics to platform after analysis.
+
+    Returns True on success, False if a push was attempted and failed, or
+    None if not authenticated (no attempt was made — a deliberate skip, not
+    a failure).
+    """
     from iris.platform.config import get_auth, get_github_user
     from iris.platform.push import push_metrics
 
     auth = get_auth()
     if not auth:
         print("\n--push: Not authenticated. Run: iris login")
-        return
+        return None
 
     server, token = auth
     github_user = get_github_user()
@@ -1227,7 +1242,7 @@ def _push_after_analysis(
     except RuntimeError as e:
         print(f"\n[ERROR] Push failed — metrics were NOT sent to the platform.", file=sys.stderr)
         print(f"        {e}", file=sys.stderr)
-        return
+        return False
 
     # Daily auto-push is the natural moment to ship spooled agent-usage
     # telemetry too — the dev is already online. Best-effort and silent.
@@ -1241,6 +1256,7 @@ def _push_after_analysis(
     from iris.update.auto import maybe_auto_update
 
     maybe_auto_update(result.get("latest_version"), server, VERSION)
+    return True
 
 
 def _run_hook(argv: list[str]) -> None:
@@ -1691,7 +1707,14 @@ def main(argv: list[str] | None = None) -> None:
     if len(windows) == 1:
         args.days = windows[0]
         args.churn_days = _effective_churn_days(args.churn_days, args.days)
-        runner(args)
+        try:
+            runner(args)
+        except SystemExit as exc:
+            if exc.code:
+                raise
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
         return
 
     _run_multi_window(runner, args, windows)

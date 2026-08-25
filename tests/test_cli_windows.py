@@ -16,6 +16,7 @@ from iris.cli import (
     _effective_churn_days,
     _infer_window_days,
     _parse_windows,
+    _push_after_analysis,
     _resolve_windows,
     _run_multi_window,
 )
@@ -145,3 +146,35 @@ def test_multi_window_caps_churn_days_per_window():
         [7, 15, 90],
     )
     assert seen == [(90, 14), (15, 14), (7, 7)]
+
+
+# _push_after_analysis (issue #181): its return value is what tells the
+# caller in cli.py whether to record iris.push.success, iris.push.failure,
+# or neither (not authenticated) — a bug previously made it record success
+# unconditionally, even when the push had failed.
+
+
+def test_push_after_analysis_returns_true_on_success(monkeypatch):
+    monkeypatch.setattr("iris.platform.config.get_auth", lambda: ("http://fake-server", "tok"))
+    monkeypatch.setattr("iris.platform.config.get_github_user", lambda: None)
+    monkeypatch.setattr("iris.platform.push.push_metrics", lambda **kwargs: {"run_id": "abc123"})
+
+    assert _push_after_analysis("metrics.json", "acme/web", 90) is True
+
+
+def test_push_after_analysis_returns_false_on_push_failure(monkeypatch):
+    monkeypatch.setattr("iris.platform.config.get_auth", lambda: ("http://fake-server", "tok"))
+    monkeypatch.setattr("iris.platform.config.get_github_user", lambda: None)
+
+    def _boom(**kwargs):
+        raise RuntimeError("network unreachable")
+
+    monkeypatch.setattr("iris.platform.push.push_metrics", _boom)
+
+    assert _push_after_analysis("metrics.json", "acme/web", 90) is False
+
+
+def test_push_after_analysis_returns_none_when_not_authenticated(monkeypatch):
+    monkeypatch.setattr("iris.platform.config.get_auth", lambda: None)
+
+    assert _push_after_analysis("metrics.json", "acme/web", 90) is None
