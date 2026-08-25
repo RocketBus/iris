@@ -1,5 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
+/**
+ * Covers only the shell — org name, repo count, window selector — since the
+ * page streams and every section below carries its own Suspense fallback.
+ */
 export default function DashboardLoading() {
   return (
     <div className="space-y-8">
@@ -9,25 +13,6 @@ export default function DashboardLoading() {
           <Skeleton className="h-4 w-40" />
         </div>
         <Skeleton className="h-8 w-32" />
-      </div>
-
-      <div className="grid gap-3 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-24" />
-        ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-28" />
-        ))}
-      </div>
-
-      <Skeleton className="h-72" />
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-64" />
-        <Skeleton className="h-64" />
       </div>
     </div>
   );

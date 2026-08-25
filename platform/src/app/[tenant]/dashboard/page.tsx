@@ -1,57 +1,41 @@
+import { Suspense } from "react";
+
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { getServerSession } from "next-auth/next";
 
-import { AIAgentUsage } from "./sections/AIAgentUsage";
-import { AIDeliveryTimeline } from "./sections/AIDeliveryTimeline";
-import { AIvsHuman } from "./sections/AIvsHuman";
-import { CycleTime } from "./sections/CycleTime";
-import { DeliveryQuality } from "./sections/DeliveryQuality";
-import { DORAOverview } from "./sections/DORAOverview";
-import { HealthMap } from "./sections/HealthMap";
-import { HyperEngineers } from "./sections/HyperEngineers";
-import { IntentDistribution } from "./sections/IntentDistribution";
-import { OrgPulse } from "./sections/OrgPulse";
-import { OrgTimeline } from "./sections/OrgTimeline";
-import { PRHealth } from "./sections/PRHealth";
-import { ToolComparison } from "./sections/ToolComparison";
+import { loadRepoSummaries, type DashboardPanelProps } from "./data";
+import { AIAgentUsagePanel } from "./panels/AIAgentUsagePanel";
+import { AIDeliveryTimelinePanel } from "./panels/AIDeliveryTimelinePanel";
+import { AIvsHumanPanel } from "./panels/AIvsHumanPanel";
+import { ChangeAlertPanel } from "./panels/ChangeAlertPanel";
+import { CycleTimePanel } from "./panels/CycleTimePanel";
+import { DeliveryQualityPanel } from "./panels/DeliveryQualityPanel";
+import { DORAPanel } from "./panels/DORAPanel";
+import { HealthMapPanel } from "./panels/HealthMapPanel";
+import { HyperEngineersPanel } from "./panels/HyperEngineersPanel";
+import { IntentDistributionPanel } from "./panels/IntentDistributionPanel";
+import { OrgPulsePanel } from "./panels/OrgPulsePanel";
+import { OrgTimelinePanel } from "./panels/OrgTimelinePanel";
+import { PRHealthPanel } from "./panels/PRHealthPanel";
+import {
+  HeroRowSkeleton,
+  MetricGridSkeleton,
+  SectionSkeleton,
+  SplitSectionSkeleton,
+} from "./panels/skeletons";
+import { ToolComparisonPanel } from "./panels/ToolComparisonPanel";
 
-import { ChangeAlert } from "@/components/charts/ChangeAlert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { WindowSelector } from "@/components/WindowSelector";
 import { authOptions } from "@/lib/auth";
-import { computeOrgAdoption } from "@/lib/queries/adoption-timeline";
-import {
-  getOrgUsageRollup,
-  getRepoContributorCounts,
-  computeAgentUsage,
-} from "@/lib/queries/agent-usage";
-import { computeOrgDORA } from "@/lib/queries/dora";
-import {
-  getOrgLatestPayloads,
-  getOrgActiveContributors,
-  computeOrgPulse,
-  computeDeliveryQuality,
-  computeAIvsHuman,
-  computeCycleTime,
-  computeIntentDistribution,
-  computePRHealth,
-  computeHealthMap,
-  computeOrgTimeline,
-  computePreviousTotals,
-  computePreviousPayloads,
-  computeHyperEngineers,
-} from "@/lib/queries/org-summary";
 import {
   getAvailableWindowDays,
   resolveWindowDays,
   parseWindowParam,
-  getOrgReposSummary,
-  getOrgChangeDetections,
 } from "@/lib/queries/temporal";
-import { computeToolComparison } from "@/lib/queries/tool-comparison";
 import { getServerTranslation } from "@/lib/server-translation";
 import { supabaseAdmin } from "@/lib/supabase";
 
@@ -94,99 +78,11 @@ export default async function OrgDashboardPage({
   const role = membership?.role as "owner" | "admin" | "member" | undefined;
   const canSeeHyperEngineers = role === "owner" || role === "admin";
 
-  // Fetch all data in parallel
-  const [repoSummaries, changes, contributorInfo] = await Promise.all([
-    getOrgReposSummary(supabaseAdmin, org.id, windowDays),
-    getOrgChangeDetections(supabaseAdmin, org.id, windowDays),
-    getOrgActiveContributors(supabaseAdmin, org.id, windowDays),
-  ]);
-
-  // Fetch latest payloads for all repos (needs repo IDs)
-  const repoIds = repoSummaries.map((r) => r.id);
-  const payloads = await getOrgLatestPayloads(
-    supabaseAdmin,
-    org.id,
-    repoIds,
-    windowDays,
-  );
-
-  // Fetch raw metrics for previous-period delta calculation. Filter by
-  // window_days so multi-window tenants (issue #80) don't compute deltas
-  // across mismatched analysis windows. `payload` is included so
-  // Delivery Quality / PR Health / Cycle Time can compute their own
-  // previous-period aggregates the same way they compute the current
-  // one — those metrics don't have dedicated summary columns the way
-  // commits/PRs/AI-adoption do.
-  const { data: allMetricsRaw } = await supabaseAdmin
-    .from("metrics")
-    .select(
-      "repository_id, commits_total, pr_merged_count, ai_detection_coverage_pct, payload",
-    )
-    .eq("organization_id", org.id)
-    .eq("window_days", windowDays)
-    .order("created_at", { ascending: false })
-    .limit(repoSummaries.length * 15);
-
-  const previousTotals = computePreviousTotals(
-    repoSummaries,
-    allMetricsRaw ?? [],
-  );
-  const previousPayloads = computePreviousPayloads(
-    repoSummaries,
-    allMetricsRaw ?? [],
-  );
-
-  // Compute all aggregations
-  const pulseData = computeOrgPulse(
-    repoSummaries,
-    payloads,
-    contributorInfo.count,
-    previousTotals,
-  );
-  const qualityData = computeDeliveryQuality(
-    repoSummaries,
-    payloads,
-    previousPayloads,
-  );
-  const aiData = computeAIvsHuman(payloads);
-  const intentData = computeIntentDistribution(payloads);
-  const prData = computePRHealth(repoSummaries, payloads, previousPayloads);
-  const cycleTimeData = computeCycleTime(
-    repoSummaries,
-    payloads,
-    previousPayloads,
-  );
-  const healthMapEntries = computeHealthMap(repoSummaries);
-  const timelineData = computeOrgTimeline(payloads);
-  const hyperEngineers = computeHyperEngineers(
-    payloads,
-    contributorInfo.userMap,
-  );
-  const toolComparisonData = computeToolComparison(payloads);
-  const doraData = await computeOrgDORA(supabaseAdmin, org.id, {
-    windowDays,
-    payloads,
-  });
-
-  // AI-agent usage (#69): repo-grain usage over the same lookback window, with
-  // k-anonymity suppression and the usage×durability cross-reference.
-  const usageSince = new Date(Date.now() - windowDays * 86_400_000)
-    .toISOString()
-    .slice(0, 10);
-  const [usageRows, contributorCounts] = await Promise.all([
-    getOrgUsageRollup(supabaseAdmin, org.id, usageSince),
-    getRepoContributorCounts(supabaseAdmin, org.id, windowDays),
-  ]);
-  const agentUsageData = computeAgentUsage(
-    usageRows,
-    repoSummaries,
-    payloads,
-    contributorCounts,
-  );
-  const repoNameIndex = new Map(repoSummaries.map((r) => [r.id, r.name]));
-  const adoptionRows = computeOrgAdoption(payloads, repoNameIndex);
-
-  const hasData = repoSummaries.some((r) => r.stabilization_ratio !== null);
+  // The shell waits on this one query — two reads against pre-aggregated
+  // tables, no JSONB — because the header count and the empty state need it.
+  // Everything heavier resolves inside the panels below, each streaming in
+  // on its own instead of holding up the page.
+  const repoSummaries = await loadRepoSummaries(org.id, windowDays);
 
   if (repoSummaries.length === 0) {
     const { t } = await getServerTranslation();
@@ -212,6 +108,12 @@ export default async function OrgDashboardPage({
     );
   }
 
+  const panelProps: DashboardPanelProps = {
+    orgId: org.id,
+    windowDays,
+    tenantSlug: tenant,
+  };
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -224,47 +126,78 @@ export default async function OrgDashboardPage({
         <WindowSelector windowDays={windowDays} options={availableWindows} />
       </div>
 
-      {/* Change detection alerts */}
-      <ChangeAlert changes={changes} tenantSlug={tenant} />
+      {/* Change detection alerts. No fallback: most orgs have zero changes,
+          so a skeleton here would flash phantom alerts on every load. */}
+      <Suspense fallback={null}>
+        <ChangeAlertPanel {...panelProps} />
+      </Suspense>
 
       {/* Org pulse hero cards */}
-      {hasData && <OrgPulse data={pulseData} />}
+      <Suspense fallback={<HeroRowSkeleton />}>
+        <OrgPulsePanel {...panelProps} />
+      </Suspense>
 
       {/* Delivery quality */}
-      <DeliveryQuality data={qualityData} />
+      <Suspense fallback={<SplitSectionSkeleton />}>
+        <DeliveryQualityPanel {...panelProps} />
+      </Suspense>
 
       {/* DORA — real metrics from a connected Datadog integration */}
-      {doraData && <DORAOverview data={doraData} />}
+      <Suspense fallback={<MetricGridSkeleton />}>
+        <DORAPanel {...panelProps} />
+      </Suspense>
 
       {/* AI vs Human */}
-      {aiData && <AIvsHuman data={aiData} tenantSlug={tenant} />}
+      <Suspense fallback={<SplitSectionSkeleton />}>
+        <AIvsHumanPanel {...panelProps} />
+      </Suspense>
 
       {/* AI delivery timeline — what changed after adoption */}
-      <AIDeliveryTimeline rows={adoptionRows} orgSlug={tenant} />
+      <Suspense fallback={<SectionSkeleton />}>
+        <AIDeliveryTimelinePanel {...panelProps} />
+      </Suspense>
 
       {/* AI tool comparison */}
-      {toolComparisonData && <ToolComparison data={toolComparisonData} />}
+      <Suspense fallback={<SectionSkeleton height="h-64" />}>
+        <ToolComparisonPanel {...panelProps} />
+      </Suspense>
 
       {/* AI-agent usage — tokens/model/duration per repo + usage×durability */}
-      {agentUsageData && <AIAgentUsage data={agentUsageData} />}
+      <Suspense fallback={<SectionSkeleton />}>
+        <AIAgentUsagePanel {...panelProps} />
+      </Suspense>
 
       {/* Intent distribution */}
-      {intentData && <IntentDistribution data={intentData} />}
+      <Suspense fallback={<SplitSectionSkeleton />}>
+        <IntentDistributionPanel {...panelProps} />
+      </Suspense>
 
       {/* PR health */}
-      {prData && <PRHealth data={prData} />}
+      <Suspense fallback={<MetricGridSkeleton />}>
+        <PRHealthPanel {...panelProps} />
+      </Suspense>
 
       {/* Cycle time — open-to-merge duration distribution per repo */}
-      {cycleTimeData && <CycleTime data={cycleTimeData} />}
+      <Suspense fallback={<SectionSkeleton />}>
+        <CycleTimePanel {...panelProps} />
+      </Suspense>
 
       {/* Health map */}
-      <HealthMap entries={healthMapEntries} orgSlug={tenant} />
+      <Suspense fallback={<SectionSkeleton />}>
+        <HealthMapPanel {...panelProps} />
+      </Suspense>
 
       {/* Org timeline */}
-      <OrgTimeline data={timelineData} />
+      <Suspense fallback={<SectionSkeleton />}>
+        <OrgTimelinePanel {...panelProps} />
+      </Suspense>
 
       {/* Hyper engineers — restrito a owner/admin */}
-      {canSeeHyperEngineers && <HyperEngineers engineers={hyperEngineers} />}
+      {canSeeHyperEngineers && (
+        <Suspense fallback={<SectionSkeleton height="h-40" />}>
+          <HyperEngineersPanel {...panelProps} />
+        </Suspense>
+      )}
     </div>
   );
 }
