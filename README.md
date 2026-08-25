@@ -91,6 +91,32 @@ iris --org /path/to/org-directory
 iris --org /path/to/org-directory --trend --repos repo1,repo2
 ```
 
+### Bulk analysis across a GitHub org
+
+`iris --org` (above) analyzes repos you've already cloned into a local directory. To go the other way — start from a GitHub org and end up with every recently active repo cloned and analyzed — two helper scripts under `scripts/` chain together:
+
+```bash
+# 1. List repos in the org with a commit in the last N days
+python3 scripts/list_active_repos.py --org my-org --days 90
+
+# 2. Clone (or update) each one and run `iris` in it — same push-to-platform
+#    behavior as running `iris` by hand
+python3 scripts/clone_and_analyze.py --org my-org --days 90
+```
+
+Useful flags on `clone_and_analyze.py`:
+
+```bash
+--limit 5          # pilot on just the first few repos before a full run
+--cleanup          # remove local clones of repos that succeeded, once the run finishes
+--dest DIR         # where to clone into (default: ~/git/iris-repos)
+--include-archived # also consider archived repos
+```
+
+`--days` accepts the same canonical windows as `iris` itself: `7, 15, 30, 60, 90`. Requires the GitHub CLI (`gh`) authenticated with access to the org; `iris login` if you want metrics pushed to the platform (the default once logged in, same as running `iris` by hand).
+
+One repo failing (empty repo, renamed/deleted mid-run, etc.) doesn't stop the batch — clone/analysis progress logs as it happens, and a success/failure summary prints at the end.
+
 ### AI Attribution Hook
 
 ```bash
