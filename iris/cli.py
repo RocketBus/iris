@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
 from iris.i18n import get_strings, SUPPORTED_LANGS
@@ -1692,10 +1693,28 @@ def main(argv: list[str] | None = None) -> None:
         runner(args)
         return
 
-    # Process the widest window first so the read cache fetches PR history once
-    # per repo and serves the narrower windows by slicing it in memory (#80).
+    _run_multi_window(runner, args, windows)
+
+
+def _run_multi_window(
+    runner: Callable[[argparse.Namespace], None],
+    args: argparse.Namespace,
+    windows: list[int],
+) -> None:
+    """Run `runner` once per window, isolating failures to their own window.
+
+    Processes the widest window first so the read cache fetches PR history
+    once per repo and serves the narrower windows by slicing it in memory
+    (#80). A window that crashes must not prevent the remaining windows from
+    being analyzed and pushed — each window is an independent snapshot the
+    platform serves on its own, so losing one must not starve the others.
+    Exits non-zero if any window failed, so a CI job that ignores its own
+    stdout still surfaces the partial failure instead of silently leaving
+    stale data behind for the failed windows.
+    """
     ordered = sorted(windows, reverse=True)
     window_cache.enable()
+    failed_windows: list[int] = []
     try:
         for idx, window in enumerate(ordered, start=1):
             args.days = window
@@ -1706,8 +1725,21 @@ def main(argv: list[str] | None = None) -> None:
                 # A window with no commits exits 0 from inside the runner; in a
                 # multi-window batch that must not abort the windows that still
                 # have data. Genuine failures (bad path, not a git repo) exit
-                # non-zero and should still stop the whole run.
+                # non-zero and still stop the whole run — argparse/path errors
+                # apply to every window, so there's nothing to salvage.
                 if exc.code:
                     raise
+            except Exception as exc:
+                failed_windows.append(window)
+                print(f"Error: window {window}d failed: {exc}", file=sys.stderr)
     finally:
         window_cache.reset()
+
+    if failed_windows:
+        failed_str = ", ".join(f"{w}d" for w in failed_windows)
+        print(
+            f"\nWarning: {len(failed_windows)} window(s) failed and were not "
+            f"pushed: {failed_str}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)

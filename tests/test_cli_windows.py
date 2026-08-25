@@ -3,6 +3,7 @@
 Runnable as: `python -m pytest tests/test_cli_windows.py -v`
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from iris.cli import (
     _infer_window_days,
     _parse_windows,
     _resolve_windows,
+    _run_multi_window,
 )
 
 
@@ -70,3 +72,53 @@ def test_resolve_windows_explicit_days_is_single_window():
 
 def test_resolve_windows_explicit_windows_wins_over_days():
     assert _resolve_windows("7,30", 90) == [7, 30]
+
+
+def test_multi_window_runs_widest_first():
+    seen: list[int] = []
+    _run_multi_window(lambda args: seen.append(args.days), argparse.Namespace(), [7, 90, 30])
+    assert seen == [90, 30, 7]
+
+
+def test_multi_window_crash_does_not_starve_narrower_windows():
+    # A window that raises must not stop the remaining (narrower) windows
+    # from running — each window is an independent snapshot the platform
+    # serves on its own (issue #80).
+    seen: list[int] = []
+
+    def runner(args):
+        if args.days == 30:
+            raise RuntimeError("boom")
+        seen.append(args.days)
+
+    with pytest.raises(SystemExit) as exc:
+        _run_multi_window(runner, argparse.Namespace(), [7, 90, 30])
+
+    assert seen == [90, 7]
+    assert exc.value.code == 1
+
+
+def test_multi_window_no_commits_is_not_a_failure():
+    # A window with no commits exits 0 from inside the runner — that must not
+    # be treated as a failed window, nor stop the remaining windows.
+    seen: list[int] = []
+
+    def runner(args):
+        if args.days == 30:
+            sys.exit(0)
+        seen.append(args.days)
+
+    _run_multi_window(runner, argparse.Namespace(), [7, 90, 30])
+    assert seen == [90, 7]
+
+
+def test_multi_window_genuine_exit_aborts_remaining_windows():
+    # A non-zero SystemExit (bad path, not a git repo) applies to every
+    # window equally, so it should still abort the whole run.
+    def runner(args):
+        if args.days == 30:
+            sys.exit(1)
+
+    with pytest.raises(SystemExit) as exc:
+        _run_multi_window(runner, argparse.Namespace(), [7, 90, 30])
+    assert exc.value.code == 1
