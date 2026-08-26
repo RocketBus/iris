@@ -18,32 +18,32 @@ describe("normalizeRepoSlug", () => {
   });
 
   it("normalizes a Datadog slug verbatim", () => {
-    expect(normalizeRepoSlug("github.com/rocketbus/search")).toBe(
-      "github.com/rocketbus/search",
+    expect(normalizeRepoSlug("github.com/acme/search")).toBe(
+      "github.com/acme/search",
     );
   });
 
   it("strips https scheme and .git suffix", () => {
-    expect(normalizeRepoSlug("https://github.com/RocketBus/search.git")).toBe(
-      "github.com/rocketbus/search",
+    expect(normalizeRepoSlug("https://github.com/Acme/search.git")).toBe(
+      "github.com/acme/search",
     );
   });
 
   it("converts ssh git@host:org/repo to host/org/repo", () => {
-    expect(normalizeRepoSlug("git@github.com:RocketBus/search.git")).toBe(
-      "github.com/rocketbus/search",
+    expect(normalizeRepoSlug("git@github.com:Acme/search.git")).toBe(
+      "github.com/acme/search",
     );
   });
 
   it("handles ssh:// scheme", () => {
-    expect(normalizeRepoSlug("ssh://git@github.com/RocketBus/search.git")).toBe(
-      "github.com/rocketbus/search",
+    expect(normalizeRepoSlug("ssh://git@github.com/Acme/search.git")).toBe(
+      "github.com/acme/search",
     );
   });
 
   it("matches DD slug to https remote URL after normalization", () => {
-    const dd = normalizeRepoSlug("github.com/rocketbus/search");
-    const remote = normalizeRepoSlug("https://github.com/RocketBus/search.git");
+    const dd = normalizeRepoSlug("github.com/acme/search");
+    const remote = normalizeRepoSlug("https://github.com/Acme/search.git");
     expect(dd).toEqual(remote);
   });
 
