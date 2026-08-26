@@ -132,7 +132,6 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
                 stroke="var(--color-cat-2)"
                 strokeWidth={2}
                 dot={{ r: 2 }}
-                connectNulls
               />
               <Line
                 yAxisId="right"
@@ -142,7 +141,6 @@ export function OrgTimeline({ data }: OrgTimelineProps) {
                 stroke="var(--color-cat-1)"
                 strokeWidth={2}
                 dot={{ r: 2 }}
-                connectNulls
               />
             </ComposedChart>
           </ResponsiveContainer>
