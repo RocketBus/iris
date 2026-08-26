@@ -288,6 +288,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "  iris hook install <repo> [--auto-push]  Install AI commit tracking\n"
             "  iris hook uninstall <repo>          Remove hooks from a repo\n"
             "  iris hook status <repo>             Check hook installation\n"
+            "  iris hook heal <repo>               Restore hooks a tool regenerated away\n"
             "  iris pr [number]                    Analyze a PR and output insights\n"
             "  iris push <metrics.json>            Push metrics file to platform\n"
             "  iris upgrade                        Update to latest version\n"
@@ -1259,18 +1260,60 @@ def _push_after_analysis(
     return True
 
 
+def _hook_file_is_tracked(repo_path: str, hook_file: str) -> bool:
+    """Whether the installed hook file lives in git-visible, non-ignored space."""
+    import subprocess
+
+    try:
+        inside = subprocess.run(
+            ["git", "check-ignore", "-q", hook_file],
+            cwd=repo_path,
+            capture_output=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+    if inside.returncode == 0:
+        return False
+
+    top = subprocess.run(
+        ["git", "rev-parse", "--show-toplevel"],
+        cwd=repo_path,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    if top.returncode != 0:
+        return False
+
+    worktree = os.path.abspath(top.stdout.strip())
+    return os.path.abspath(hook_file).startswith(worktree + os.sep)
+
+
 def _run_hook(argv: list[str]) -> None:
-    """Handle `iris hook install|uninstall|status` subcommands."""
-    from iris.hooks.manager import install, install_push_hook, uninstall, uninstall_push_hook, status
+    """Handle `iris hook install|uninstall|status|heal` subcommands."""
+    from iris.hooks.manager import (
+        heal,
+        install,
+        install_push_hook,
+        probe_reachable,
+        status,
+        uninstall,
+        uninstall_push_hook,
+    )
+
+    usage = "Usage: iris hook <install|uninstall|status|heal> [repo_path]"
 
     if not argv:
-        print("Usage: iris hook <install|uninstall|status> [repo_path]", file=sys.stderr)
+        print(usage, file=sys.stderr)
         sys.exit(1)
 
     action = argv[0]
     repo_path = os.path.abspath(argv[1]) if len(argv) > 1 else os.getcwd()
 
     if action == "install":
+        hook_path = None
         try:
             hook_path = install(repo_path)
             print(f"Iris hook installed: {hook_path}")
@@ -1280,12 +1323,27 @@ def _run_hook(argv: list[str]) -> None:
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             sys.exit(1)
-        # Always install push hook alongside the main hook
         try:
             install_push_hook(repo_path)
             print("Auto-push hook installed (daily report on first commit).")
         except FileExistsError:
             pass
+
+        info = status(repo_path)
+        if not info["installed"]:
+            print(
+                "\nWarning: the hook was written but did not run when verified.",
+                file=sys.stderr,
+            )
+            print(f"Hook file: {info['hook_path'] or info['hooks_dir']}", file=sys.stderr)
+            sys.exit(1)
+
+        if hook_path and _hook_file_is_tracked(repo_path, hook_path):
+            print(
+                f"\nNote: {hook_path} is inside the working tree and not ignored,\n"
+                "so git can see it. Commit it to share the hook with the team, or\n"
+                "leave it uncommitted to keep the install local to this machine."
+            )
 
     elif action == "uninstall":
         removed = uninstall(repo_path)
@@ -1298,22 +1356,58 @@ def _run_hook(argv: list[str]) -> None:
     elif action == "status":
         info = status(repo_path)
         if info["installed"]:
-            print(f"Iris hook: installed")
+            print("Iris hook: installed and verified reachable")
             print(f"Hook path:   {info['hook_path']}")
         else:
-            print(f"Iris hook: not installed")
+            print("Iris hook: not installed")
             print(f"Hooks dir:   {info['hooks_dir']}")
+        if not info["payload_deployed"]:
+            print("Payload:     missing — run `iris hook install`")
+        for path in info["unreachable_sections"]:
+            print(f"Unreachable: {path} (section present but did not run)")
+        for path in info["stale_sections"]:
+            print(f"Stale:       {path} (git does not invoke this directory)")
+        if info["unreachable_sections"] or info["stale_sections"]:
+            print("Run `iris hook install` to repair.")
+
+    elif action == "heal":
+        repaired = heal(repo_path)
+        if repaired:
+            print(f"Repaired: {', '.join(repaired)}")
+        elif probe_reachable(repo_path, "prepare-commit-msg"):
+            print("Iris hooks are healthy.")
+        else:
+            print("Nothing to repair — this repo is not registered with Iris.")
 
     else:
         print(f"Unknown hook action: {action}", file=sys.stderr)
-        print("Usage: iris hook <install|uninstall|status> [repo_path]", file=sys.stderr)
+        print(usage, file=sys.stderr)
         sys.exit(1)
+
+
+def _maybe_heal_hooks() -> None:
+    """Silently restore hooks a library regenerated away.
+
+    Runs on every invocation because that is the only moment Iris is
+    guaranteed to execute after a `npm install` or `pre-commit install` wiped
+    its section. Costs one registry read in repositories that never installed.
+    """
+    try:
+        from iris.hooks.manager import heal
+
+        heal(os.getcwd())
+    except Exception:
+        pass
 
 
 # Commands that must never trigger first-run auto-enable: the `agent` group is
 # explicit telemetry management (incl. the machine-invoked `record`), and these
 # meta commands shouldn't carry a disclosure banner.
 _TELEMETRY_INIT_SKIP = {"agent", "--version", "-V", "-h", "--help", "upgrade", "uninstall"}
+
+# `hook` manages the very sections heal restores — healing first would fight an
+# uninstall — and `uninstall` is removing Iris altogether.
+_HOOK_HEAL_SKIP = {"hook", "uninstall", "--version", "-V", "-h", "--help"}
 
 
 def _print_agent_telemetry_disclosure() -> None:
@@ -1658,6 +1752,8 @@ def main(argv: list[str] | None = None) -> None:
     raw_argv = argv if argv is not None else sys.argv[1:]
     _maybe_init_agent_telemetry(raw_argv)
     _maybe_init_auto_update(raw_argv)
+    if not raw_argv or raw_argv[0] not in _HOOK_HEAL_SKIP:
+        _maybe_heal_hooks()
     if raw_argv and raw_argv[0] in ("--version", "-V"):
         print(f"Iris {VERSION}")
         return
