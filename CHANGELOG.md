@@ -6,6 +6,10 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ## Unreleased
 
+---
+
+## v1.6.0 — Self-healing attribution hooks (2026-08-26)
+
 ### Fixed
 
 - **Hooks were appended where nothing runs them** (#164). Iris appended its
@@ -47,7 +51,37 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
   redirected too — the analysis outlives the commit, and the EPIPE from a closed
   terminal was killing the run before it could stamp.
 
+- **A repository with zero commits on its default branch crashed every
+  analysis window** (#184). `read_commits()` ran `git log` unconditionally;
+  on an empty ("unborn branch") repo git exits 128 and the raw error
+  propagated up, aborting all 5 lookback windows and swallowing git's actual
+  message in the process. It's now detected up front via `git rev-parse
+  --verify --quiet HEAD` and treated as zero commits, like any other quiet
+  window; a genuinely bad path still raises, now with git's real stderr
+  attached instead of just an exit status.
+
+- **A failed platform push was reported as a success** (#181). The
+  `iris.push.success` counter incremented unconditionally regardless of
+  whether the push actually succeeded, and the process still exited 0 on
+  failure — push failures were invisible to both telemetry and automation.
+  `_push_after_analysis` now reports success/failure/not-authenticated
+  distinctly, a new `iris.push.failure` counter exists, and a genuine
+  failure now surfaces through the existing per-window isolation so the
+  exit code reflects it.
+
+- **The default bot-account list no longer carries an internal-only
+  automation account name** as a shipped default — that class of value
+  belongs in a local deployment's own configuration, not in every
+  adopter's classifier.
+
 ### Added
+
+- **Bulk analysis across a GitHub org.** `scripts/list_active_repos.py` +
+  `scripts/clone_and_analyze.py` find every repo in an org active in the
+  last N days (one of Iris's canonical lookback windows) and clone/update
+  + `iris`-analyze each one, with live progress logging, an opt-in
+  `--cleanup` to reclaim disk afterward, and a clear message when a repo
+  vanishes from the org mid-run. See the README for usage.
 
 - **Reachability is verified, not inferred.** `iris hook status` executes the
   hook with a sentinel in the environment and reports whether the Iris section
