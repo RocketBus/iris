@@ -4,19 +4,11 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import {
-  Archive,
-  ArrowDownWideNarrow,
-  Clock,
-  Search,
-  Trash2,
-} from "lucide-react";
-import { useSession } from "next-auth/react";
+import { ArrowDownWideNarrow, Clock, Search, Trash2 } from "lucide-react";
 
 import { DeleteRepositoryDialog } from "@/components/repos/DeleteRepositoryDialog";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/hooks/useTranslation";
-import { normalizeRepoSlug } from "@/lib/repo-slug";
 import { cn } from "@/lib/utils";
 import type { RepoSummary } from "@/types/temporal";
 import { healthIndicator } from "@/types/temporal";
@@ -50,55 +42,14 @@ export function RepoList({
   nowMs,
 }: RepoListProps) {
   const { t } = useTranslation();
-  const { data: session } = useSession();
   const [query, setQuery] = useState("");
   const [sortByAi, setSortByAi] = useState(false);
   const [staleOnly, setStaleOnly] = useState(false);
-  const [hideArchived, setHideArchived] = useState(false);
-  const [checkingArchived, setCheckingArchived] = useState(false);
-  const [hasCheckedArchived, setHasCheckedArchived] = useState(false);
-  // Ephemeral, not persisted: repo-slug -> archived (null = unknown, e.g.
-  // private repo the session token can't read). Empty until "Check
-  // archived" runs, and re-fetched fresh every time — never cached across
-  // page loads.
-  const [archivedBySlug, setArchivedBySlug] = useState<
-    Record<string, boolean | null>
-  >({});
   const showDeleteColumn = canDelete && !!organizationId;
   // nowMs comes from the server component (page.tsx) rather than a
   // Date.now() call here — calling it directly during a client render
   // isn't pure.
   const staleCutoff = nowMs - STALE_MS;
-  const hasGithubLink = !!(
-    session?.user as { githubAccessToken?: string } | undefined
-  )?.githubAccessToken;
-
-  async function handleCheckArchived() {
-    setCheckingArchived(true);
-    try {
-      const res = await fetch("/api/repos/check-archived", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ remoteUrls: repos.map((r) => r.remote_url) }),
-      });
-      if (res.ok) {
-        const data = (await res.json()) as {
-          archived: Record<string, boolean | null>;
-        };
-        setArchivedBySlug(data.archived);
-        setHasCheckedArchived(true);
-      }
-    } catch {
-      // Non-fatal — the button just stays available to retry.
-    } finally {
-      setCheckingArchived(false);
-    }
-  }
-
-  function isArchived(repo: RepoSummary): boolean | null {
-    const slug = normalizeRepoSlug(repo.remote_url);
-    return slug ? (archivedBySlug[slug] ?? null) : null;
-  }
 
   if (repos.length === 0) {
     return (
@@ -121,10 +72,6 @@ export function RepoList({
     filtered = filtered.filter(
       (r) => !r.last_run_at || new Date(r.last_run_at).getTime() < staleCutoff,
     );
-  }
-
-  if (hideArchived) {
-    filtered = filtered.filter((r) => isArchived(r) !== true);
   }
 
   // Repos without AI data sort to the end regardless of direction.
@@ -170,40 +117,12 @@ export function RepoList({
             <Clock className="size-4" />
             {t("dashboard.repoList.staleOnly")}
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={!hasGithubLink || checkingArchived}
-            title={
-              hasGithubLink ? undefined : t("dashboard.repoList.noGithubLink")
-            }
-            onClick={() => void handleCheckArchived()}
-            className="flex-shrink-0"
-          >
-            <Archive className="size-4" />
-            {checkingArchived
-              ? t("dashboard.repoList.checkingArchived")
-              : t("dashboard.repoList.checkArchived")}
-          </Button>
-          {hasCheckedArchived && (
-            <Button
-              type="button"
-              variant={hideArchived ? "default" : "outline"}
-              size="sm"
-              onClick={() => setHideArchived((v) => !v)}
-              className="flex-shrink-0"
-            >
-              {t("dashboard.repoList.hideArchived")}
-            </Button>
-          )}
         </div>
       )}
       {sorted.map((repo) => {
         const color = healthIndicator(repo.health);
         const aiPct = repo.ai_detection_coverage_pct;
         const humanPct = aiPct != null ? 100 - aiPct : null;
-        const archived = isArchived(repo);
 
         return (
           <div
@@ -227,13 +146,8 @@ export function RepoList({
                   )}
                 />
                 <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 truncate font-mono text-sm font-medium">
+                  <p className="truncate font-mono text-sm font-medium">
                     {repo.name}
-                    {archived === true && (
-                      <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 font-sans text-[10px] font-normal text-muted-foreground">
-                        {t("dashboard.repoList.archivedTag")}
-                      </span>
-                    )}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {repo.runs_count} runs

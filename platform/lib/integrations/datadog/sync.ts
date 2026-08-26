@@ -25,9 +25,6 @@ import {
 
 import { logger } from "@/lib/debug";
 import { decryptCredentials } from "@/lib/encryption";
-import { normalizeRepoSlug } from "@/lib/repo-slug";
-
-export { normalizeRepoSlug };
 
 const DEFAULT_BACKFILL_DAYS = 30;
 const PAGE_LIMIT = 100;
@@ -244,6 +241,28 @@ async function loadRepoLookup(
     if (slug) byNormalizedSlug.set(slug, row.id);
   }
   return { byNormalizedSlug };
+}
+
+/**
+ * Normalize a git remote URL or Datadog slug into "host/path" form
+ * (lowercased, no scheme, no `.git`, no trailing slash). Returns `null`
+ * for empty input.
+ */
+export function normalizeRepoSlug(
+  input: string | null | undefined,
+): string | null {
+  if (!input) return null;
+  let s = input.trim().toLowerCase();
+  if (!s) return null;
+  // git@github.com:org/repo.git → github.com/org/repo
+  s = s.replace(/^git@([^:]+):/, "$1/");
+  // ssh://git@host/org/repo or https://host/org/repo → host/org/repo
+  s = s.replace(/^[a-z]+:\/\//, "");
+  s = s.replace(/^git@/, "");
+  s = s.replace(/^www\./, "");
+  s = s.replace(/\.git$/, "");
+  s = s.replace(/\/+$/, "");
+  return s || null;
 }
 
 /**

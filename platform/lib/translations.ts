@@ -456,11 +456,6 @@ export const translations = {
         ai: "AI",
         sortByAi: "Most AI first",
         staleOnly: "Stale (90d+)",
-        checkArchived: "Check archived",
-        checkingArchived: "Checking...",
-        hideArchived: "Hide archived",
-        archivedTag: "archived",
-        noGithubLink: "Sign in with GitHub to check archived status",
       },
     },
     investHere: {
@@ -1881,12 +1876,6 @@ export const translations = {
         ai: "IA",
         sortByAi: "Mais IA primeiro",
         staleOnly: "Parados (90d+)",
-        checkArchived: "Checar arquivados",
-        checkingArchived: "Checando...",
-        hideArchived: "Ocultar arquivados",
-        archivedTag: "arquivado",
-        noGithubLink:
-          "Faça login com GitHub para checar status de arquivamento",
       },
     },
     investHere: {

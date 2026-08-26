@@ -3,8 +3,6 @@
  * Tokens come from the user's NextAuth session.
  */
 
-import { normalizeRepoSlug } from "./repo-slug";
-
 const API = "https://api.github.com";
 
 export interface GitHubOrgSummary {
@@ -179,44 +177,4 @@ export async function listUserOrgs(
   );
 
   return detailed;
-}
-
-interface RawRepoDetail {
-  archived: boolean;
-}
-
-/**
- * Checks GitHub's `archived` flag for each given remote URL, using the
- * caller's own OAuth token. Ephemeral: nothing here is persisted, and
- * nothing calls this automatically — it's meant to run on-demand for
- * whatever repos are currently on screen, not as a background sync.
- *
- * The login scope has no `repo` grant, so a private repo 404s; that comes
- * back as `null` (unknown) for that entry rather than failing the batch —
- * archived status for private repos just can't be determined this way.
- */
-export async function checkArchivedStatus(
-  remoteUrls: (string | null | undefined)[],
-  accessToken: string,
-): Promise<Record<string, boolean | null>> {
-  const pathBySlug = new Map<string, string>();
-  for (const url of remoteUrls) {
-    const slug = normalizeRepoSlug(url ?? null);
-    if (!slug || !slug.startsWith("github.com/")) continue;
-    const path = slug.slice("github.com/".length);
-    if (path.split("/").length === 2) pathBySlug.set(slug, path);
-  }
-
-  const entries = await Promise.all(
-    Array.from(pathBySlug.entries()).map(async ([slug, path]) => {
-      try {
-        const detail = await call<RawRepoDetail>(`/repos/${path}`, accessToken);
-        return [slug, detail.archived] as const;
-      } catch {
-        return [slug, null] as const;
-      }
-    }),
-  );
-
-  return Object.fromEntries(entries);
 }
