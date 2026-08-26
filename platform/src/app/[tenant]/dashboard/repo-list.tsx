@@ -56,6 +56,7 @@ export function RepoList({
   const [staleOnly, setStaleOnly] = useState(false);
   const [hideArchived, setHideArchived] = useState(false);
   const [checkingArchived, setCheckingArchived] = useState(false);
+  const [hasCheckedArchived, setHasCheckedArchived] = useState(false);
   // Ephemeral, not persisted: repo-slug -> archived (null = unknown, e.g.
   // private repo the session token can't read). Empty until "Check
   // archived" runs, and re-fetched fresh every time — never cached across
@@ -85,6 +86,7 @@ export function RepoList({
           archived: Record<string, boolean | null>;
         };
         setArchivedBySlug(data.archived);
+        setHasCheckedArchived(true);
       }
     } catch {
       // Non-fatal — the button just stays available to retry.
@@ -170,29 +172,31 @@ export function RepoList({
           </Button>
           <Button
             type="button"
-            variant={hideArchived ? "default" : "outline"}
+            variant="outline"
             size="sm"
-            disabled={!hasGithubLink}
+            disabled={!hasGithubLink || checkingArchived}
             title={
               hasGithubLink ? undefined : t("dashboard.repoList.noGithubLink")
             }
-            onClick={
-              hideArchived
-                ? () => setHideArchived(false)
-                : () => {
-                    setHideArchived(true);
-                    if (Object.keys(archivedBySlug).length === 0) {
-                      void handleCheckArchived();
-                    }
-                  }
-            }
+            onClick={() => void handleCheckArchived()}
             className="flex-shrink-0"
           >
             <Archive className="size-4" />
             {checkingArchived
               ? t("dashboard.repoList.checkingArchived")
-              : t("dashboard.repoList.hideArchived")}
+              : t("dashboard.repoList.checkArchived")}
           </Button>
+          {hasCheckedArchived && (
+            <Button
+              type="button"
+              variant={hideArchived ? "default" : "outline"}
+              size="sm"
+              onClick={() => setHideArchived((v) => !v)}
+              className="flex-shrink-0"
+            >
+              {t("dashboard.repoList.hideArchived")}
+            </Button>
+          )}
         </div>
       )}
       {sorted.map((repo) => {
