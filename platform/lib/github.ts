@@ -3,7 +3,7 @@
  * Tokens come from the user's NextAuth session.
  */
 
-import { normalizeRepoSlug } from "./integrations/datadog/sync";
+import { normalizeRepoSlug } from "./repo-slug";
 
 const API = "https://api.github.com";
 

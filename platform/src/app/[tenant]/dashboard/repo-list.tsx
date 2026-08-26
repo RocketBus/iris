@@ -16,7 +16,7 @@ import { useSession } from "next-auth/react";
 import { DeleteRepositoryDialog } from "@/components/repos/DeleteRepositoryDialog";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/hooks/useTranslation";
-import { normalizeRepoSlug } from "@/lib/integrations/datadog/sync";
+import { normalizeRepoSlug } from "@/lib/repo-slug";
 import { cn } from "@/lib/utils";
 import type { RepoSummary } from "@/types/temporal";
 import { healthIndicator } from "@/types/temporal";
