@@ -114,6 +114,14 @@ export default async function OrgDashboardPage({
     tenantSlug: tenant,
   };
 
+  // The org timeline shows weekly history, not a point-in-time KPI — unlike
+  // every other panel, it shouldn't shrink to ~1 week of data just because
+  // the selector is on 7d. Each analysis run's activity_timeline only spans
+  // its own lookback, so this panel always reads the widest window the org
+  // has data for, independent of what's selected for the rest of the page.
+  const widestWindowDays =
+    availableWindows.length > 0 ? Math.max(...availableWindows) : windowDays;
+
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -187,9 +195,9 @@ export default async function OrgDashboardPage({
         <HealthMapPanel {...panelProps} />
       </Suspense>
 
-      {/* Org timeline */}
+      {/* Org timeline — always full history, see widestWindowDays above */}
       <Suspense fallback={<SectionSkeleton />}>
-        <OrgTimelinePanel {...panelProps} />
+        <OrgTimelinePanel {...panelProps} windowDays={widestWindowDays} />
       </Suspense>
 
       {/* Hyper engineers — restrito a owner/admin */}
