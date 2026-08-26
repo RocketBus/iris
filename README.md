@@ -113,6 +113,14 @@ Useful flags on `clone_and_analyze.py`:
 --include-archived # also consider archived repos
 ```
 
+`list_active_repos.py` can also flip the filter to find neglected repos instead:
+
+```bash
+python3 scripts/list_active_repos.py --org my-org --days 90 --stale
+```
+
+`--include-archived` shows archived repos too, tagged `(archived)` in the output — otherwise they're excluded entirely, in both modes.
+
 `--days` accepts the same canonical windows as `iris` itself: `7, 15, 30, 60, 90`. Requires the GitHub CLI (`gh`) authenticated with access to the org; `iris login` if you want metrics pushed to the platform (the default once logged in, same as running `iris` by hand).
 
 One repo failing (empty repo, renamed/deleted mid-run, etc.) doesn't stop the batch — clone/analysis progress logs as it happens, and a success/failure summary prints at the end.

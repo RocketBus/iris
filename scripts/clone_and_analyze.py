@@ -31,7 +31,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from list_active_repos import CANONICAL_WINDOWS, get_active_repos
+from list_active_repos import CANONICAL_WINDOWS, get_repos_by_activity
 
 
 def sync_repo(name_with_owner: str, dest_dir: Path) -> bool:
@@ -107,7 +107,7 @@ def main() -> int:
     dest_root = Path(args.dest).expanduser().resolve()
     dest_root.mkdir(parents=True, exist_ok=True)
 
-    active = get_active_repos(args.org, args.days, args.include_archived)
+    active = get_repos_by_activity(args.org, args.days, args.include_archived)
     if args.limit is not None:
         active = active[: args.limit]
 
