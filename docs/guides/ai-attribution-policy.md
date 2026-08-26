@@ -84,6 +84,52 @@ for repo in /path/to/org/*/; do
 done
 ```
 
+### Repos managed by a hook library
+
+Git runs exactly one file per hook: `$(git rev-parse --git-path hooks)/<hook>`.
+Every hook library has to pass through that file, and each fills it differently:
+
+| Library | What it puts in the file |
+|---|---|
+| husky v9 | `core.hooksPath` at `.husky/_`; each stub sources a runner that ends in `exit` |
+| lefthook | a checksummed generated hook that `exec`s `lefthook run` |
+| pre-commit | a generated hook that `exec`s `pre-commit hook-impl` |
+| simple-git-hooks | the configured command written inline |
+| overcommit | every hook symlinked to one shared runner, dispatched on `basename "$0"` |
+
+None of those shapes can shadow the *second line* of the file, so that is where
+Iris installs — above whatever is already there. One code path covers every
+library, including ones that do not exist yet. `iris hook install` verifies the
+result by executing the hook, so it tells you the truth rather than assuming:
+
+```
+$ iris hook status
+Iris hook: installed and verified reachable
+Hook path:   /path/to/repo/.husky/_/prepare-commit-msg
+```
+
+Three things worth knowing:
+
+- **Your hook keeps running.** Iris runs first and then falls through to
+  whatever the library put in the file. The one exception is a tool that
+  *rewrites* the commit message afterwards — `commitizen` and `czg` do; the
+  common husky companion `commitlint` only validates, so it is unaffected.
+
+- **Libraries regenerate their hook file and wipe the Iris section.** `husky`
+  does it on every `npm install`, and `pre-commit install` / `lefthook install`
+  do it on demand. That ownership fight is not winnable, so Iris repairs itself:
+  every `iris` invocation restores anything missing or unreachable in a repo
+  where you ran `iris hook install`. Force it with `iris hook heal`.
+
+- **Earlier Iris versions appended to the end of the file.** Where a hook ended
+  before that point the section never ran, so commits made in that window carry
+  no trailer and cannot be attributed retroactively. `iris hook status` reports
+  the leftovers, and `iris hook install` clears them.
+
+The hook file in your repo holds only a four-line loader; the payload lives in
+`~/.iris/hooks/` (override with `IRIS_HOME`). Upgrading Iris changes behaviour
+everywhere without re-installing repo by repo.
+
 ---
 
 ## Option 2: Git Template (Manual)

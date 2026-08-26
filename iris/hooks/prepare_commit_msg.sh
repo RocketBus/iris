@@ -13,6 +13,14 @@
 #
 # Installed via: iris hook install
 
+# A hook library may run this under `sh -e`, where a top-level command
+# returning non-zero aborts the script — and aborting prepare-commit-msg
+# aborts the commit. Nothing below trips that today: every no-match `grep`
+# either sits in an `if` condition or ends a pipeline, both of which errexit
+# ignores. That safety is incidental, though, and one future assignment away
+# from costing a user their commit, so it is made explicit instead of assumed.
+set +e
+
 # Arguments from git:
 #   $1 = path to the commit message file
 #   $2 = source of the message (message, template, merge, squash, commit)

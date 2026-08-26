@@ -4,6 +4,82 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Hooks were appended where nothing runs them** (#164). Iris appended its
+  section to the *end* of whatever file `core.hooksPath` pointed at. Any hook
+  that ends before that point left the section as dead code: Husky v9's stub
+  sources a runner that calls `exit`, lefthook and pre-commit `exec` their own
+  binary, and a hand-written hook ending in `exit 0` does it too. Install
+  reported success, `hook status` said `installed`, and no commit was ever
+  attributed — affected repos silently reported AI-assisted work as human.
+
+  The install no longer competes for the end of the file; it claims the second
+  line, which no `exit`, `exec`, sourced runner, or errexit further down can
+  shadow. Verified against husky v9, lefthook, pre-commit, simple-git-hooks,
+  overcommit, a custom `core.hooksPath`, a hand-written `exit 0` hook, and a
+  repo with no hook at all — one code path, no library-specific branches.
+
+- **`core.hooksPath` set outside the repo was ignored** (#164). The hooks
+  directory was found by hand-parsing `<repo>/.git/config`, which misses a
+  global or system `core.hooksPath`, anything pulled in by `include` /
+  `includeIf`, a commented-out line, and `~` expansion. It is now resolved with
+  `git rev-parse --git-path hooks`, the answer git itself uses.
+
+- **`iris hook install` failed in worktrees and submodules** (#164). The
+  repository check tested for a `.git` *directory*; in a linked worktree or a
+  submodule `.git` is a file, so install raised `Not a git repository`. Both the
+  repository and the hooks directory now come from `git rev-parse`.
+
+- **Symlinked hooks were edited through the link** (#164). overcommit and
+  friends point every hook at one shared runner; writing through the symlink
+  rewrote that runner and contaminated every other hook. The link is now moved
+  into a private directory under its own name and `exec`'d from there, so a
+  runner dispatching on `basename "$0"` still sees the hook it was invoked as.
+  `iris hook uninstall` puts the original symlink back.
+
+- **Auto-push never ran** (#164). `post_commit_push.sh` invoked the CLI with a
+  `--quiet` flag that does not exist, so argparse rejected the whole command;
+  the `2>/dev/null` on the same line swallowed the usage error, and the daily
+  stamp was never written, so every commit retried and failed. Stdout is now
+  redirected too — the analysis outlives the commit, and the EPIPE from a closed
+  terminal was killing the run before it could stamp.
+
+### Added
+
+- **Reachability is verified, not inferred.** `iris hook status` executes the
+  hook with a sentinel in the environment and reports whether the Iris section
+  actually ran; `installed` now means *runs*, not *marker present*. The injected
+  section answers the sentinel on its first line, so verifying never reaches —
+  and never triggers the side effects of — the hook code below it.
+
+- **`iris hook heal`**, plus the same repair on every `iris` invocation. Hook
+  libraries rewrite their generated file on each install — `husky` on every
+  `npm install`, `pre-commit install`, `lefthook install` — taking the Iris
+  section with it. Ownership of that file is not winnable, so repair is
+  automatic: anything missing or unreachable is re-injected silently. Only
+  repositories that ran `iris hook install` are touched, and `hook uninstall`
+  deregisters so nothing comes back.
+
+- **The payload lives in Iris, not in the repo.** Repository hooks now carry a
+  four-line loader that delegates to `~/.iris/hooks/<hook>` (override with
+  `IRIS_HOME`). Upgrading Iris changes behaviour in every repo without
+  re-installing anywhere.
+
+### Changed
+
+- Both hook scripts `set +e`. A library may run them under `sh -e`, where a
+  top-level non-zero command aborts the script — and aborting
+  `prepare-commit-msg` aborts the commit.
+
+Commits that already carried an attribution trailer were always counted
+correctly. The loss was confined to commits the dead hook never got to tag,
+which cannot be recovered without rewriting history.
+
+---
+
 ## v1.5.2 — Churn window capped to lookback (2026-08-25)
 
 ### Fixed
