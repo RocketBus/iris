@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""List org repos with activity in the last N days.
+"""List org repos active in the last N days, or stale beyond N days.
 
 Uses `gh repo list` and treats GitHub's `pushedAt` timestamp as a proxy for
 "had a commit" — any push (commits, tags, force-pushes) bumps it. That is
@@ -10,7 +10,7 @@ Requires the GitHub CLI (`gh`) authenticated with access to the target org.
 
 Usage:
     python scripts/list_active_repos.py --org my-org [--days 90]
-        [--include-archived] [--json]
+        [--stale] [--include-archived] [--json]
 
 Exit codes:
     0 — ran successfully (even if zero repos matched)
@@ -48,25 +48,37 @@ def fetch_repos(org: str) -> list[dict]:
         sys.exit(1)
 
 
-def get_active_repos(org: str, days: int, include_archived: bool = False) -> list[dict]:
-    """Return repos in `org` pushed to within the last `days` days.
+def get_repos_by_activity(
+    org: str, days: int, include_archived: bool = False, stale: bool = False
+) -> list[dict]:
+    """Return repos in `org` pushed within the last `days` days — or, with
+    `stale=True`, repos NOT pushed to in over `days` days (including repos
+    that have never been pushed to at all).
 
-    Each dict carries `pushedAt` as a parsed datetime, newest first.
+    Each dict carries `pushedAt` as a parsed datetime, or `None` for a repo
+    with no recorded push. Active repos sort newest-first; stale repos sort
+    oldest (most neglected) first, with never-pushed repos at the very front.
     """
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-    active = []
+    matched = []
     for repo in fetch_repos(org):
         if repo["isArchived"] and not include_archived:
             continue
-        if not repo["pushedAt"]:
-            continue
-        pushed_at = datetime.fromisoformat(repo["pushedAt"].replace("Z", "+00:00"))
-        if pushed_at >= cutoff:
-            active.append({**repo, "pushedAt": pushed_at})
+        pushed_at = (
+            datetime.fromisoformat(repo["pushedAt"].replace("Z", "+00:00"))
+            if repo["pushedAt"]
+            else None
+        )
+        if stale:
+            if pushed_at is None or pushed_at < cutoff:
+                matched.append({**repo, "pushedAt": pushed_at})
+        elif pushed_at is not None and pushed_at >= cutoff:
+            matched.append({**repo, "pushedAt": pushed_at})
 
-    active.sort(key=lambda r: r["pushedAt"], reverse=True)
-    return active
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+    matched.sort(key=lambda r: r["pushedAt"] or epoch, reverse=not stale)
+    return matched
 
 
 def parse_args() -> argparse.Namespace:
@@ -79,6 +91,11 @@ def parse_args() -> argparse.Namespace:
         choices=CANONICAL_WINDOWS,
         help=f"lookback window in days, one of {CANONICAL_WINDOWS} (default: 90)",
     )
+    parser.add_argument(
+        "--stale",
+        action="store_true",
+        help="show repos NOT pushed to in over --days days, instead of active ones",
+    )
     parser.add_argument("--include-archived", action="store_true", help="include archived repos")
     parser.add_argument("--json", action="store_true", help="emit JSON instead of a table")
     return parser.parse_args()
@@ -86,18 +103,22 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    active = get_active_repos(args.org, args.days, args.include_archived)
+    repos = get_repos_by_activity(args.org, args.days, args.include_archived, args.stale)
 
     if args.json:
         print(json.dumps(
-            [{**r, "pushedAt": r["pushedAt"].isoformat()} for r in active],
+            [{**r, "pushedAt": r["pushedAt"].isoformat() if r["pushedAt"] else None} for r in repos],
             indent=2,
         ))
     else:
-        print(f"{len(active)} repo(s) active in the last {args.days} days (org: {args.org})\n")
-        for r in active:
+        if args.stale:
+            print(f"{len(repos)} repo(s) with no push in over {args.days} days (org: {args.org})\n")
+        else:
+            print(f"{len(repos)} repo(s) active in the last {args.days} days (org: {args.org})\n")
+        for r in repos:
             tag = "  (archived)" if r["isArchived"] else ""
-            print(f"  {r['pushedAt'].date()}  {r['nameWithOwner']}{tag}")
+            when = r["pushedAt"].date() if r["pushedAt"] else "never pushed"
+            print(f"  {when}  {r['nameWithOwner']}{tag}")
 
     return 0
 
