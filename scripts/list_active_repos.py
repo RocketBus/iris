@@ -96,7 +96,8 @@ def main() -> int:
     else:
         print(f"{len(active)} repo(s) active in the last {args.days} days (org: {args.org})\n")
         for r in active:
-            print(f"  {r['pushedAt'].date()}  {r['nameWithOwner']}")
+            tag = "  (archived)" if r["isArchived"] else ""
+            print(f"  {r['pushedAt'].date()}  {r['nameWithOwner']}{tag}")
 
     return 0
 
