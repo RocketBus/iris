@@ -181,7 +181,7 @@ def test_human_name_containing_tool_substring_stays_human() -> None:
     # Tool names are matched as whole words, so a human co-author whose name
     # merely contains one is not attributed to an AI.
     names = (
-        "Claudemir Santos <c.santos@clickbus.com>",
+        "Claudemir Santos <c.santos@corp.com>",
         "Claudete Rocha <claudete@corp.com>",
         "Geminiano Silva <g.silva@corp.com>",
         "Devin Kelly <devin.kelly@corp.com>",

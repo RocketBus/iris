@@ -63,7 +63,7 @@ body:
     attributes:
       label: Repo analisado
       description: Se o bug aparece ao analisar um repo específico, qual é? (opcional)
-      placeholder: "RocketBus/clickbus-iris"
+      placeholder: "your-org/your-repo"
 
   - type: textarea
     id: logs

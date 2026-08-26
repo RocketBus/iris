@@ -5,7 +5,7 @@ The platform is the only deployable artifact in the repo. The Python `iris/` pac
 ## One-time setup
 
 1. **Import the project** at https://vercel.com/new
-   - Repository: `RocketBus/clickbus-iris`
+   - Repository: `RocketBus/iris`
    - **Root Directory**: `platform`
    - Framework: Next.js (auto-detected)
    - Build/Install commands: defaults

@@ -39,7 +39,7 @@ The CLI **never sends**:
 - Repository contents beyond what `git log` exposes
 - Hostname, IP, machine identifier, or environment variables other than the explicitly listed OTel config
 
-If you find a place where Iris is doing more than this, that's a bug — please [file an issue](https://github.com/RocketBus/clickbus-iris/issues) or follow [SECURITY.md](../SECURITY.md) for sensitive disclosure.
+If you find a place where Iris is doing more than this, that's a bug — please [file an issue](https://github.com/RocketBus/iris/issues) or follow [SECURITY.md](../SECURITY.md) for sensitive disclosure.
 
 ## How to enable
 

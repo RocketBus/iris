@@ -27,7 +27,7 @@ jobs:
         with:
           fetch-depth: 0     # full history → churn / cascade context
 
-      - uses: RocketBus/clickbus-iris/.github/actions/iris-pr@main
+      - uses: RocketBus/iris/.github/actions/iris-pr@main
 ```
 
 ## Important: the `permissions` block
@@ -56,7 +56,7 @@ repository's default token permissions, which may or may not include
 Example with overrides:
 
 ```yaml
-      - uses: RocketBus/clickbus-iris/.github/actions/iris-pr@main
+      - uses: RocketBus/iris/.github/actions/iris-pr@main
         with:
           churn-days: '30'
           python-version: '3.12'

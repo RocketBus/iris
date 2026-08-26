@@ -67,7 +67,7 @@ rm -rf ~/.iris ~/.local/bin/iris  # manual — macOS / Linux / WSL
 ### Manual install (development)
 
 ```bash
-git clone git@github.com:RocketBus/clickbus-iris.git iris
+git clone git@github.com:RocketBus/iris.git iris
 cd iris
 python3 -m venv .venv
 source .venv/bin/activate

@@ -1,6 +1,6 @@
 # PLAN — Datadog integration (#15)
 
-Working plan for [#15](https://github.com/RocketBus/clickbus-iris/issues/15).
+Working plan for [#15](https://github.com/RocketBus/iris/issues/15).
 Pre-implementation; **not a design doc** — resolves the open questions
 from the issue, proposes a PR breakdown, and flags decisions that still
 need user input. Once it lands and is approved, slices ship one PR at a
@@ -419,7 +419,7 @@ deployments and five failures inspected end-to-end.
 - The customer is emitting both flows: `source: "apm_deployments"`
   on deploys (auto-detected by Datadog APM Deployment Tracking) and
   `source: "api"` on failures (pushed manually by the customer, names
-  like `"RIO-978 | Pedidos sendo processados sem cobrança"` show they
+  like `"INC-978 | Orders processed without payment"` show they
   register them as post-mortem from their incident workflow). We're
   reading what they already have, not asking them to instrument
   anything new.
@@ -440,10 +440,10 @@ deployments and five failures inspected end-to-end.
     "commits": [{ "sha", "timestamp", "author": { "email", "canonical_email", "is_bot" },
                   "message", "html_url", "change_lead_time", "time_to_deploy" }, …],
     "pull_requests": [{ "created_at", "merged_at", "is_fully_automated" }, …],
-    "service": "search-microfrontend",
+    "service": "checkout-service",
     "env": "staging",                                // free-form string, customers don't normalize
     "version": "0.14.7",
-    "team": "busca",
+    "team": "platform",
     "change_failure": false,                         // TRI-STATE: true | false | null (null = pending evaluation)
     "deployment_type": "standard",
     "source": "apm_deployments",                     // 500/500 sampled deploys had this value
@@ -480,7 +480,7 @@ create table external_deployments (
   provider          integration_provider not null,
   provider_event_id text not null,                  -- DD's event id (e.g. "43vkaZNgiso")
   repository_id     uuid references repositories(id) on delete set null,
-  dd_repository_id  text,                           -- DD slug, e.g. "github.com/rocketbus/foo"
+  dd_repository_id  text,                           -- DD slug, e.g. "github.com/example-org/example-repo"
   service           text,
   env               text,
   team              text,
@@ -534,10 +534,10 @@ join through Iris's own PR data via `commit_sha`.
   "type": "dora_failure",
   "id": "ab038562-17f5-4001-84b4-3748eec8b077",
   "attributes": {
-    "service": ["platform-pricing-low-fare"],      // array
+    "service": ["billing-service"],                 // array
     "env": ["live"],                                // array
-    "team": ["pricing"],                            // array
-    "name": "RIO-978 | Pedidos sendo processados sem cobrança",
+    "team": ["payments"],                           // array
+    "name": "INC-978 | Orders processed without payment",
     "severity": "Normal" | "High" | "Urgent",      // textual
     "started_at", "finished_at", "created_at",
     "time_to_restore": 520167,                     // seconds
@@ -559,7 +559,7 @@ create table external_incidents (
   service           text[],                         -- DD returns arrays
   env               text[],
   team              text[],
-  name              text,                           -- "RIO-978 | ..."
+  name              text,                           -- "INC-978 | ..."
   severity          text,                           -- "Normal" | "High" | "Urgent" | …
   started_at        timestamptz not null,
   finished_at       timestamptz,
@@ -631,7 +631,7 @@ Concrete impact:
 ### 9.4 Repository matching uses the DD slug, not a URL
 
 `attributes.git.repository_id` is the string
-`"github.com/rocketbus/search-microfrontend"` — host + path, no
+`"github.com/example-org/checkout-service"` — host + path, no
 scheme, no `.git`. Iris's `repositories` table stores `remote_url`
 (varies in shape across customers). The §1 #5 auto-match
 proposal stands but the lookup is a **normalize-both-sides** problem:
