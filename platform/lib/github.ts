@@ -3,7 +3,9 @@
  * Tokens come from the user's NextAuth session.
  */
 
-const API = 'https://api.github.com';
+import { normalizeRepoSlug } from "./integrations/datadog/sync";
+
+const API = "https://api.github.com";
 
 export interface GitHubOrgSummary {
   id: number;
@@ -28,15 +30,17 @@ async function call<T>(path: string, accessToken: string): Promise<T> {
   const res = await fetch(`${API}${path}`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'iris-platform',
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "iris-platform",
     },
-    cache: 'no-store',
+    cache: "no-store",
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`GitHub API ${res.status} on ${path}: ${body.slice(0, 200)}`);
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `GitHub API ${res.status} on ${path}: ${body.slice(0, 200)}`,
+    );
   }
   return (await res.json()) as T;
 }
@@ -61,7 +65,7 @@ interface RawUserDetail {
 function parseLinkHeader(header: string | null): Record<string, string> {
   if (!header) return {};
   const links: Record<string, string> = {};
-  for (const part of header.split(',')) {
+  for (const part of header.split(",")) {
     const match = part.match(/<([^>]+)>;\s*rel="([^"]+)"/);
     if (match) links[match[2]] = match[1];
   }
@@ -72,15 +76,17 @@ async function callRaw(url: string, accessToken: string): Promise<Response> {
   const res = await fetch(url, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'User-Agent': 'iris-platform',
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "User-Agent": "iris-platform",
     },
-    cache: 'no-store',
+    cache: "no-store",
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`GitHub API ${res.status} on ${url}: ${body.slice(0, 200)}`);
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `GitHub API ${res.status} on ${url}: ${body.slice(0, 200)}`,
+    );
   }
   return res;
 }
@@ -101,7 +107,7 @@ export async function listOrgMembers(
     const res = await callRaw(url, accessToken);
     const page = (await res.json()) as RawMember[];
     all.push(...page);
-    const links = parseLinkHeader(res.headers.get('link'));
+    const links = parseLinkHeader(res.headers.get("link"));
     url = links.next ?? null;
   }
 
@@ -143,8 +149,10 @@ export async function listOrgMembers(
  * org access. Orgs that require SAML/SSO without an active session may be
  * omitted by GitHub — that's a GitHub-side gate, not something we can fix.
  */
-export async function listUserOrgs(accessToken: string): Promise<GitHubOrgSummary[]> {
-  const raws = await call<RawOrg[]>('/user/orgs?per_page=100', accessToken);
+export async function listUserOrgs(
+  accessToken: string,
+): Promise<GitHubOrgSummary[]> {
+  const raws = await call<RawOrg[]>("/user/orgs?per_page=100", accessToken);
 
   // Fill in display names with one extra call per org. We cap at 100 by API
   // limits anyway, and most users belong to a handful of orgs.
@@ -152,7 +160,10 @@ export async function listUserOrgs(accessToken: string): Promise<GitHubOrgSummar
     raws.map(async (raw) => {
       let name: string | null = null;
       try {
-        const detail = await call<RawOrgDetail>(`/orgs/${raw.login}`, accessToken);
+        const detail = await call<RawOrgDetail>(
+          `/orgs/${raw.login}`,
+          accessToken,
+        );
         name = detail.name;
       } catch {
         // Non-fatal: keep going with the login as the displayable name.
@@ -168,4 +179,44 @@ export async function listUserOrgs(accessToken: string): Promise<GitHubOrgSummar
   );
 
   return detailed;
+}
+
+interface RawRepoDetail {
+  archived: boolean;
+}
+
+/**
+ * Checks GitHub's `archived` flag for each given remote URL, using the
+ * caller's own OAuth token. Ephemeral: nothing here is persisted, and
+ * nothing calls this automatically — it's meant to run on-demand for
+ * whatever repos are currently on screen, not as a background sync.
+ *
+ * The login scope has no `repo` grant, so a private repo 404s; that comes
+ * back as `null` (unknown) for that entry rather than failing the batch —
+ * archived status for private repos just can't be determined this way.
+ */
+export async function checkArchivedStatus(
+  remoteUrls: (string | null | undefined)[],
+  accessToken: string,
+): Promise<Record<string, boolean | null>> {
+  const pathBySlug = new Map<string, string>();
+  for (const url of remoteUrls) {
+    const slug = normalizeRepoSlug(url ?? null);
+    if (!slug || !slug.startsWith("github.com/")) continue;
+    const path = slug.slice("github.com/".length);
+    if (path.split("/").length === 2) pathBySlug.set(slug, path);
+  }
+
+  const entries = await Promise.all(
+    Array.from(pathBySlug.entries()).map(async ([slug, path]) => {
+      try {
+        const detail = await call<RawRepoDetail>(`/repos/${path}`, accessToken);
+        return [slug, detail.archived] as const;
+      } catch {
+        return [slug, null] as const;
+      }
+    }),
+  );
+
+  return Object.fromEntries(entries);
 }

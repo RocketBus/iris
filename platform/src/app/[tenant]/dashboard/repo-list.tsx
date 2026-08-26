@@ -4,11 +4,19 @@ import { useState } from "react";
 
 import Link from "next/link";
 
-import { ArrowDownWideNarrow, Search, Trash2 } from "lucide-react";
+import {
+  Archive,
+  ArrowDownWideNarrow,
+  Clock,
+  Search,
+  Trash2,
+} from "lucide-react";
+import { useSession } from "next-auth/react";
 
 import { DeleteRepositoryDialog } from "@/components/repos/DeleteRepositoryDialog";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/hooks/useTranslation";
+import { normalizeRepoSlug } from "@/lib/integrations/datadog/sync";
 import { cn } from "@/lib/utils";
 import type { RepoSummary } from "@/types/temporal";
 import { healthIndicator } from "@/types/temporal";
@@ -19,6 +27,9 @@ interface RepoListProps {
   organizationId?: string;
   canDelete?: boolean;
   showSearch?: boolean;
+  /** Server-computed timestamp (ms) — the "stale" filter's cutoff is derived
+   * from this instead of calling Date.now() during a client render. */
+  nowMs: number;
 }
 
 const healthColors: Record<string, string> = {
@@ -28,17 +39,64 @@ const healthColors: Record<string, string> = {
   gray: "bg-signal-gray",
 };
 
+const STALE_MS = 90 * 24 * 60 * 60 * 1000;
+
 export function RepoList({
   repos,
   orgSlug,
   organizationId,
   canDelete = false,
   showSearch = false,
+  nowMs,
 }: RepoListProps) {
   const { t } = useTranslation();
+  const { data: session } = useSession();
   const [query, setQuery] = useState("");
   const [sortByAi, setSortByAi] = useState(false);
+  const [staleOnly, setStaleOnly] = useState(false);
+  const [hideArchived, setHideArchived] = useState(false);
+  const [checkingArchived, setCheckingArchived] = useState(false);
+  // Ephemeral, not persisted: repo-slug -> archived (null = unknown, e.g.
+  // private repo the session token can't read). Empty until "Check
+  // archived" runs, and re-fetched fresh every time — never cached across
+  // page loads.
+  const [archivedBySlug, setArchivedBySlug] = useState<
+    Record<string, boolean | null>
+  >({});
   const showDeleteColumn = canDelete && !!organizationId;
+  // nowMs comes from the server component (page.tsx) rather than a
+  // Date.now() call here — calling it directly during a client render
+  // isn't pure.
+  const staleCutoff = nowMs - STALE_MS;
+  const hasGithubLink = !!(
+    session?.user as { githubAccessToken?: string } | undefined
+  )?.githubAccessToken;
+
+  async function handleCheckArchived() {
+    setCheckingArchived(true);
+    try {
+      const res = await fetch("/api/repos/check-archived", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ remoteUrls: repos.map((r) => r.remote_url) }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          archived: Record<string, boolean | null>;
+        };
+        setArchivedBySlug(data.archived);
+      }
+    } catch {
+      // Non-fatal — the button just stays available to retry.
+    } finally {
+      setCheckingArchived(false);
+    }
+  }
+
+  function isArchived(repo: RepoSummary): boolean | null {
+    const slug = normalizeRepoSlug(repo.remote_url);
+    return slug ? (archivedBySlug[slug] ?? null) : null;
+  }
 
   if (repos.length === 0) {
     return (
@@ -53,9 +111,19 @@ export function RepoList({
     );
   }
 
-  const filtered = query
+  let filtered = query
     ? repos.filter((r) => r.name.toLowerCase().includes(query.toLowerCase()))
     : repos;
+
+  if (staleOnly) {
+    filtered = filtered.filter(
+      (r) => !r.last_run_at || new Date(r.last_run_at).getTime() < staleCutoff,
+    );
+  }
+
+  if (hideArchived) {
+    filtered = filtered.filter((r) => isArchived(r) !== true);
+  }
 
   // Repos without AI data sort to the end regardless of direction.
   const sorted = sortByAi
@@ -90,12 +158,48 @@ export function RepoList({
             <ArrowDownWideNarrow className="size-4" />
             {t("dashboard.repoList.sortByAi")}
           </Button>
+          <Button
+            type="button"
+            variant={staleOnly ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStaleOnly((v) => !v)}
+            className="flex-shrink-0"
+          >
+            <Clock className="size-4" />
+            {t("dashboard.repoList.staleOnly")}
+          </Button>
+          <Button
+            type="button"
+            variant={hideArchived ? "default" : "outline"}
+            size="sm"
+            disabled={!hasGithubLink}
+            title={
+              hasGithubLink ? undefined : t("dashboard.repoList.noGithubLink")
+            }
+            onClick={
+              hideArchived
+                ? () => setHideArchived(false)
+                : () => {
+                    setHideArchived(true);
+                    if (Object.keys(archivedBySlug).length === 0) {
+                      void handleCheckArchived();
+                    }
+                  }
+            }
+            className="flex-shrink-0"
+          >
+            <Archive className="size-4" />
+            {checkingArchived
+              ? t("dashboard.repoList.checkingArchived")
+              : t("dashboard.repoList.hideArchived")}
+          </Button>
         </div>
       )}
       {sorted.map((repo) => {
         const color = healthIndicator(repo.health);
         const aiPct = repo.ai_detection_coverage_pct;
         const humanPct = aiPct != null ? 100 - aiPct : null;
+        const archived = isArchived(repo);
 
         return (
           <div
@@ -119,8 +223,13 @@ export function RepoList({
                   )}
                 />
                 <div className="min-w-0">
-                  <p className="truncate font-mono text-sm font-medium">
+                  <p className="flex items-center gap-1.5 truncate font-mono text-sm font-medium">
                     {repo.name}
+                    {archived === true && (
+                      <span className="flex-shrink-0 rounded-full bg-muted px-1.5 py-0.5 font-sans text-[10px] font-normal text-muted-foreground">
+                        {t("dashboard.repoList.archivedTag")}
+                      </span>
+                    )}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {repo.runs_count} runs
