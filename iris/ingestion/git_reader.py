@@ -27,7 +27,7 @@ _LOG_FORMAT = _FIELD_SEP.join(["%H", "%an", "%ae", "%aI", "%P", "%s", "%b"]) + _
 # Three keys are read because the ecosystem never settled on one:
 #   Co-authored-by  GitHub's convention — what the Iris hook writes
 #   Assisted-by     used by orgs that attribute assistance without claiming
-#                   co-authorship (e.g. ClickBus RFC 0020)
+#                   co-authorship, via an internal attribution policy RFC
 #   Made-with       what Cursor's agent writes; carries no e-mail at all
 #
 # The whole value is captured, not just the e-mail: `Made-with: Cursor` has no
@@ -58,23 +58,53 @@ def read_commits(
     Returns:
         List of Commit objects sorted by date ascending.
     """
+    if not _has_commits(repo_path):
+        # A freshly created repo with nothing pushed yet has no HEAD to log
+        # from — that's zero commits, not an error.
+        return []
+
     since = datetime.now(timezone.utc) - timedelta(days=days)
     since_str = since.strftime("%Y-%m-%d")
 
     # Step 1: get commit metadata
-    log_result = subprocess.run(
-        [
-            "git", "-C", repo_path, "log",
-            f"--since={since_str}",
-            f"--format={_LOG_FORMAT}",
-            "--numstat",
-        ],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
+    try:
+        log_result = subprocess.run(
+            [
+                "git", "-C", repo_path, "log",
+                f"--since={since_str}",
+                f"--format={_LOG_FORMAT}",
+                "--numstat",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"git log failed for {repo_path}: {exc}\n{exc.stderr}") from exc
 
     return _parse_log_output(log_result.stdout, include_merges)
+
+
+def _has_commits(repo_path: str) -> bool:
+    """Whether HEAD resolves to a commit.
+
+    `git rev-parse --verify --quiet HEAD` exits 1 with no stderr for the
+    specific "unborn branch" case — a repo that exists but has never had
+    anything committed to its default branch (`git log` would otherwise
+    fail with exit 128, "does not have any commits yet"). Any other
+    failure (bad path, not a git repository) exits 128 with a real error
+    message and is re-raised rather than silently treated as zero commits.
+    """
+    result = subprocess.run(
+        ["git", "-C", repo_path, "rev-parse", "--verify", "--quiet", "HEAD"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise RuntimeError(f"git rev-parse failed for {repo_path}: {result.stderr.strip()}")
 
 
 def read_pr_commits(
