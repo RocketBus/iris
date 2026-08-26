@@ -234,6 +234,14 @@ export function RepoList({
                         {t("dashboard.repoList.archivedTag")}
                       </span>
                     )}
+                    {hasCheckedArchived && archived === null && (
+                      <span
+                        title={t("dashboard.repoList.archivedUnknownHint")}
+                        className="flex-shrink-0 font-sans text-[10px] font-normal text-muted-foreground"
+                      >
+                        {t("dashboard.repoList.archivedUnknownTag")}
+                      </span>
+                    )}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {repo.runs_count} runs

@@ -460,6 +460,9 @@ export const translations = {
         checkingArchived: "Checking...",
         hideArchived: "Hide archived",
         archivedTag: "archived",
+        archivedUnknownTag: "unknown",
+        archivedUnknownHint:
+          "Couldn't check — likely a private repo your GitHub login can't read",
         noGithubLink: "Sign in with GitHub to check archived status",
       },
     },
@@ -1885,6 +1888,9 @@ export const translations = {
         checkingArchived: "Checando...",
         hideArchived: "Ocultar arquivados",
         archivedTag: "arquivado",
+        archivedUnknownTag: "desconhecido",
+        archivedUnknownHint:
+          "Não deu pra checar — provavelmente um repo privado que seu login do GitHub não consegue ler",
         noGithubLink:
           "Faça login com GitHub para checar status de arquivamento",
       },
