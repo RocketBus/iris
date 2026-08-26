@@ -22,4 +22,4 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: RocketBus/clickbus-iris/.github/actions/iris-pr@main
+      - uses: RocketBus/iris/.github/actions/iris-pr@main

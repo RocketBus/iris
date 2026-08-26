@@ -128,7 +128,7 @@ Attribution trailer keys read from commit bodies (`Co-authored-by`,
 
 ## Issue Tracking
 
-All issues, PRDs, bugs, and tickets live in **GitHub Issues** at `RocketBus/clickbus-iris`. Never track work in scratch files, Notion, or inline TODOs when a proper issue is warranted.
+All issues, PRDs, bugs, and tickets live in **GitHub Issues** at `RocketBus/iris`. Never track work in scratch files, Notion, or inline TODOs when a proper issue is warranted.
 
 Use `gh issue create` with the appropriate template — blank issues are blocked. Templates live in `.github/ISSUE_TEMPLATE/`:
 
@@ -147,8 +147,8 @@ Rules:
 Creating issues via CLI:
 
 ```bash
-gh issue create --repo RocketBus/clickbus-iris --template bug.yml
-gh issue create --repo RocketBus/clickbus-iris --template feature.yml
+gh issue create --repo RocketBus/iris --template bug.yml
+gh issue create --repo RocketBus/iris --template feature.yml
 # etc.
 ```
 

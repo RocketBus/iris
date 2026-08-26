@@ -14,7 +14,7 @@ Iris is in active development. Security patches land on `main`; published releas
 
 **Please do not open a public GitHub issue for security reports.**
 
-Use [GitHub Security Advisories](https://github.com/RocketBus/clickbus-iris/security/advisories/new) — the "Report a vulnerability" button on the repo's Security tab. If your deployment configures `SECURITY_CONTACT_EMAIL`, you may also email that address.
+Use [GitHub Security Advisories](https://github.com/RocketBus/iris/security/advisories/new) — the "Report a vulnerability" button on the repo's Security tab. If your deployment configures `SECURITY_CONTACT_EMAIL`, you may also email that address.
 
 Include:
 
@@ -46,7 +46,7 @@ Out of scope (please don't report):
 
 ## Known issues
 
-We track outstanding security advisories with Dependabot. Open security PRs and advisory acknowledgements live in the repository's [Security tab](https://github.com/RocketBus/clickbus-iris/security).
+We track outstanding security advisories with Dependabot. Open security PRs and advisory acknowledgements live in the repository's [Security tab](https://github.com/RocketBus/iris/security).
 
 ## Hardening defaults
 

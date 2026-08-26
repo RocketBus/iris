@@ -89,4 +89,4 @@ iris /path/to/repo --push
 
 ---
 
-**RocketBus/clickbus-iris** | Apache 2.0 License
+**RocketBus/iris** | Apache 2.0 License
