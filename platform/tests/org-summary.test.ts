@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   computeAIvsHuman,
   computeDeliveryQuality,
+  computeHyperEngineers,
   computeOrgPulse,
   computePreviousTotals,
   computePRHealth,
@@ -342,5 +343,114 @@ describe("isHyperEngineer — shared threshold", () => {
     expect(isHyperEngineer({ high_velocity_weeks: 0, ai_commit_pct: 0 })).toBe(
       false,
     );
+  });
+});
+
+describe("computeHyperEngineers — dedupes the same person across name variants", () => {
+  function hyperAuthor(over: {
+    name: string;
+    email?: string;
+    high_velocity_weeks?: number;
+  }) {
+    return {
+      name: over.name,
+      email: over.email,
+      high_velocity_weeks: over.high_velocity_weeks ?? 1,
+      ai_commit_pct: 50,
+    };
+  }
+
+  it("merges two display-name variants that resolved to the same github username", () => {
+    const payloads = new Map<string, ReportMetrics>([
+      [
+        "repo-a",
+        payload({
+          author_velocity: {
+            authors: [hyperAuthor({ name: "Renato Guimaraes" })],
+          },
+        }),
+      ],
+      [
+        "repo-b",
+        payload({
+          author_velocity: {
+            authors: [hyperAuthor({ name: "Renato Guimarães (Bahia)" })],
+          },
+        }),
+      ],
+    ]);
+    const nameToGithub = new Map([
+      ["renato guimaraes", "renatoguimaraescb"],
+      ["renato guimarães (bahia)", "renatoguimaraescb"],
+    ]);
+
+    const result = computeHyperEngineers(payloads, new Map(), nameToGithub);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].github).toBe("renatoguimaraescb");
+    expect(result[0].repos).toBe(2);
+  });
+
+  it("merges two display-name variants sharing a GitHub noreply email", () => {
+    const payloads = new Map<string, ReportMetrics>([
+      [
+        "repo-a",
+        payload({
+          author_velocity: {
+            authors: [
+              hyperAuthor({
+                name: "Renato Guimaraes",
+                email: "123+renatoguimaraescb@users.noreply.github.com",
+              }),
+            ],
+          },
+        }),
+      ],
+      [
+        "repo-b",
+        payload({
+          author_velocity: {
+            authors: [
+              hyperAuthor({
+                name: "renatoguimaraescb",
+                email: "123+renatoguimaraescb@users.noreply.github.com",
+              }),
+            ],
+          },
+        }),
+      ],
+    ]);
+
+    // No github resolved anywhere — only the shared noreply email ties
+    // the two name variants together.
+    const result = computeHyperEngineers(payloads, new Map(), new Map());
+
+    expect(result).toHaveLength(1);
+    expect(result[0].repos).toBe(2);
+  });
+
+  it("keeps genuinely different people separate", () => {
+    const payloads = new Map<string, ReportMetrics>([
+      [
+        "repo-a",
+        payload({
+          author_velocity: {
+            authors: [hyperAuthor({ name: "Alice", email: "alice@corp.com" })],
+          },
+        }),
+      ],
+      [
+        "repo-b",
+        payload({
+          author_velocity: {
+            authors: [hyperAuthor({ name: "Bob", email: "bob@corp.com" })],
+          },
+        }),
+      ],
+    ]);
+
+    const result = computeHyperEngineers(payloads, new Map(), new Map());
+
+    expect(result).toHaveLength(2);
   });
 });
