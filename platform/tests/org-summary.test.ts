@@ -391,7 +391,7 @@ describe("computeHyperEngineers — dedupes the same person across name variants
     expect(result[0].repos).toBe(2);
   });
 
-  it("merges two display-name variants sharing a GitHub noreply email", () => {
+  it("merges two display-name variants sharing a GitHub noreply email, surfacing github from userMap once merged", () => {
     const payloads = new Map<string, ReportMetrics>([
       [
         "repo-a",
@@ -420,13 +420,22 @@ describe("computeHyperEngineers — dedupes the same person across name variants
         }),
       ],
     ]);
+    // Nothing in nameToGithub — the shared noreply email is what ties the
+    // two name variants into one group; userMap (keyed by the normalized
+    // email, which for a noreply address IS the github username) is what
+    // then supplies the github field for display.
+    const userMap = new Map([
+      [
+        "renatoguimaraescb",
+        { name: "Renato Guimarães", github: "renatoguimaraescb" },
+      ],
+    ]);
 
-    // No github resolved anywhere — only the shared noreply email ties
-    // the two name variants together.
-    const result = computeHyperEngineers(payloads, new Map(), new Map());
+    const result = computeHyperEngineers(payloads, userMap, new Map());
 
     expect(result).toHaveLength(1);
     expect(result[0].repos).toBe(2);
+    expect(result[0].github).toBe("renatoguimaraescb");
   });
 
   it("keeps genuinely different people separate", () => {
@@ -448,9 +457,38 @@ describe("computeHyperEngineers — dedupes the same person across name variants
         }),
       ],
     ]);
+    const nameToGithub = new Map([
+      ["alice", "alice-gh"],
+      ["bob", "bob-gh"],
+    ]);
+
+    const result = computeHyperEngineers(payloads, new Map(), nameToGithub);
+
+    expect(result).toHaveLength(2);
+  });
+
+  it("still includes an engineer with no resolved GitHub username, with github left undefined", () => {
+    // computeHyperEngineers doesn't filter these out — the "identified" vs
+    // "unidentified" split is a display concern, done in HyperEngineers.tsx.
+    const payloads = new Map<string, ReportMetrics>([
+      [
+        "repo-a",
+        payload({
+          author_velocity: {
+            authors: [
+              hyperAuthor({
+                name: "Mystery Person",
+                email: "mystery@corp.com",
+              }),
+            ],
+          },
+        }),
+      ],
+    ]);
 
     const result = computeHyperEngineers(payloads, new Map(), new Map());
 
-    expect(result).toHaveLength(2);
+    expect(result).toHaveLength(1);
+    expect(result[0].github).toBeUndefined();
   });
 });
