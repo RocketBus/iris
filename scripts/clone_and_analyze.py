@@ -3,9 +3,16 @@
 
 Chains with list_active_repos.py: pulls the same "active in the last N days"
 repo set, clones any repo not already present under --dest (or fast-forward
-pulls it if it is), then runs the `iris` CLI inside each repo directory with
-no extra flags — identical to a manual `cd <repo> && iris` — so metrics push
-to the Iris platform per the account's existing `iris login` session.
+pulls it if it is), then runs the `iris` CLI inside each repo directory —
+by default with no extra flags (identical to a manual `cd <repo> && iris`,
+analyzing all of RECOMMENDED_WINDOWS), or with a single `--days` window via
+--iris-days — so metrics push to the Iris platform per the account's
+existing `iris login` session.
+
+--days selects WHICH repos to process (activity lookback); --iris-days
+controls WHAT WINDOW `iris` analyzes once inside each repo. They're
+independent: e.g. `--days 7 --iris-days 30` picks repos with a commit in
+the last 7 days, then runs `iris . --days 30` in each.
 
 One repo failing (clone conflict, analysis error) does not stop the run; a
 summary of successes/failures prints at the end.
@@ -14,7 +21,7 @@ Requires: `gh` authenticated for the target org, `iris` installed and logged
 in (`iris auth status`) if you want the push-to-platform behavior.
 
 Usage:
-    python scripts/clone_and_analyze.py --org my-org [--days 90]
+    python scripts/clone_and_analyze.py --org my-org [--days 90] [--iris-days 30]
         [--dest ~/git/iris-repos] [--limit N] [--include-archived] [--cleanup]
 
 Exit codes:
@@ -64,9 +71,10 @@ def sync_repo(name_with_owner: str, dest_dir: Path) -> bool:
     return True
 
 
-def run_iris(repo_dir: Path) -> bool:
-    print("  running iris...")
-    result = subprocess.run(["iris", "."], cwd=repo_dir, capture_output=True, text=True)
+def run_iris(repo_dir: Path, iris_days: int | None) -> bool:
+    cmd = ["iris", "."] if iris_days is None else ["iris", ".", "--days", str(iris_days)]
+    print(f"  running {' '.join(cmd)}...")
+    result = subprocess.run(cmd, cwd=repo_dir, capture_output=True, text=True)
     if result.returncode != 0:
         print(f"  ✗ iris failed: {result.stderr.strip()}", file=sys.stderr)
         return False
@@ -82,6 +90,15 @@ def parse_args() -> argparse.Namespace:
         default=90,
         choices=CANONICAL_WINDOWS,
         help=f"lookback window in days, one of {CANONICAL_WINDOWS} (default: 90)",
+    )
+    parser.add_argument(
+        "--iris-days",
+        type=int,
+        default=None,
+        choices=CANONICAL_WINDOWS,
+        help="if set, run `iris . --days N` with this single window instead of the "
+        "default RECOMMENDED_WINDOWS set — independent of --days (which only "
+        "controls repo selection)",
     )
     parser.add_argument(
         "--dest",
@@ -122,7 +139,7 @@ def main() -> int:
         if not sync_repo(name, repo_dir):
             failed.append(name)
             continue
-        if not run_iris(repo_dir):
+        if not run_iris(repo_dir, args.iris_days):
             failed.append(name)
             continue
         succeeded.append(name)

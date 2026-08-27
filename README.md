@@ -111,6 +111,11 @@ Useful flags on `clone_and_analyze.py`:
 --cleanup          # remove local clones of repos that succeeded, once the run finishes
 --dest DIR         # where to clone into (default: ~/git/iris-repos)
 --include-archived # also consider archived repos
+--iris-days N      # run `iris . --days N` (single window) instead of the default
+                    # RECOMMENDED_WINDOWS set — independent of --days, which only
+                    # controls which repos get selected. E.g. select repos active in
+                    # the last 7 days but analyze each with only the 30-day window:
+                    #   --days 7 --iris-days 30
 ```
 
 `list_active_repos.py` can also flip the filter to find neglected repos instead:
