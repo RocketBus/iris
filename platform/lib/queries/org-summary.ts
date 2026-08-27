@@ -1160,6 +1160,26 @@ export function computeHyperEngineers(
     }
   >();
 
+  // Learn email -> github wherever a name-based lookup resolves one, before
+  // grouping. This is the same "known mapping learned elsewhere" trick as
+  // the nameToGithub/userMap checks below, just keyed by raw commit email
+  // instead of name: a person can show up "identified" in one repo (their
+  // email there matched a name we could resolve) and "unidentified" in
+  // another (same actual email, but paired with a name variant that never
+  // resolved) — this bridges the second occurrence to the first without
+  // requiring push-time API resolution to have succeeded for every repo.
+  const emailToGithub = new Map<string, string>();
+  for (const [, p] of payloads) {
+    if (!p.author_velocity?.authors) continue;
+    for (const a of p.author_velocity.authors) {
+      if (!isHyperEngineer(a) || !a.email) continue;
+      const nameLower = a.name.toLowerCase();
+      const github =
+        nameToGithub.get(nameLower) ?? userMap.get(nameLower)?.github;
+      if (github) emailToGithub.set(a.email.toLowerCase(), github);
+    }
+  }
+
   for (const [repoId, p] of payloads) {
     if (!p.author_velocity?.authors) continue;
     const av = p.author_velocity;
@@ -1168,6 +1188,7 @@ export function computeHyperEngineers(
       if (!isHyperEngineer(a)) continue;
 
       const nameLower = a.name.toLowerCase();
+      const emailLower = a.email?.toLowerCase();
       // nameToGithub alone misses a real case: some people's local git
       // config uses their GitHub handle itself as the commit author name
       // (e.g. author name "lucastribioliclickbus" instead of "Lucas
@@ -1175,8 +1196,12 @@ export function computeHyperEngineers(
       // that name's email to a login. userMap is *also* keyed by github
       // username when known, so checking it here — not just at display
       // time — catches that case during grouping instead of after.
+      // emailToGithub is the last resort: the same raw commit email tied to
+      // a resolved identity somewhere else entirely, regardless of name.
       const github =
-        nameToGithub.get(nameLower) ?? userMap.get(nameLower)?.github;
+        nameToGithub.get(nameLower) ??
+        userMap.get(nameLower)?.github ??
+        (emailLower ? emailToGithub.get(emailLower) : undefined);
       const key = github ?? normalizeEmailIdentity(a.email) ?? nameLower;
 
       const existing = authors.get(key) ?? {
