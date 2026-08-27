@@ -18,7 +18,11 @@ export async function HyperEngineersPanel({
 
   return (
     <HyperEngineers
-      engineers={computeHyperEngineers(payloads, contributors.userMap)}
+      engineers={computeHyperEngineers(
+        payloads,
+        contributors.userMap,
+        contributors.nameToGithub,
+      )}
     />
   );
 }

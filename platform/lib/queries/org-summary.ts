@@ -61,8 +61,24 @@ export async function getOrgLatestPayloads(
 
 export interface OrgContributorInfo {
   count: number;
-  /** Map from lowercase name → { name, github? } for avatar lookup. */
+  /**
+   * Map from resolved identity → { name, github? }, for avatar lookup.
+   * Keyed by GitHub username (lowercased) when known — that's the stable
+   * identity `iris/cli.py`'s push-time resolution already computed — and
+   * only falls back to the lowercase display name when no github was
+   * resolved for that entry. Two name variants that both resolved to the
+   * same github collapse into one entry here.
+   */
   userMap: Map<string, { name: string; github?: string }>;
+  /**
+   * Map from every distinct lowercase display name seen → its resolved
+   * github username, NOT deduped by identity (multiple names can point at
+   * the same github). Lets a caller holding only a name (e.g. an
+   * author_velocity entry, which has no github field of its own) look up
+   * the identity that name resolved to, even when userMap's canonical
+   * entry for that identity settled on a different display name.
+   */
+  nameToGithub: Map<string, string>;
 }
 
 export async function getOrgActiveContributors(
@@ -78,11 +94,14 @@ export async function getOrgActiveContributors(
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (!data || data.length === 0) return { count: 0, userMap: new Map() };
+  if (!data || data.length === 0) {
+    return { count: 0, userMap: new Map(), nameToGithub: new Map() };
+  }
 
   // Keep only the latest run per repo
   const seen = new Set<string>();
   const userMap = new Map<string, { name: string; github?: string }>();
+  const nameToGithub = new Map<string, string>();
 
   for (const row of data) {
     if (seen.has(row.repository_id)) continue;
@@ -93,15 +112,18 @@ export async function getOrgActiveContributors(
     >;
     for (const u of users) {
       const parsed = typeof u === "string" ? { name: u } : u;
-      const key = parsed.name.toLowerCase();
+      const key = parsed.github?.toLowerCase() ?? parsed.name.toLowerCase();
       // Keep entry with github if available
       if (!userMap.has(key) || (parsed.github && !userMap.get(key)?.github)) {
         userMap.set(key, parsed);
       }
+      if (parsed.github) {
+        nameToGithub.set(parsed.name.toLowerCase(), parsed.github);
+      }
     }
   }
 
-  return { count: userMap.size, userMap };
+  return { count: userMap.size, userMap, nameToGithub };
 }
 
 // ---------------------------------------------------------------------------
@@ -1100,15 +1122,37 @@ export function isHyperEngineer(author: {
   return author.high_velocity_weeks > 0 || author.ai_commit_pct >= 80;
 }
 
+/**
+ * Normalize a GitHub noreply commit email to its username, mirroring
+ * `_normalize_author` in `iris/analysis/author_velocity.py` — the same
+ * per-person key the engine already uses to dedupe an author's commits
+ * within one repo. Applying it here too means two name variants that
+ * share a noreply email (extremely common: it's stable per GitHub account
+ * regardless of local git config) collapse into one entry even when
+ * neither has a resolved `github` field.
+ */
+function normalizeEmailIdentity(email: string | undefined): string | null {
+  if (!email) return null;
+  const m = /^(?:\d+\+)?(.+)@users\.noreply\.github\.com$/i.exec(email.trim());
+  return (m ? m[1] : email.trim()).toLowerCase() || null;
+}
+
 export function computeHyperEngineers(
   payloads: Map<string, ReportMetrics>,
   userMap: Map<string, { name: string; github?: string }>,
+  nameToGithub: Map<string, string>,
 ): HyperEngineer[] {
-  // Accumulate per-author stats across repos
+  // Accumulate per-author stats across repos. Grouped by the most
+  // authoritative identity available, in order: resolved GitHub username
+  // (iris/cli.py already resolved this at push time, including real API
+  // lookups for non-noreply emails) -> normalized email -> display name as
+  // a last resort. Without this, the same person shows up once per distinct
+  // commit-author name they've ever used.
   const authors = new Map<
     string,
     {
-      name: string;
+      names: Set<string>;
+      github?: string;
       repos: number;
       hvWeeks: number;
       aiPct: number;
@@ -1121,16 +1165,25 @@ export function computeHyperEngineers(
     const av = p.author_velocity;
 
     for (const a of av.authors) {
-      const key = a.name.toLowerCase();
       if (!isHyperEngineer(a)) continue;
 
+      const nameLower = a.name.toLowerCase();
+      const github = nameToGithub.get(nameLower);
+      const key = github ?? normalizeEmailIdentity(a.email) ?? nameLower;
+
       const existing = authors.get(key) ?? {
-        name: a.name,
+        names: new Set<string>(),
+        github: undefined,
         repos: 0,
         hvWeeks: 0,
         aiPct: 0,
         aiCount: 0,
       };
+      existing.names.add(a.name);
+      // Carry the resolved github forward directly — don't rely solely on
+      // userMap having a matching entry, since nameToGithub can know a
+      // mapping userMap's own dedup pass didn't happen to retain.
+      if (github) existing.github = github;
       existing.repos++;
       existing.hvWeeks = Math.max(existing.hvWeeks, a.high_velocity_weeks);
       existing.aiPct += a.ai_commit_pct;
@@ -1141,10 +1194,18 @@ export function computeHyperEngineers(
 
   return [...authors.entries()]
     .map(([key, a]) => {
-      const userInfo = userMap.get(key);
+      // userMap is keyed by github-when-known, so this hits directly when
+      // `key` is already a github username. Otherwise, fall back to trying
+      // every name variant we saw for this person, in case userMap's own
+      // fallback (name-keyed) entry matches one of them.
+      const userInfo =
+        userMap.get(key) ??
+        [...a.names].map((n) => userMap.get(n.toLowerCase())).find(Boolean);
+      const displayName =
+        userInfo?.name ?? [...a.names].sort((x, y) => y.length - x.length)[0];
       return {
-        name: userInfo?.name ?? a.name,
-        github: userInfo?.github,
+        name: displayName,
+        github: a.github ?? userInfo?.github,
         repos: a.repos,
         highVelocityWeeks: a.hvWeeks,
         aiCommitPct: a.aiCount > 0 ? a.aiPct / a.aiCount : 0,
