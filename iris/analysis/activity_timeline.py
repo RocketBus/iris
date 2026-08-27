@@ -147,11 +147,16 @@ def calculate_activity_timeline(
             classified = classify_commit(c)
             intent_dist[classified.intent.value] += 1
 
-        # Origin distribution
-        origin_dist: dict[str, int] = defaultdict(int)
-        for c in wc:
-            origin = classify_origin(c)
-            origin_dist[origin.value] += 1
+        # Origin distribution (only meaningful with enough commits — same
+        # floor as stabilization; a single AI-tagged commit in an otherwise
+        # quiet week shouldn't be able to swing weekly AI-adoption to 100%).
+        origin_dist: dict[str, int] = {}
+        if total_commits >= MIN_COMMITS_FOR_RATIO:
+            origin_counts: dict[str, int] = defaultdict(int)
+            for c in wc:
+                origin = classify_origin(c)
+                origin_counts[origin.value] += 1
+            origin_dist = dict(origin_counts)
 
         # Stabilization and churn (only meaningful with enough commits)
         stab_ratio = None
