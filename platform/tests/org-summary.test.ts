@@ -555,6 +555,44 @@ describe("computeHyperEngineers — dedupes the same person across name variants
     expect(result[0].repos).toBe(1);
   });
 
+  it("merges an 'unidentified' entry into an 'identified' one via a shared raw email, when neither name nor userMap resolves it directly", () => {
+    // Same person, two repos: repo-a's commit name resolves to a github via
+    // nameToGithub (this repo would render "identified"). repo-b uses a
+    // completely different name string (e.g. a nickname) with the SAME raw
+    // email — neither nameToGithub nor userMap has an entry for that name,
+    // so without the email bridge this would render as a second,
+    // "unidentified" card for the same real person.
+    const payloads = new Map<string, ReportMetrics>([
+      [
+        "repo-a",
+        payload({
+          author_velocity: {
+            authors: [
+              hyperAuthor({ name: "Carla Souza", email: "carla@corp.com" }),
+            ],
+          },
+        }),
+      ],
+      [
+        "repo-b",
+        payload({
+          author_velocity: {
+            authors: [
+              hyperAuthor({ name: "carlinha", email: "carla@corp.com" }),
+            ],
+          },
+        }),
+      ],
+    ]);
+    const nameToGithub = new Map([["carla souza", "carla-gh"]]);
+
+    const result = computeHyperEngineers(payloads, new Map(), nameToGithub);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].github).toBe("carla-gh");
+    expect(result[0].repos).toBe(2);
+  });
+
   it("still includes an engineer with no resolved GitHub username, with github left undefined", () => {
     // computeHyperEngineers doesn't filter these out — the "identified" vs
     // "unidentified" split is a display concern, done in HyperEngineers.tsx.
