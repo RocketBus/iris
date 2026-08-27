@@ -1192,26 +1192,34 @@ export function computeHyperEngineers(
     }
   }
 
-  return [...authors.entries()]
-    .map(([key, a]) => {
-      // userMap is keyed by github-when-known, so this hits directly when
-      // `key` is already a github username. Otherwise, fall back to trying
-      // every name variant we saw for this person, in case userMap's own
-      // fallback (name-keyed) entry matches one of them.
-      const userInfo =
-        userMap.get(key) ??
-        [...a.names].map((n) => userMap.get(n.toLowerCase())).find(Boolean);
-      const displayName =
-        userInfo?.name ?? [...a.names].sort((x, y) => y.length - x.length)[0];
-      return {
-        name: displayName,
-        github: a.github ?? userInfo?.github,
-        repos: a.repos,
-        highVelocityWeeks: a.hvWeeks,
-        aiCommitPct: a.aiCount > 0 ? a.aiPct / a.aiCount : 0,
-      };
-    })
-    .sort((a, b) => b.repos - a.repos);
+  return (
+    [...authors.entries()]
+      .map(([key, a]) => {
+        // userMap is keyed by github-when-known, so this hits directly when
+        // `key` is already a github username. Otherwise, fall back to trying
+        // every name variant we saw for this person, in case userMap's own
+        // fallback (name-keyed) entry matches one of them.
+        const userInfo =
+          userMap.get(key) ??
+          [...a.names].map((n) => userMap.get(n.toLowerCase())).find(Boolean);
+        const displayName =
+          userInfo?.name ?? [...a.names].sort((x, y) => y.length - x.length)[0];
+        return {
+          name: displayName,
+          github: a.github ?? userInfo?.github,
+          repos: a.repos,
+          highVelocityWeeks: a.hvWeeks,
+          aiCommitPct: a.aiCount > 0 ? a.aiPct / a.aiCount : 0,
+        };
+      })
+      // Without a resolved GitHub username there's no profile to link to,
+      // and — since that's also the strongest identity signal grouping has —
+      // no-github entries are the ones most likely to still be an
+      // unresolved duplicate of someone already shown with their GitHub
+      // entry. Better to omit them than show a name that may not be unique.
+      .filter((eng) => !!eng.github)
+      .sort((a, b) => b.repos - a.repos)
+  );
 }
 
 // DORA aggregation moved to `lib/queries/dora.ts` — it reads directly
