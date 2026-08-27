@@ -467,6 +467,94 @@ describe("computeHyperEngineers — dedupes the same person across name variants
     expect(result).toHaveLength(2);
   });
 
+  it("merges when a raw commit author name is literally the GitHub handle, resolved via userMap at grouping time (not just display time)", () => {
+    // Real case: some repos record the commit author as "Lucas Tribioli"
+    // (noreply email, resolves via nameToGithub for free); others record it
+    // as "lucastribioliclickbus" (his own GitHub handle used as the local
+    // git config name) with a corporate email that push-time API
+    // resolution failed to tie to a login. nameToGithub has no entry for
+    // that raw handle-as-name string, but userMap does (keyed by github
+    // username, populated from the repo that resolved successfully) — the
+    // grouping key computation must check userMap too, not just at display
+    // time, or these end up as two separate cards for the same person.
+    const payloads = new Map<string, ReportMetrics>([
+      [
+        "repo-a",
+        payload({
+          author_velocity: {
+            authors: [
+              hyperAuthor({
+                name: "Lucas Tribioli",
+                email: "999+lucastribioliclickbus@users.noreply.github.com",
+              }),
+            ],
+          },
+        }),
+      ],
+      [
+        "repo-b",
+        payload({
+          author_velocity: {
+            authors: [
+              hyperAuthor({
+                name: "lucastribioliclickbus",
+                email: "lucas.tribioli@clickbus.com",
+              }),
+            ],
+          },
+        }),
+      ],
+    ]);
+    const nameToGithub = new Map([["lucas tribioli", "lucastribioliclickbus"]]);
+    const userMap = new Map([
+      [
+        "lucastribioliclickbus",
+        { name: "Lucas Tribioli", github: "lucastribioliclickbus" },
+      ],
+    ]);
+
+    const result = computeHyperEngineers(payloads, userMap, nameToGithub);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].github).toBe("lucastribioliclickbus");
+    expect(result[0].name).toBe("Lucas Tribioli");
+    expect(result[0].repos).toBe(2);
+  });
+
+  it("counts a repo once even when the same merged identity appears under two name/email variants within that one repo", () => {
+    const payloads = new Map<string, ReportMetrics>([
+      [
+        "repo-a",
+        payload({
+          author_velocity: {
+            authors: [
+              hyperAuthor({
+                name: "Lucas Tribioli",
+                email: "999+lucastribioliclickbus@users.noreply.github.com",
+              }),
+              hyperAuthor({
+                name: "lucastribioliclickbus",
+                email: "lucas.tribioli@clickbus.com",
+              }),
+            ],
+          },
+        }),
+      ],
+    ]);
+    const nameToGithub = new Map([["lucas tribioli", "lucastribioliclickbus"]]);
+    const userMap = new Map([
+      [
+        "lucastribioliclickbus",
+        { name: "Lucas Tribioli", github: "lucastribioliclickbus" },
+      ],
+    ]);
+
+    const result = computeHyperEngineers(payloads, userMap, nameToGithub);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].repos).toBe(1);
+  });
+
   it("still includes an engineer with no resolved GitHub username, with github left undefined", () => {
     // computeHyperEngineers doesn't filter these out — the "identified" vs
     // "unidentified" split is a display concern, done in HyperEngineers.tsx.

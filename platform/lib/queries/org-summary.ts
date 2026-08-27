@@ -1153,14 +1153,14 @@ export function computeHyperEngineers(
     {
       names: Set<string>;
       github?: string;
-      repos: number;
+      repoIds: Set<string>;
       hvWeeks: number;
       aiPct: number;
       aiCount: number;
     }
   >();
 
-  for (const [, p] of payloads) {
+  for (const [repoId, p] of payloads) {
     if (!p.author_velocity?.authors) continue;
     const av = p.author_velocity;
 
@@ -1168,13 +1168,21 @@ export function computeHyperEngineers(
       if (!isHyperEngineer(a)) continue;
 
       const nameLower = a.name.toLowerCase();
-      const github = nameToGithub.get(nameLower);
+      // nameToGithub alone misses a real case: some people's local git
+      // config uses their GitHub handle itself as the commit author name
+      // (e.g. author name "lucastribioliclickbus" instead of "Lucas
+      // Tribioli") in repos where the push-time API resolution didn't tie
+      // that name's email to a login. userMap is *also* keyed by github
+      // username when known, so checking it here — not just at display
+      // time — catches that case during grouping instead of after.
+      const github =
+        nameToGithub.get(nameLower) ?? userMap.get(nameLower)?.github;
       const key = github ?? normalizeEmailIdentity(a.email) ?? nameLower;
 
       const existing = authors.get(key) ?? {
         names: new Set<string>(),
         github: undefined,
-        repos: 0,
+        repoIds: new Set<string>(),
         hvWeeks: 0,
         aiPct: 0,
         aiCount: 0,
@@ -1184,7 +1192,11 @@ export function computeHyperEngineers(
       // userMap having a matching entry, since nameToGithub can know a
       // mapping userMap's own dedup pass didn't happen to retain.
       if (github) existing.github = github;
-      existing.repos++;
+      // A Set, not a counter: the same repo can list this person under two
+      // raw name/email variants (e.g. a noreply email in some commits and a
+      // corporate email in others) — once merged under one identity, that
+      // repo must still only count once.
+      existing.repoIds.add(repoId);
       existing.hvWeeks = Math.max(existing.hvWeeks, a.high_velocity_weeks);
       existing.aiPct += a.ai_commit_pct;
       existing.aiCount++;
@@ -1201,12 +1213,22 @@ export function computeHyperEngineers(
       const userInfo =
         userMap.get(key) ??
         [...a.names].map((n) => userMap.get(n.toLowerCase())).find(Boolean);
+      // Prefer a real name (has a space) over a bare username string —
+      // some repos record the commit author as the person's GitHub handle
+      // itself (e.g. "lucastribioliclickbus"), which sorts longest but
+      // reads worse than "Lucas Tribioli".
       const displayName =
-        userInfo?.name ?? [...a.names].sort((x, y) => y.length - x.length)[0];
+        userInfo?.name ??
+        [...a.names].sort((x, y) => {
+          const xHasSpace = x.includes(" ");
+          const yHasSpace = y.includes(" ");
+          if (xHasSpace !== yHasSpace) return xHasSpace ? -1 : 1;
+          return y.length - x.length;
+        })[0];
       return {
         name: displayName,
         github: a.github ?? userInfo?.github,
-        repos: a.repos,
+        repos: a.repoIds.size,
         highVelocityWeeks: a.hvWeeks,
         aiCommitPct: a.aiCount > 0 ? a.aiPct / a.aiCount : 0,
       };
