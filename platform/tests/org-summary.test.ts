@@ -467,7 +467,9 @@ describe("computeHyperEngineers — dedupes the same person across name variants
     expect(result).toHaveLength(2);
   });
 
-  it("omits an engineer with no resolved GitHub username — nothing to link to, and the least reliably deduped case", () => {
+  it("still includes an engineer with no resolved GitHub username, with github left undefined", () => {
+    // computeHyperEngineers doesn't filter these out — the "identified" vs
+    // "unidentified" split is a display concern, done in HyperEngineers.tsx.
     const payloads = new Map<string, ReportMetrics>([
       [
         "repo-a",
@@ -486,6 +488,7 @@ describe("computeHyperEngineers — dedupes the same person across name variants
 
     const result = computeHyperEngineers(payloads, new Map(), new Map());
 
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
+    expect(result[0].github).toBeUndefined();
   });
 });

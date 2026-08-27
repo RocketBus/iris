@@ -448,6 +448,8 @@ export const translations = {
           "Contributors with high velocity or 80%+ AI adoption across the org",
         badge: "Hyper Engineer",
         repos: "{count} repos",
+        identified: "Identified",
+        unidentified: "Unidentified (no linked GitHub account)",
       },
       repoList: {
         empty: "No repositories yet.",
@@ -1868,6 +1870,8 @@ export const translations = {
           "Contribuidores com alta velocidade ou 80%+ de adoção de IA na organização",
         badge: "Hyper Engineer",
         repos: "{count} repos",
+        identified: "Identificados",
+        unidentified: "Não identificados (sem conta do GitHub vinculada)",
       },
       repoList: {
         empty: "Nenhum repositório ainda.",
