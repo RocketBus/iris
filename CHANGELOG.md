@@ -8,6 +8,61 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.6.1 — Dashboard timeline and identity fixes (2026-08-27)
+
+### Fixed
+
+- **Org timeline chart drew a fake trend through weeks with no data**
+  (#183). The "Linha do tempo da organização" chart connected null values
+  across weeks with zero commits, drawing a slow, fake continuous ramp
+  across months of dead history instead of a gap. `connectNulls` removed
+  from both line series — a stretch of weeks with no data now renders as a
+  break in the line, not a bridge across it.
+
+- **Weekly AI-adoption % had no minimum sample size** (#189). A single
+  AI-tagged commit in an otherwise quiet week could swing that week's
+  reported AI adoption all the way to 100% (or 0%) — statistically
+  meaningless spikes that showed up as visible zigzag noise on the org
+  timeline. `origin_distribution` is now gated behind the same
+  `MIN_COMMITS_FOR_RATIO` floor `stabilization_ratio` already used.
+
+- **Org timeline chart shrank to ~1 week of history depending on the
+  window selector.** Every other dashboard panel is correctly scoped to
+  the selected window (7/15/30/60/90d), but the org timeline is weekly
+  *history*, not a point-in-time KPI — switching to a narrow window swapped
+  it to an analysis run whose stored payload only covered that narrow
+  lookback. It now always reads the widest window the org has data for,
+  independent of the page's window selector.
+
+- **The same contributor could show up as multiple separate "Hyper
+  Engineers."** Grouping was by commit-author display name, which varies
+  across repos/machines/time. Now grouped by the most authoritative
+  identity available — resolved GitHub username, then normalized email,
+  then display name as a last resort — and split into "Identified" (has a
+  linkable GitHub profile) and "Unidentified" groups instead of silently
+  mixing or hiding either.
+
+- **GitHub identity resolution missed real matches.** The CLI resolved a
+  commit email to a GitHub login via a `?author=<email>`-filtered API
+  query, which — verified against real data — misses matches that GitHub's
+  own commit-list endpoint resolves fine. Replaced with a bulk,
+  date-bounded scan of the repo's commit list (reading the login GitHub
+  already attaches to each commit) as the primary path, falling back to
+  the old per-email query only for stragglers.
+
+### Added
+
+- **Per-section streaming with Suspense on the dashboard home.** Each
+  panel now awaits only the data it needs and streams in independently
+  with its own skeleton, instead of the whole page blocking on the
+  slowest query.
+
+- **`--stale` filter for `scripts/list_active_repos.py`** — the inverse of
+  the existing activity filter: lists repos with no push in over N days,
+  for finding archival/cleanup candidates.
+
+---
+
 ## v1.6.0 — Self-healing attribution hooks (2026-08-26)
 
 ### Fixed
