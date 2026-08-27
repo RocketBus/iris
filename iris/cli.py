@@ -767,112 +767,12 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     push_ok: bool | None = None
     if will_push:
         import shutil
-        # Extract unique commit authors using GitHub API to resolve real names.
-        import re
-        import subprocess
 
-        def _gh_username(email: str) -> str | None:
-            """Extract GitHub username from noreply email."""
-            m = re.match(r"(?:\d+\+)?(.+)@users\.noreply\.github\.com$", email)
-            return m.group(1) if m else None
-
-        def _resolve_gh_name(username: str) -> str | None:
-            """Resolve GitHub username to real name via gh API."""
-            try:
-                r = subprocess.run(
-                    ["gh", "api", f"users/{username}", "-q", ".name"],
-                    capture_output=True, text=True, timeout=5,
-                )
-                if r.returncode == 0 and r.stdout.strip():
-                    return r.stdout.strip()
-            except (FileNotFoundError, subprocess.TimeoutExpired):
-                pass
-            return None
-
-        def _resolve_emails_via_repo(nwo: str, emails: set[str]) -> dict[str, str]:
-            """Resolve emails to GitHub logins using the repo's commit API."""
-            result: dict[str, str] = {}
-            for email in emails:
-                try:
-                    r = subprocess.run(
-                        ["gh", "api", f"repos/{nwo}/commits?author={email}&per_page=1",
-                         "-q", ".[0].author.login"],
-                        capture_output=True, text=True, timeout=10,
-                    )
-                    if r.returncode == 0 and r.stdout.strip():
-                        result[email] = r.stdout.strip()
-                except (FileNotFoundError, subprocess.TimeoutExpired):
-                    pass
-            return result
-
-        # Step 1: Collect all unique emails and resolve GitHub usernames
-        email_to_names: dict[str, set[str]] = {}
-        gh_usernames: set[str] = set()
-        email_gh_cache: dict[str, str] = {}  # email → github username
-
-        for c in commits:
-            email = (c.author_email or "").lower()
-            if email:
-                email_to_names.setdefault(email, set()).add(c.author)
-                gh = _gh_username(email)
-                if gh:
-                    gh_usernames.add(gh)
-                    email_gh_cache[email] = gh
-
-        # Resolve remaining emails via GitHub repo API
         from iris.ingestion.github_reader import detect_github_remote
+        from iris.platform.identity import resolve_active_users
+
         nwo = detect_github_remote(repo)
-        if nwo:
-            unresolved = {e for e in email_to_names if e not in email_gh_cache}
-            if unresolved:
-                repo_resolved = _resolve_emails_via_repo(nwo, unresolved)
-                for email, login in repo_resolved.items():
-                    email_gh_cache[email] = login
-                    gh_usernames.add(login)
-
-        # Step 2: Resolve GitHub usernames to real names
-        gh_name_cache: dict[str, str] = {}
-        for username in gh_usernames:
-            real_name = _resolve_gh_name(username)
-            if real_name:
-                gh_name_cache[username.lower()] = real_name
-
-        # Step 3: Build identity map — group by GitHub username or email local
-        identity_names: dict[str, str] = {}  # key → best name
-        identity_github: dict[str, str | None] = {}  # key → github username
-        for email, names in email_to_names.items():
-            gh = email_gh_cache.get(email)
-            key = (gh or email.split("@")[0]).lower()
-
-            # Best name: GitHub API name > longest git name
-            best = gh_name_cache.get(key) or max(names, key=len)
-            if key in identity_names:
-                # Keep the one with spaces (real name) or longest
-                old = identity_names[key]
-                if " " in best and " " not in old:
-                    identity_names[key] = best
-                elif len(best) > len(old):
-                    identity_names[key] = best
-            else:
-                identity_names[key] = best
-
-            # Track GitHub username for avatar
-            if gh and key not in identity_github:
-                identity_github[key] = gh
-
-        # Build active_users as objects with name + github username
-        active_users_list = []
-        seen_names: set[str] = set()
-        for key, name in sorted(identity_names.items(), key=lambda x: x[1]):
-            if name in seen_names:
-                continue
-            seen_names.add(name)
-            entry: dict[str, str] = {"name": name}
-            gh_user = identity_github.get(key)
-            if gh_user:
-                entry["github"] = gh_user
-            active_users_list.append(entry)
-        active_users = active_users_list
+        active_users = resolve_active_users(commits, nwo, args.days)
         if args.verbose:
             print("\n[verbose] Active Contributors → GitHub mapping:")
             for u in active_users:
