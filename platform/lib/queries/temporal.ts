@@ -378,36 +378,68 @@ export function detectChanges(
   return changes;
 }
 
-/** Detect changes across all repos in an org. */
+/**
+ * Detect changes across all repos in an org.
+ *
+ * Uses 2 bulk queries instead of an N+1 (one `metrics` query per repo,
+ * serialized): the `repo_metric_summaries` view already carries the latest
+ * and previous run's values for every repo in one pre-aggregated row (see
+ * 023_repo_metric_summaries_prev_values.sql), so this reads one row per
+ * repo instead of looping — mirroring the same fix getOrgReposSummary
+ * already applies against this view.
+ */
 export async function getOrgChangeDetections(
   supabase: SupabaseClient,
   organizationId: string,
   windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<ChangeDetection[]> {
+  // Query 1: all repos (for display names — the view only has repository_id).
   const { data: repos } = await supabase
     .from("repositories")
     .select("id, name")
     .eq("organization_id", organizationId);
 
-  if (!repos) return [];
+  if (!repos || repos.length === 0) return [];
+
+  // Query 2: pre-aggregated latest + previous values, one row per repo.
+  const { data: summaries } = await supabase
+    .from("repo_metric_summaries")
+    .select(
+      "repository_id, runs_count, last_run_at, stabilization_ratio, prev_stabilization_ratio, revert_rate, prev_revert_rate, churn_events, prev_churn_events, ai_detection_coverage_pct, prev_ai_detection_coverage_pct, prev_created_at",
+    )
+    .eq("organization_id", organizationId)
+    .eq("window_days", windowDays);
+
+  const summaryByRepo = new Map<
+    string,
+    NonNullable<typeof summaries>[number]
+  >();
+  for (const row of summaries ?? []) summaryByRepo.set(row.repository_id, row);
 
   const allChanges: ChangeDetection[] = [];
 
   for (const repo of repos) {
-    const { data: runs } = await supabase
-      .from("metrics")
-      .select(
-        "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
-      )
-      .eq("repository_id", repo.id)
-      .eq("window_days", windowDays)
-      .order("created_at", { ascending: false })
-      .limit(2);
+    const s = summaryByRepo.get(repo.id);
+    if (!s || s.runs_count < 2) continue;
 
-    if (!runs || runs.length < 2) continue;
-
-    const current: TimeSeriesPoint = { date: runs[0].created_at, ...runs[0] };
-    const previous: TimeSeriesPoint = { date: runs[1].created_at, ...runs[1] };
+    // commits_total isn't compared by detectChanges — left null rather than
+    // guessed at, since the view doesn't track a "previous" value for it.
+    const current: TimeSeriesPoint = {
+      date: s.last_run_at,
+      stabilization_ratio: s.stabilization_ratio,
+      revert_rate: s.revert_rate,
+      churn_events: s.churn_events,
+      commits_total: null,
+      ai_detection_coverage_pct: s.ai_detection_coverage_pct,
+    };
+    const previous: TimeSeriesPoint = {
+      date: s.prev_created_at,
+      stabilization_ratio: s.prev_stabilization_ratio,
+      revert_rate: s.prev_revert_rate,
+      churn_events: s.prev_churn_events,
+      commits_total: null,
+      ai_detection_coverage_pct: s.prev_ai_detection_coverage_pct,
+    };
 
     allChanges.push(...detectChanges(repo.name, repo.id, current, previous));
   }
