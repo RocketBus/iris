@@ -129,7 +129,7 @@ EN = {
     "finding_stabilization_high": (
         "Stabilization ratio is {ratio} — "
         "the majority of changes persisted without further modification. "
-        "This suggests durable delivery."
+        "Persistence indicates low rework, not verified correctness."
     ),
     "finding_revert_high": (
         "Revert rate is {rate} "
@@ -326,7 +326,7 @@ EN = {
         "Stabilization ratio per change type: "
         "Feature {feat_ratio}, Fix {fix_ratio}, Refactor {refactor_ratio}. "
         "Comparing stability across intents reveals which types of changes "
-        "produce durable outcomes and which require further iteration."
+        "are revisited soon after landing and which are not."
     ),
 
     # CLI
@@ -430,7 +430,7 @@ EN = {
     "trend_finding_stabilization_up": (
         "Stabilization improved by {delta}pp in the last {recent} days "
         "compared to the {baseline}-day baseline. "
-        "This suggests delivery is becoming more durable."
+        "Less of the recent code is being reworked."
     ),
     "trend_finding_churn_up": (
         "Churn rate increased by {delta}pp recently. "
@@ -1007,7 +1007,7 @@ PT_BR = {
     "finding_stabilization_high": (
         "A taxa de estabilização é {ratio} — "
         "a maioria das alterações persistiu sem modificação posterior. "
-        "Isso sugere entrega durável."
+        "Persistência indica pouco retrabalho, não correção verificada."
     ),
     "finding_revert_high": (
         "A taxa de revert é {rate} "
@@ -1206,7 +1206,7 @@ PT_BR = {
         "Taxa de estabilização por tipo de mudança: "
         "Feature {feat_ratio}, Fix {fix_ratio}, Refactor {refactor_ratio}. "
         "Comparar a estabilidade entre intenções revela quais tipos de mudanças "
-        "produzem resultados duráveis e quais requerem iteração adicional."
+        "são revisitadas logo após entrarem e quais não são."
     ),
 
     # CLI
@@ -1311,7 +1311,7 @@ PT_BR = {
     "trend_finding_stabilization_up": (
         "A estabilização melhorou {delta}pp nos últimos {recent} dias "
         "comparado à baseline de {baseline} dias. "
-        "Isso sugere que a entrega está se tornando mais durável."
+        "Menos do código recente está sendo retrabalhado."
     ),
     "trend_finding_churn_up": (
         "A taxa de churn aumentou {delta}pp recentemente. "

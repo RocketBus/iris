@@ -69,7 +69,7 @@ iris /path/to/repo --push
 ## Who It's For
 
 - **Engineering leaders** who need to understand AI's impact on delivery quality
-- **Platform teams** evaluating which AI tools produce the most durable code
+- **Platform teams** understanding how AI-assisted changes hold up after they land
 - **FinOps / compliance** preparing for EU AI Act requirements (August 2026)
 
 ---
