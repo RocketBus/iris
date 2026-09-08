@@ -30,10 +30,10 @@ All development should still trace back to the core question: **does this help u
 |---|---|---|
 | 0 | Signal Discovery | Complete — 30 analysis modules validated on 58 repos, 3.5k commits, 1.2k PRs |
 | 1 | Attribution & Adoption | Substantially complete — `prepare-commit-msg` hooks, `iris hook install`, co-author policy guide, CLI push with OAuth |
-| 2 | Intelligence Platform (MVP) | **Current** — Next.js + Supabase + NextAuth multi-tenant app ingesting real metrics via `POST /api/ingest`, dashboard + repos + compare views shipping |
-| 3 | Scale & Enterprise Readiness | Next — SSO, fine-grained RBAC, cross-system correlation (CI, incidents), anonymized benchmarking |
+| 2 | Intelligence Platform (MVP) | **Current** — Next.js + Supabase + NextAuth multi-tenant app ingesting real metrics via `POST /api/ingest`, dashboard + repos + compare views shipping; refinement ongoing |
+| 3 | Scale & Enterprise Readiness | **Opened 2026-05** with cross-system correlation (Datadog DORA events — CHANGELOG v1.0.6, `docs/PLAN-datadog.md`, ADR 2026-05-13 in `docs/DECISIONS.md`). Still pending: SSO, fine-grained RBAC, anonymized benchmarking |
 
-Work that lands should fit Stage 2 refinement or prepare Stage 3 — not re-open Stage 0 assumptions without justification.
+Work that lands should fit Stage 2 refinement or Stage 3's opened integration capability — not re-open Stage 0 assumptions without justification.
 
 ---
 
@@ -67,7 +67,7 @@ Do NOT introduce:
 - dashboard sprawl: each new view must tie to a validated insight, not a hypothetical user
 - microservices, event buses, or distributed queues in the platform
 - enterprise abstractions (RBAC matrix, policy engines, SCIM) before Stage 3 is opened
-- billing, webhooks, or external integrations (the original SaaS scaffold had these; they were intentionally removed)
+- billing and webhooks (the original SaaS scaffold had these; they were intentionally removed). Analytical data-source integrations (e.g. Datadog DORA events) are Stage 3 scope; the Datadog integration (#15, `docs/PLAN-datadog.md`) is the precedent for how one lands — issue and plan first, then code
 
 If unsure, choose the simpler implementation.
 

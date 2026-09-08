@@ -274,6 +274,31 @@ Keeping insights on disk artificially caps the audience and blocks the multi-rep
 
 ---
 
+## 2026-05-13 — Stage 3 Opens With Integration Capability Only
+
+*Recorded retroactively on 2026-09-08. The decision itself was taken and shipped with v1.0.6; this entry formalizes what `CHANGELOG.md` and `docs/PLAN-datadog.md` already state, so the repository's context files stop contradicting its shipped state.*
+
+### Decision
+
+Stage 3 ("Scale & Enterprise Readiness") is open as of v1.0.6, **scoped to one capability**: consuming analytical data sources for cross-system correlation — first instance, Datadog DORA events (#15). Every other Stage 3 item — SSO, fine-grained RBAC, SCIM, billing activation, webhooks, anonymized benchmarking — remains deferred and needs its own decision.
+
+### Context
+
+The 2026-04-12 entry above kept Stage 3 items as "explicit non-goals until Stage 3 is formally opened". `CHANGELOG.md` v1.0.6 (2026-05-13) announced "Stage 3 opens" with the Datadog DORA integration, and `docs/PLAN-datadog.md` described it as "the implicit opening of Stage 3 … only the integration capability". Neither the stage table nor the "external integrations" non-goal in `CLAUDE.md` was amended, so for four months the file every agent session loads instructed against work the project had already shipped.
+
+### Rationale
+
+Cross-system correlation (CI, incidents, deploys) is listed under Stage 3 in `CLAUDE.md` and is the natural next input for the durability signals the engine already produces. It does not require the enterprise abstractions (RBAC matrix, policy engine, SCIM) that motivated deferring the rest of Stage 3, so opening the stage narrowly keeps "avoid premature architecture" intact while ending the contradiction.
+
+### Consequences
+
+- `CLAUDE.md`: the stage table marks Stage 3 as opened (2026-05) with integration capability; the non-goal is reworded to "billing and webhooks", and analytical data-source integrations are named as Stage 3 scope.
+- The Datadog integration (#15 + `docs/PLAN-datadog.md`) is the precedent for how a data-source integration lands: issue and plan first, then code.
+- Does **not** open SSO, RBAC, SCIM, billing, webhooks or benchmarking.
+- Supersedes the "until Stage 3 is formally opened" clause of the 2026-04-12 entry for integration capability only; leaves that entry's other consequences intact.
+
+---
+
 ## 2026-06-11 — Vendor AI Telemetry Allowed Under Privacy-by-Construction (Revises Principle #7)
 
 ### Decision
