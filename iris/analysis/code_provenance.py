@@ -23,6 +23,8 @@ Key metrics:
 
 import re
 import subprocess
+
+from iris.shell import git_env
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -198,6 +200,7 @@ def _blame_file_ages(
             capture_output=True,
             text=True,
             timeout=BLAME_TIMEOUT_SECONDS,
+            env=git_env(),
         )
         if result.returncode != 0:
             return None

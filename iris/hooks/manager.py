@@ -27,6 +27,7 @@ import shutil
 import stat
 import subprocess
 import tempfile
+from iris.shell import git_env
 
 HOOK_NAME = "prepare-commit-msg"
 POST_COMMIT_HOOK_NAME = "post-commit"
@@ -130,6 +131,7 @@ def _git(repo_path: str, *args: str) -> str | None:
             capture_output=True,
             text=True,
             timeout=_PROBE_TIMEOUT_SECONDS,
+            env=git_env(),
         )
     except (OSError, subprocess.SubprocessError):
         return None

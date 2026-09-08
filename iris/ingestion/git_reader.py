@@ -11,6 +11,8 @@ Assumptions:
 
 import re
 import subprocess
+
+from iris.shell import git_env
 from datetime import datetime, timedelta, timezone
 
 from iris.models.commit import Commit, FileChange
@@ -78,6 +80,7 @@ def read_commits(
             capture_output=True,
             text=True,
             check=True,
+            env=git_env(),
         )
     except subprocess.CalledProcessError as exc:
         raise RuntimeError(f"git log failed for {repo_path}: {exc}\n{exc.stderr}") from exc
@@ -99,6 +102,7 @@ def _has_commits(repo_path: str) -> bool:
         ["git", "-C", repo_path, "rev-parse", "--verify", "--quiet", "HEAD"],
         capture_output=True,
         text=True,
+        env=git_env(),
     )
     if result.returncode == 0:
         return True
@@ -140,6 +144,7 @@ def read_pr_commits(
             capture_output=True,
             text=True,
             check=True,
+            env=git_env(),
         )
     except subprocess.CalledProcessError:
         return []

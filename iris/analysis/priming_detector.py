@@ -20,6 +20,8 @@ Known priming files (ordered by specificity):
 
 import os
 import subprocess
+
+from iris.shell import git_env
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -147,6 +149,7 @@ def _get_introduction_date(repo_path: str, file_path: str) -> datetime | None:
             capture_output=True,
             text=True,
             timeout=10,
+            env=git_env(),
         )
         if result.returncode != 0 or not result.stdout.strip():
             return None

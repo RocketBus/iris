@@ -21,6 +21,8 @@ Performance:
 
 import re
 import subprocess
+
+from iris.shell import git_env
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -255,6 +257,7 @@ def _run_blame(repo_path: str, file_path: str) -> list[str] | None:
             capture_output=True,
             text=True,
             timeout=BLAME_TIMEOUT_SECONDS,
+            env=git_env(),
         )
         if result.returncode != 0:
             return None
