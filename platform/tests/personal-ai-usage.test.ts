@@ -2,14 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 
 import {
+  aggregateAuthors,
+  buildIdentityCandidates,
   buildUsageTrend,
   getPersonalAIUsage,
+  matchUserAuthors,
+  type MatchedAuthor,
   type MetricRow,
 } from "@/lib/queries/personal-ai-usage";
 import type { ReportMetrics } from "@/types/metrics";
 
-const EMAIL = new Set(["dev@example.com"]);
-const NAME = new Set<string>();
+const ACCOUNT = { name: "Dev", email: "dev@example.com" };
+const CANDIDATES = buildIdentityCandidates(ACCOUNT);
 
 interface AuthorInput {
   name: string;
@@ -93,7 +97,31 @@ function fakeSupabase(tables: Record<string, unknown[]>): SupabaseClient {
 
 const ORGS = [{ id: "org-1", slug: "acme", name: "Acme" }];
 
-async function usageFor(authors: AuthorInput[]) {
+function authorsOf(authors: AuthorInput[]) {
+  return payloadWith(authors).author_velocity!.authors;
+}
+
+function matchesFor(
+  authors: AuthorInput[],
+  account: { name: string | null; email: string | null } = ACCOUNT,
+) {
+  return matchUserAuthors(
+    payloadWith(authors),
+    buildIdentityCandidates(account),
+  );
+}
+
+function matchOf(
+  author: AuthorInput,
+  matchedBy: "email" | "name" = "email",
+): MatchedAuthor {
+  return { author: authorsOf([author])[0], matchedBy };
+}
+
+async function usageFor(
+  authors: AuthorInput[],
+  account: { name: string | null; email: string | null } = ACCOUNT,
+) {
   const supabase = fakeSupabase({
     repositories: [{ id: "repo-1", name: "repo-a", organization_id: "org-1" }],
     metrics: [
@@ -106,11 +134,7 @@ async function usageFor(authors: AuthorInput[]) {
     ],
   });
 
-  return getPersonalAIUsage(
-    supabase,
-    { name: "Dev", email: "dev@example.com" },
-    ORGS,
-  );
+  return getPersonalAIUsage(supabase, account, ORGS);
 }
 
 describe("getPersonalAIUsage identity aggregation", () => {
@@ -236,7 +260,7 @@ describe("buildUsageTrend", () => {
       ],
     ]);
 
-    const trend = buildUsageTrend(rowsPerRepo, EMAIL, NAME);
+    const trend = buildUsageTrend(rowsPerRepo, CANDIDATES);
 
     expect(trend.map((t) => t.date)).toEqual(["2026-05-25", "2026-07-27"]);
     expect(trend[0].aiCommitPct).toBeCloseTo(25);
@@ -259,7 +283,7 @@ describe("buildUsageTrend", () => {
       ],
     ]);
 
-    const trend = buildUsageTrend(rowsPerRepo, EMAIL, NAME);
+    const trend = buildUsageTrend(rowsPerRepo, CANDIDATES);
 
     expect(trend).toHaveLength(1);
     expect(trend[0].aiCommitPct).toBeCloseTo(90);
@@ -285,7 +309,7 @@ describe("buildUsageTrend", () => {
       ],
     ]);
 
-    const trend = buildUsageTrend(rowsPerRepo, EMAIL, NAME);
+    const trend = buildUsageTrend(rowsPerRepo, CANDIDATES);
 
     expect(trend).toHaveLength(1);
     expect(trend[0].repos).toBe(2);
@@ -304,7 +328,7 @@ describe("buildUsageTrend", () => {
       ],
     ]);
 
-    const trend = buildUsageTrend(rowsPerRepo, EMAIL, NAME);
+    const trend = buildUsageTrend(rowsPerRepo, CANDIDATES);
 
     expect(trend[0].aiCommitPct).toBeNull();
   });
@@ -332,7 +356,7 @@ describe("buildUsageTrend", () => {
       ],
     ]);
 
-    const trend = buildUsageTrend(rowsPerRepo, EMAIL, new Set(["dev"]));
+    const trend = buildUsageTrend(rowsPerRepo, CANDIDATES);
 
     expect(trend).toHaveLength(1);
     expect(trend[0].aiCommitPct).toBeCloseTo(90);
@@ -371,9 +395,313 @@ describe("buildUsageTrend", () => {
       ],
     ]);
 
-    const trend = buildUsageTrend(rowsPerRepo, EMAIL, new Set(["dev"]));
+    const trend = buildUsageTrend(rowsPerRepo, CANDIDATES);
 
     expect(trend).toHaveLength(1);
     expect(trend[0].aiCommitPct).toBeCloseTo(100);
+  });
+});
+
+describe("buildIdentityCandidates", () => {
+  it("splits the account email into an exact tier and a weaker local-part tier", () => {
+    const candidates = buildIdentityCandidates({
+      name: "Dev Real Name",
+      email: "dev@example.com",
+    });
+
+    expect([...candidates.emails]).toEqual(["dev@example.com"]);
+    expect([...candidates.names]).toEqual(["dev real name"]);
+    expect([...candidates.emailLocalParts]).toEqual(["dev"]);
+  });
+
+  it("normalizes case and surrounding whitespace on every tier", () => {
+    const candidates = buildIdentityCandidates({
+      name: "  Dev Real Name  ",
+      email: "  DEV@Example.COM  ",
+    });
+
+    expect(candidates.emails.has("dev@example.com")).toBe(true);
+    expect(candidates.names.has("dev real name")).toBe(true);
+    expect(candidates.emailLocalParts.has("dev")).toBe(true);
+  });
+
+  it("omits the local-part tier for an account with no email", () => {
+    const candidates = buildIdentityCandidates({ name: "Dev", email: null });
+
+    expect(candidates.emails.size).toBe(0);
+    expect(candidates.emailLocalParts.size).toBe(0);
+    expect([...candidates.names]).toEqual(["dev"]);
+  });
+
+  it("derives no local part from an email with an empty local part", () => {
+    const candidates = buildIdentityCandidates({
+      name: null,
+      email: "@example.com",
+    });
+
+    expect(candidates.emailLocalParts.size).toBe(0);
+  });
+
+  it("yields three empty tiers for an account with neither name nor email", () => {
+    const candidates = buildIdentityCandidates({ name: null, email: null });
+
+    expect(candidates.emails.size).toBe(0);
+    expect(candidates.names.size).toBe(0);
+    expect(candidates.emailLocalParts.size).toBe(0);
+  });
+});
+
+describe("matchUserAuthors identity tiers", () => {
+  it("matches on email whatever display name the author committed under", () => {
+    const matches = matchesFor([
+      { name: "codermarcos", email: "dev@example.com", total_commits: 12 },
+    ]);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedBy).toBe("email");
+  });
+
+  it("matches emails case-insensitively and ignoring whitespace", () => {
+    const matches = matchesFor([
+      { name: "Someone Else", email: "  DEV@Example.COM ", total_commits: 3 },
+    ]);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedBy).toBe("email");
+  });
+
+  it("keeps an author with no email out of the email tier", () => {
+    const matches = matchesFor([{ name: "Dev", total_commits: 5 }]);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedBy).toBe("name");
+  });
+
+  it("collects the second identity by name alongside the email match (issue #193)", () => {
+    const matches = matchesFor([
+      { name: "Dev", email: "dev@company.example", total_commits: 183 },
+      { name: "Dev", email: "dev@example.com", total_commits: 1 },
+    ]);
+
+    expect(matches).toHaveLength(2);
+    expect(matches.map((entry) => entry.matchedBy)).toEqual(["name", "email"]);
+  });
+
+  it("counts an author once when it satisfies more than one tier", () => {
+    // The account name and the account email local part are both "dev" here,
+    // and the row also carries the account email — three ways in, one row out.
+    const matches = matchesFor([
+      { name: "Dev", email: "dev@example.com", total_commits: 9 },
+    ]);
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedBy).toBe("email");
+  });
+
+  it("absorbs a namesake sharing the display name — the deliberate cost of the name tier", () => {
+    // Issue #193 forces this: the account carries a single email, so a user's
+    // second git identity is only ever recoverable by display name, and a real
+    // namesake is indistinguishable from it. The row is reported as a "name"
+    // match so the UI can warn. This test pins the trade-off rather than
+    // pretending it does not exist — when the account starts carrying every
+    // verified git email, the expectation here should flip to one match.
+    const matches = matchesFor([
+      { name: "Dev", email: "dev@example.com", total_commits: 40 },
+      {
+        name: "Dev",
+        email: "a-different-person@example.com",
+        total_commits: 900,
+      },
+    ]);
+
+    expect(matches).toHaveLength(2);
+    expect(matches[1].matchedBy).toBe("name");
+  });
+
+  it("ignores the email local part once any row matched on email", () => {
+    // "dev" as a git user.name is a coin flip between the account holder and a
+    // deploy bot. With the account email already anchoring this repo, the guess
+    // buys nothing and can only over-attribute.
+    const matches = matchesFor(
+      [
+        { name: "Dev Real Name", email: "dev@example.com", total_commits: 20 },
+        { name: "dev", email: "ci-bot@example.com", total_commits: 5000 },
+      ],
+      { name: "Dev Real Name", email: "dev@example.com" },
+    );
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].author.email).toBe("dev@example.com");
+  });
+
+  it("still matches the email local part when no row matched on email", () => {
+    // Without an anchor the guess is the difference between a fallback and an
+    // empty page, which is the case it was added for.
+    const matches = matchesFor(
+      [{ name: "dev", email: "legacy@example.com", total_commits: 30 }],
+      { name: "Dev Real Name", email: "dev@example.com" },
+    );
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].matchedBy).toBe("name");
+  });
+
+  it("reports a local-part match as a name match, never as an email match", () => {
+    const matches = matchesFor([{ name: "dev", total_commits: 30 }], {
+      name: "Dev Real Name",
+      email: "dev@example.com",
+    });
+
+    expect(matches[0].matchedBy).toBe("name");
+  });
+
+  it("returns nothing for a null payload", () => {
+    expect(matchUserAuthors(null, CANDIDATES)).toEqual([]);
+  });
+
+  it("returns nothing when the payload carries no author velocity", () => {
+    expect(matchUserAuthors({} as ReportMetrics, CANDIDATES)).toEqual([]);
+  });
+
+  it("returns nothing when no tier matches any author", () => {
+    expect(
+      matchesFor([{ name: "Other Dev", email: "other@example.com" }]),
+    ).toEqual([]);
+  });
+});
+
+describe("aggregateAuthors weighting", () => {
+  it("returns null for an empty match list", () => {
+    expect(aggregateAuthors([])).toBeNull();
+  });
+
+  it("reproduces a lone identity's share exactly when it has no commit count", () => {
+    const usage = aggregateAuthors([
+      matchOf({ name: "Dev", ai_commit_pct: 40 }),
+    ]);
+
+    expect(usage!.aiCommitPct).toBeCloseTo(40, 10);
+    expect(usage!.totalCommits).toBe(0);
+  });
+
+  it("collapses several uncounted identities to the plain mean", () => {
+    const usage = aggregateAuthors([
+      matchOf({ name: "Dev", ai_commit_pct: 40 }),
+      matchOf({ name: "Dev", ai_commit_pct: 60 }, "name"),
+    ]);
+
+    expect(usage!.aiCommitPct).toBeCloseTo(50, 10);
+  });
+
+  it("never yields NaN when every identity reports zero commits", () => {
+    // The floor of 1 per identity is what keeps the denominator alive here.
+    // A bare weighted mean would divide 0 by 0 and render "NaN%" to the user.
+    const usage = aggregateAuthors([
+      matchOf({ name: "Dev", total_commits: 0, ai_commit_pct: 40 }),
+      matchOf({ name: "Dev", total_commits: 0, ai_commit_pct: 60 }, "name"),
+    ]);
+
+    expect(Number.isFinite(usage!.aiCommitPct)).toBe(true);
+    expect(usage!.aiCommitPct).toBeCloseTo(50, 10);
+    expect(usage!.totalCommits).toBe(0);
+  });
+
+  it("mixes counted and uncounted identities without losing the counted one", () => {
+    const usage = aggregateAuthors([
+      matchOf({ name: "Dev", total_commits: 99, ai_commit_pct: 100 }),
+      matchOf({ name: "Dev", ai_commit_pct: 0 }, "name"),
+    ]);
+
+    // The uncounted identity weighs 1 against 99, not 50/50.
+    expect(usage!.aiCommitPct).toBeCloseTo(99, 10);
+    expect(usage!.totalCommits).toBe(99);
+  });
+
+  it("keeps totalCommits as the reported sum, not the floored weights", () => {
+    const usage = aggregateAuthors([
+      matchOf({ name: "Dev", ai_commit_pct: 10 }),
+      matchOf({ name: "Dev", ai_commit_pct: 20 }, "name"),
+      matchOf({ name: "Dev", ai_commit_pct: 30 }, "name"),
+    ]);
+
+    expect(usage!.totalCommits).toBe(0);
+  });
+
+  it("takes the maximum high-velocity weeks and degrades matchedBy to name", () => {
+    const usage = aggregateAuthors([
+      matchOf({ name: "Dev", total_commits: 10, high_velocity_weeks: 3 }),
+      matchOf(
+        { name: "Dev", total_commits: 5, high_velocity_weeks: 2 },
+        "name",
+      ),
+    ]);
+
+    expect(usage!.highVelocityWeeks).toBe(3);
+    expect(usage!.matchedBy).toBe("name");
+  });
+
+  it("records a missing author email as null in the identity list", () => {
+    const usage = aggregateAuthors([matchOf({ name: "Dev" }, "name")]);
+
+    expect(usage!.identities).toEqual([{ name: "Dev", email: null }]);
+  });
+});
+
+describe("trend and table agree on identity", () => {
+  it("excludes from the trend the same local-part identity the table excludes", () => {
+    // A divergence here would be the worst kind of bug on this page: a chart
+    // that disagrees with the row printed right above it.
+    const authors: AuthorInput[] = [
+      {
+        name: "Dev Real Name",
+        email: "dev@example.com",
+        total_commits: 10,
+        ai_commit_pct: 100,
+        weekly: [{ week_start: "2026-07-27", commits: 10, ai_commits: 10 }],
+      },
+      {
+        name: "dev",
+        email: "ci-bot@example.com",
+        total_commits: 90,
+        ai_commit_pct: 0,
+        weekly: [{ week_start: "2026-07-27", commits: 90, ai_commits: 0 }],
+      },
+    ];
+    const account = { name: "Dev Real Name", email: "dev@example.com" };
+
+    const trend = buildUsageTrend(
+      new Map([["repo-1", [multiIdentityRow(authors)]]]),
+      buildIdentityCandidates(account),
+    );
+
+    expect(trend).toHaveLength(1);
+    expect(trend[0].aiCommitPct).toBeCloseTo(100);
+  });
+
+  it("keeps the table and the trend on the same identities end to end", async () => {
+    const usage = await usageFor(
+      [
+        {
+          name: "Dev Real Name",
+          email: "dev@example.com",
+          total_commits: 10,
+          ai_commit_pct: 100,
+          weekly: [{ week_start: "2026-07-27", commits: 10, ai_commits: 10 }],
+        },
+        {
+          name: "dev",
+          email: "ci-bot@example.com",
+          total_commits: 90,
+          ai_commit_pct: 0,
+          weekly: [{ week_start: "2026-07-27", commits: 90, ai_commits: 0 }],
+        },
+      ],
+      { name: "Dev Real Name", email: "dev@example.com" },
+    );
+
+    expect(usage.perRepo[0].totalCommits).toBe(10);
+    expect(usage.perRepo[0].aiCommitPct).toBeCloseTo(100);
+    expect(usage.perRepo[0].matchedBy).toBe("email");
+    expect(usage.trend[0].aiCommitPct).toBeCloseTo(100);
   });
 });

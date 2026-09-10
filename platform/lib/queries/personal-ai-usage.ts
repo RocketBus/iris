@@ -20,6 +20,24 @@ export interface AuthorIdentity {
   email: string | null;
 }
 
+/**
+ * The three tiers of evidence that an author row belongs to the current user,
+ * strongest first.
+ *
+ * `emails` is the only tier git itself guarantees: it deduplicates authors by
+ * email and the engine preserves it on every row. `names` is the account's
+ * declared display name — good enough to catch a second git identity, but a
+ * namesake shares it. `emailLocalParts` is a guess derived from the account
+ * email (`dev` out of `dev@example.com`) and is the weakest of all: generic
+ * local parts collide with bots and service accounts, so it is consulted only
+ * for payloads where no row matched on email at all.
+ */
+export interface UserIdentityCandidates {
+  emails: Set<string>;
+  names: Set<string>;
+  emailLocalParts: Set<string>;
+}
+
 export interface PerRepoUsage {
   organizationSlug: string;
   organizationName: string;
@@ -72,12 +90,12 @@ type PayloadAuthor = NonNullable<
   ReportMetrics["author_velocity"]
 >["authors"][number];
 
-interface MatchedAuthor {
+export interface MatchedAuthor {
   author: PayloadAuthor;
   matchedBy: "email" | "name";
 }
 
-interface AggregatedUsage {
+export interface AggregatedUsage {
   totalCommits: number;
   aiCommitPct: number;
   highVelocityWeeks: number;
@@ -96,6 +114,28 @@ function nameKey(value: string): string {
 }
 
 /**
+ * Build the candidate sets for one account, split by how much each signal can
+ * be trusted. See {@link UserIdentityCandidates}.
+ */
+export function buildIdentityCandidates(user: {
+  name: string | null;
+  email: string | null;
+}): UserIdentityCandidates {
+  const emails = new Set<string>();
+  const names = new Set<string>();
+  const emailLocalParts = new Set<string>();
+
+  if (user.email) {
+    emails.add(nameKey(user.email));
+    const localPart = user.email.split("@")[0];
+    if (localPart) emailLocalParts.add(nameKey(localPart));
+  }
+  if (user.name) names.add(nameKey(user.name));
+
+  return { emails, names, emailLocalParts };
+}
+
+/**
  * Every author row in `payload` that belongs to the current user.
  *
  * One person routinely commits under more than one git identity in the same
@@ -105,27 +145,47 @@ function nameKey(value: string): string {
  * come first, so a one-commit identity can hide a several-hundred-commit one
  * and report 0% AI for an otherwise fully AI-assisted repo (issue #193).
  *
- * Email is the reliable signal — git deduplicates authors by email and the
- * engine preserves it on every row. A display-name hit still counts, so users
- * whose account email covers none of their git identities are not left empty,
- * but it is reported back so callers can warn that it may be a namesake.
+ * Because the account carries a single email, that second identity can only
+ * ever be recovered by display name, so a name hit has to count alongside an
+ * email hit rather than only when the email finds nothing. The cost is that a
+ * true namesake in the same repo is absorbed into the user's row; the match is
+ * reported back as `"name"` so callers can warn about it.
+ *
+ * The email local part does not get that latitude. It is a guess, not a
+ * declared identity, and once some row in this payload has matched on email we
+ * have a real anchor for the user in this repo — so the local-part tier runs
+ * only for payloads with no email match at all, where it is the difference
+ * between a fallback and an empty page.
  */
-function matchUserAuthors(
+export function matchUserAuthors(
   payload: ReportMetrics | null,
-  emailCandidates: Set<string>,
-  nameCandidates: Set<string>,
+  candidates: UserIdentityCandidates,
 ): MatchedAuthor[] {
   const authors = payload?.author_velocity?.authors;
   if (!authors) return [];
 
   const matched: MatchedAuthor[] = [];
+  let anchoredByEmail = false;
+
   for (const author of authors) {
-    if (author.email && emailCandidates.has(nameKey(author.email))) {
+    if (author.email && candidates.emails.has(nameKey(author.email))) {
       matched.push({ author, matchedBy: "email" });
-    } else if (nameCandidates.has(nameKey(author.name))) {
+      anchoredByEmail = true;
+    } else if (candidates.names.has(nameKey(author.name))) {
       matched.push({ author, matchedBy: "name" });
     }
   }
+
+  if (anchoredByEmail) return matched;
+
+  const alreadyMatched = new Set(matched.map((entry) => entry.author));
+  for (const author of authors) {
+    if (alreadyMatched.has(author)) continue;
+    if (candidates.emailLocalParts.has(nameKey(author.name))) {
+      matched.push({ author, matchedBy: "name" });
+    }
+  }
+
   return matched;
 }
 
@@ -134,9 +194,12 @@ function matchUserAuthors(
  * per-repo table shows.
  *
  * `aiCommitPct` is weighted by commit count so a stray one-commit identity
- * cannot drag the share of a large one down. Payloads from iris < 1.0.2 carry
- * no `total_commits`, which leaves every weight at zero — those fall back to
- * the plain mean, matching what a single-author match used to display.
+ * cannot drag the share of a large one down. Each identity weighs at least 1:
+ * payloads from iris < 1.0.2 carry no `total_commits`, and a floor keeps them
+ * on the same formula instead of a second code path — one such identity
+ * reproduces its own share exactly, several collapse to the plain mean, and
+ * the denominator can never reach zero. `totalCommits` stays the honest sum of
+ * what the payload actually reported, so those rows still show 0 commits.
  *
  * `highVelocityWeeks` takes the maximum rather than the sum: the engine counts
  * weeks, and the same calendar week can appear under two identities. Summing
@@ -147,21 +210,24 @@ function matchUserAuthors(
  * any part of the row rests on a display-name match, the whole row carries the
  * weaker guarantee and the UI should say so.
  */
-function aggregateAuthors(matches: MatchedAuthor[]): AggregatedUsage | null {
+export function aggregateAuthors(
+  matches: MatchedAuthor[],
+): AggregatedUsage | null {
   if (matches.length === 0) return null;
 
   let totalCommits = 0;
+  let weightSum = 0;
   let weightedPctSum = 0;
-  let plainPctSum = 0;
   let highVelocityWeeks = 0;
   let everyMatchByEmail = true;
   const identities: AuthorIdentity[] = [];
 
   for (const { author, matchedBy } of matches) {
     const commits = author.total_commits ?? 0;
+    const weight = Math.max(commits, 1);
     totalCommits += commits;
-    weightedPctSum += author.ai_commit_pct * commits;
-    plainPctSum += author.ai_commit_pct;
+    weightSum += weight;
+    weightedPctSum += author.ai_commit_pct * weight;
     highVelocityWeeks = Math.max(highVelocityWeeks, author.high_velocity_weeks);
     if (matchedBy === "name") everyMatchByEmail = false;
     identities.push({ name: author.name, email: author.email ?? null });
@@ -169,10 +235,7 @@ function aggregateAuthors(matches: MatchedAuthor[]): AggregatedUsage | null {
 
   return {
     totalCommits,
-    aiCommitPct:
-      totalCommits > 0
-        ? weightedPctSum / totalCommits
-        : plainPctSum / matches.length,
+    aiCommitPct: weightedPctSum / weightSum,
     highVelocityWeeks,
     matchedBy: everyMatchByEmail ? "email" : "name",
     identities,
@@ -221,8 +284,7 @@ function mergeWeeklyAcrossIdentities(
 // no AI share for those weeks.
 export function buildUsageTrend(
   rowsPerRepo: Map<string, MetricRow[]>,
-  emailCandidates: Set<string>,
-  nameCandidates: Set<string>,
+  candidates: UserIdentityCandidates,
 ): UsageTrendPoint[] {
   type WeekBucket = {
     commits: number;
@@ -239,11 +301,7 @@ export function buildUsageTrend(
     // skipped.
     const seenWeeks = new Set<string>();
     for (const row of rows) {
-      const matches = matchUserAuthors(
-        row.payload,
-        emailCandidates,
-        nameCandidates,
-      );
+      const matches = matchUserAuthors(row.payload, candidates);
       if (matches.length === 0) continue;
 
       for (const [weekStart, totals] of mergeWeeklyAcrossIdentities(matches)) {
@@ -292,18 +350,14 @@ export async function getPersonalAIUsage(
 
   if (orgs.length === 0) return empty;
 
-  // Email match is the reliable identity. Name match is a fallback for
-  // older payloads (pre-email field) and unusual cases.
-  const emailCandidates = new Set<string>();
-  if (user.email) emailCandidates.add(nameKey(user.email));
-
-  const nameCandidates = new Set<string>();
-  if (user.name) nameCandidates.add(nameKey(user.name));
-  if (user.email) {
-    const localPart = user.email.split("@")[0];
-    if (localPart) nameCandidates.add(nameKey(localPart));
+  const candidates = buildIdentityCandidates(user);
+  if (
+    candidates.emails.size === 0 &&
+    candidates.names.size === 0 &&
+    candidates.emailLocalParts.size === 0
+  ) {
+    return empty;
   }
-  if (emailCandidates.size === 0 && nameCandidates.size === 0) return empty;
 
   const orgIds = orgs.map((o) => o.id);
   const orgIndex = new Map(orgs.map((o) => [o.id, o]));
@@ -346,9 +400,7 @@ export async function getPersonalAIUsage(
 
   for (const [repoId, rows] of rowsPerRepo) {
     const row = rows[0]; // newest row — summary table shows current snapshot only.
-    const usage = aggregateAuthors(
-      matchUserAuthors(row.payload, emailCandidates, nameCandidates),
-    );
+    const usage = aggregateAuthors(matchUserAuthors(row.payload, candidates));
     if (!usage) continue;
     const repo = repoIndex.get(repoId);
     const org = orgIndex.get(row.organization_id);
@@ -371,7 +423,7 @@ export async function getPersonalAIUsage(
     if (usage.highVelocityWeeks > maxHv) maxHv = usage.highVelocityWeeks;
   }
 
-  const trend = buildUsageTrend(rowsPerRepo, emailCandidates, nameCandidates);
+  const trend = buildUsageTrend(rowsPerRepo, candidates);
 
   perRepo.sort((a, b) => b.aiCommitPct - a.aiCommitPct);
 
