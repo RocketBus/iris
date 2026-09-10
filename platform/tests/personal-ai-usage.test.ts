@@ -534,6 +534,48 @@ describe("matchUserAuthors identity tiers", () => {
     expect(matches[0].author.email).toBe("dev@example.com");
   });
 
+  it("ignores the email local part once a display name anchored the user", () => {
+    // An email anchor is not the only kind. A display-name hit already proves
+    // the user is present in this repo, so the weakest tier has nothing left
+    // to contribute and can only pull the bot in.
+    const matches = matchesFor(
+      [
+        {
+          name: "Dev Real Name",
+          email: "personal@example.com",
+          total_commits: 20,
+        },
+        { name: "dev", email: "ci-bot@example.com", total_commits: 5000 },
+      ],
+      { name: "Dev Real Name", email: "dev@example.com" },
+    );
+
+    expect(matches).toHaveLength(1);
+    expect(matches[0].author.email).toBe("personal@example.com");
+    expect(matches[0].matchedBy).toBe("name");
+  });
+
+  it("runs the email local part only when no other tier placed the user", () => {
+    // The strict reading of "last resort": the tier is reachable only from an
+    // otherwise empty match set.
+    const anchored = matchesFor(
+      [
+        { name: "Dev Real Name", total_commits: 1 },
+        { name: "dev", total_commits: 5000 },
+      ],
+      { name: "Dev Real Name", email: "dev@example.com" },
+    );
+    const unanchored = matchesFor([{ name: "dev", total_commits: 5000 }], {
+      name: "Dev Real Name",
+      email: "dev@example.com",
+    });
+
+    expect(anchored).toHaveLength(1);
+    expect(anchored[0].author.name).toBe("Dev Real Name");
+    expect(unanchored).toHaveLength(1);
+    expect(unanchored[0].author.name).toBe("dev");
+  });
+
   it("still matches the email local part when no row matched on email", () => {
     // Without an anchor the guess is the difference between a fallback and an
     // empty page, which is the case it was added for.

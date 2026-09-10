@@ -152,10 +152,12 @@ export function buildIdentityCandidates(user: {
  * reported back as `"name"` so callers can warn about it.
  *
  * The email local part does not get that latitude. It is a guess, not a
- * declared identity, and once some row in this payload has matched on email we
- * have a real anchor for the user in this repo — so the local-part tier runs
- * only for payloads with no email match at all, where it is the difference
- * between a fallback and an empty page.
+ * declared identity, so it is a last resort in the strict sense: it runs only
+ * when neither tier above placed the user in this payload at all, where it is
+ * the difference between a fallback and an empty page. Any anchor suppresses
+ * it — a display-name hit proves the user is present in this repo just as an
+ * email hit does, and past that point the guess can only over-attribute a bot
+ * or a service account whose git name happens to be a generic local part.
  */
 export function matchUserAuthors(
   payload: ReportMetrics | null,
@@ -165,22 +167,17 @@ export function matchUserAuthors(
   if (!authors) return [];
 
   const matched: MatchedAuthor[] = [];
-  let anchoredByEmail = false;
-
   for (const author of authors) {
     if (author.email && candidates.emails.has(nameKey(author.email))) {
       matched.push({ author, matchedBy: "email" });
-      anchoredByEmail = true;
     } else if (candidates.names.has(nameKey(author.name))) {
       matched.push({ author, matchedBy: "name" });
     }
   }
 
-  if (anchoredByEmail) return matched;
+  if (matched.length > 0) return matched;
 
-  const alreadyMatched = new Set(matched.map((entry) => entry.author));
   for (const author of authors) {
-    if (alreadyMatched.has(author)) continue;
     if (candidates.emailLocalParts.has(nameKey(author.name))) {
       matched.push({ author, matchedBy: "name" });
     }
@@ -200,6 +197,14 @@ export function matchUserAuthors(
  * reproduces its own share exactly, several collapse to the plain mean, and
  * the denominator can never reach zero. `totalCommits` stays the honest sum of
  * what the payload actually reported, so those rows still show 0 commits.
+ *
+ * The floor treats a missing `total_commits` and a reported zero alike, which
+ * is safe because the engine emits an author row only for an author it counted
+ * at least one commit for: `compute_author_velocity` sums the row's total from
+ * its weekly buckets, and a bucket exists only where a commit landed. A weight
+ * of zero therefore always means "field absent", never "this person committed
+ * nothing". Should that invariant ever change, splitting the two cases has to
+ * come with a guard for an all-zero denominator.
  *
  * `highVelocityWeeks` takes the maximum rather than the sum: the engine counts
  * weeks, and the same calendar week can appear under two identities. Summing
