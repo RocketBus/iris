@@ -73,6 +73,25 @@ def test_divergences_come_back_sorted_by_path():
     assert [d.path for d in compare_metrics(a, b)] == ["a", "z"]
 
 
+def test_bool_against_equal_int_is_a_divergence():
+    # True == 1 in Python, but a bool-vs-int flip is a real type change in JSON.
+    assert compare_metrics({"commit_metrics_reliable": True}, {"commit_metrics_reliable": 1}) == [
+        Divergence(path="commit_metrics_reliable", expected=True, found=1)
+    ]
+
+
+def test_int_against_equal_float_is_a_divergence():
+    # 1 == 1.0 in Python, but json.loads("1") is an int and json.loads("1.0") a float.
+    assert compare_metrics({"commits_total": 1}, {"commits_total": 1.0}) == [
+        Divergence(path="commits_total", expected=1, found=1.0)
+    ]
+
+
+def test_equal_value_and_type_still_reports_nothing():
+    payload = {"commits_total": 2, "commit_metrics_reliable": True, "survival_rate": 0.5}
+    assert compare_metrics(payload, dict(payload)) == []
+
+
 def test_ignored_exact_path_is_not_reported():
     ignored = {"commits_total": "test reason"}
     assert compare_metrics({"commits_total": 2}, {"commits_total": 3}, ignored=ignored) == []

@@ -71,6 +71,10 @@ def flatten_metrics(payload: Any, prefix: str = "") -> dict[str, Any]:
     leaf. An empty container becomes a leaf itself — without this, `{}` and
     "missing key" would be indistinguishable, and a section that vanished
     would go unnoticed.
+
+    Assumes keys contain neither `.` nor `[` — a key that did would collide
+    with a nested path (`{"a": {"b": 1}}` and `{"a.b": 1}` flatten to the
+    same `a.b`), silently keeping only one of the two.
     """
     if isinstance(payload, dict) and payload:
         flat: dict[str, Any] = {}
@@ -128,7 +132,10 @@ def compare_metrics(
             continue
         left = flat_a.get(path, MISSING)
         right = flat_b.get(path, MISSING)
-        if left != right:
+        # Type-strict: `True == 1` and `1 == 1.0` in Python, but a type change
+        # is a real change in the emitted JSON (json.loads("0") is an int,
+        # json.loads("0.0") is a float) and this comparator's job is to catch it.
+        if type(left) is not type(right) or left != right:
             divergences.append(Divergence(path=path, expected=left, found=right))
     return divergences
 
