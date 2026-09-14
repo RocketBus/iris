@@ -178,3 +178,27 @@ def test_cli_exits_two_when_a_file_is_missing(tmp_path):
     )
     assert result.returncode == 2
     assert "nope.json" in result.stderr
+
+
+def test_cli_exits_two_when_a_path_is_a_directory(tmp_path):
+    a = _write(tmp_path / "a.json", {"commits_total": 2})
+    directory = tmp_path / "a_directory"
+    directory.mkdir()
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(directory)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert result.stderr.strip()
+
+
+def test_cli_exits_two_on_non_utf8_bytes(tmp_path):
+    a = _write(tmp_path / "a.json", {"commits_total": 2})
+    bad = tmp_path / "bad.bin"
+    bad.write_bytes(b"\xff\xfe\x00bad")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(bad)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert result.stderr.strip()

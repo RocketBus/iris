@@ -14,7 +14,8 @@ Usage:
 Exit codes:
     0 — identical (discounting the ignore list)
     1 — divergent; each key is printed with both sides
-    2 — usage error: missing file or invalid JSON
+    2 — usage error: unreadable file (missing, a directory, unreadable
+        permissions) or content that is not valid JSON text
 """
 
 from __future__ import annotations
@@ -36,11 +37,11 @@ from iris.reports.metrics_diff import (  # noqa: E402
 def _load(path: Path) -> object:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        print(f"file not found: {path}", file=sys.stderr)
+    except OSError as exc:
+        print(f"cannot read {path}: {exc}", file=sys.stderr)
         raise SystemExit(2)
-    except json.JSONDecodeError as exc:
-        print(f"invalid JSON in {path}: {exc}", file=sys.stderr)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        print(f"cannot parse {path} as JSON: {exc}", file=sys.stderr)
         raise SystemExit(2)
 
 
