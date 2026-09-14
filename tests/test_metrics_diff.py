@@ -93,3 +93,69 @@ def test_ignore_list_ships_empty():
     # Measured: two engine runs on the same commit do not diverge on any key.
     # A new entry here requires proof of drift from a real run.
     assert IGNORED_PATHS == {}
+
+
+import json
+import subprocess
+
+from iris.reports.metrics_diff import format_divergences
+
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "compare_metrics.py"
+
+
+def test_format_is_empty_when_there_is_nothing_to_report():
+    assert format_divergences([]) == ""
+
+
+def test_format_names_the_path_and_both_sides():
+    out = format_divergences(
+        [Divergence(path="commits_total", expected=2, found=3)]
+    )
+    assert "commits_total" in out
+    assert "2" in out
+    assert "3" in out
+
+
+def test_format_renders_the_missing_sentinel_readably():
+    out = format_divergences(
+        [Divergence(path="durability_files_analyzed", expected=4, found=MISSING)]
+    )
+    assert "<missing>" in out
+
+
+def _write(path: Path, payload: dict) -> Path:
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def test_cli_exits_zero_on_identical_files(tmp_path):
+    payload = {"commits_total": 2}
+    a = _write(tmp_path / "a.json", payload)
+    b = _write(tmp_path / "b.json", payload)
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(b)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0
+    assert "identic" in result.stdout.lower()
+
+
+def test_cli_exits_one_and_names_the_key_on_divergence(tmp_path):
+    a = _write(tmp_path / "a.json", {"commits_total": 2})
+    b = _write(tmp_path / "b.json", {"commits_total": 3})
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(b)],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 1
+    assert "commits_total" in result.stdout
+
+
+def test_cli_exits_two_when_a_file_is_missing(tmp_path):
+    a = _write(tmp_path / "a.json", {"commits_total": 2})
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(tmp_path / "nope.json")],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 2
+    assert "nope.json" in result.stderr

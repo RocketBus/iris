@@ -131,3 +131,17 @@ def compare_metrics(
         if left != right:
             divergences.append(Divergence(path=path, expected=left, found=right))
     return divergences
+
+
+def format_divergences(divergences: list[Divergence]) -> str:
+    """One line per divergence: the path, what was expected, and what was found.
+
+    Returns an empty string when there is nothing to report, so the caller
+    can print it without checking its length first.
+    """
+    if not divergences:
+        return ""
+    return "\n".join(
+        f"  {d.path}\n      expected: {d.expected!r}\n      found: {d.found!r}"
+        for d in divergences
+    )
