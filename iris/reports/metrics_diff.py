@@ -1,18 +1,13 @@
 """Compares two `metrics.json` field by field.
 
-Exists for two reasons, both from the centralized-collection design doc:
-
-  1. It is the acceptance criterion for the PR-fetch optimization — the
-     output has to be identical before and after, on the same commit and
-     window.
-  2. It is the pilot's parity measurement, comparing the `metrics.json` the
-     worker produces against one from a local run on the same repositories.
+Exists for two reasons from the centralized-collection design doc: it is
+the PR-fetch optimization's acceptance criterion (identical output before
+and after, same commit and window), and the pilot's parity measurement
+(the worker's `metrics.json` against a local run on the same repositories).
 
 The payload is flattened into dotted paths (`group.subgroup.key`, with
 `[i]` for list items) and compared key by key. It interprets no value —
 it compares and reports.
-
-Runnable as: `python scripts/compare_metrics.py A.json B.json`
 """
 
 from __future__ import annotations
@@ -39,19 +34,11 @@ MISSING = _Missing()
 
 
 # Paths the comparison ignores, with the reason next to each one.
-#
-# Starts empty, and by measurement: the engine was run twice on the same
-# commit and window across two repositories — 103 and 190 keys — without a
-# single divergence. A new entry here only with proof of drift from a real
-# run.
-#
+# Starts empty — a new entry requires proof of drift from a real run.
 # Known candidates, not yet proven:
 #   "durability_by_origin.*.median_age_days" and
-#   "durability_by_tool.*.median_age_days" — age comes from
-#       `(now - commit_date)`, but rounding to one decimal place absorbs
-#       ~2.4h of drift.
-#   "open_pr_aging.*" — ages measured against the `now` injected into the
-#       aggregator; not exercised in the measurements above, which had no PRs.
+#   "durability_by_tool.*.median_age_days" — age is derived from the clock.
+#   "open_pr_aging.*" — ages measured against an injected `now`.
 IGNORED_PATHS: dict[str, str] = {}
 
 
@@ -67,14 +54,12 @@ class Divergence:
 def flatten_metrics(payload: Any, prefix: str = "") -> dict[str, Any]:
     """Flattens a payload into `path -> leaf value`.
 
-    A dict becomes `parent.key`; a list becomes `parent[i]`; a scalar is a
-    leaf. An empty container becomes a leaf itself — without this, `{}` and
-    "missing key" would be indistinguishable, and a section that vanished
-    would go unnoticed.
+    A dict becomes `parent.key`, a list `parent[i]`, a scalar a leaf. An
+    empty container is itself a leaf — otherwise `{}` and a missing key
+    would be indistinguishable, hiding a vanished section.
 
-    Assumes keys contain neither `.` nor `[` — a key that did would collide
-    with a nested path (`{"a": {"b": 1}}` and `{"a.b": 1}` flatten to the
-    same `a.b`), silently keeping only one of the two.
+    Assumes keys contain no `.` or `[`: a key that did would collide with a
+    nested path (`{"a": {"b": 1}}` and `{"a.b": 1}` both flatten to `a.b`).
     """
     if isinstance(payload, dict) and payload:
         flat: dict[str, Any] = {}
@@ -90,9 +75,7 @@ def flatten_metrics(payload: Any, prefix: str = "") -> dict[str, Any]:
         return flat
 
     if prefix == "" and isinstance(payload, (dict, list)):
-        # An empty root is an empty payload — not a leaf named "". Without
-        # this guard, comparing against `{}` would invent an empty-path
-        # divergence in addition to the real one.
+        # Empty root is a payload, not a leaf — else {} invents a divergence.
         return {}
 
     return {prefix: payload}
@@ -101,9 +84,8 @@ def flatten_metrics(payload: Any, prefix: str = "") -> dict[str, Any]:
 def path_is_ignored(path: str, ignored: dict[str, str]) -> bool:
     """Whether `path` matches any pattern in the ignore list.
 
-    `*` covers **one** segment — `durability_by_origin.*.median_age_days`
-    matches `...HUMAN.median_age_days` and not a deeper traversal. A
-    wildcard that crossed dots would silence more than the entry says.
+    `*` covers **one** segment, not a whole traversal — a wildcard that
+    crossed dots would silence more than the entry says.
     """
     for pattern in ignored:
         regex = re.escape(pattern).replace(r"\*", r"[^.]*")
@@ -132,9 +114,8 @@ def compare_metrics(
             continue
         left = flat_a.get(path, MISSING)
         right = flat_b.get(path, MISSING)
-        # Type-strict: `True == 1` and `1 == 1.0` in Python, but a type change
-        # is a real change in the emitted JSON (json.loads("0") is an int,
-        # json.loads("0.0") is a float) and this comparator's job is to catch it.
+        # Type-strict: `True == 1` and `1 == 1.0` in Python, but a JSON type
+        # flip (bool vs int, int vs float) is a real change worth catching.
         if type(left) is not type(right) or left != right:
             divergences.append(Divergence(path=path, expected=left, found=right))
     return divergences
@@ -143,8 +124,7 @@ def compare_metrics(
 def format_divergences(divergences: list[Divergence]) -> str:
     """One line per divergence: the path, what was expected, and what was found.
 
-    Returns an empty string when there is nothing to report, so the caller
-    can print it without checking its length first.
+    Empty when there is nothing to report, so callers can print it unconditionally.
     """
     if not divergences:
         return ""

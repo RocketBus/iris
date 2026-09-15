@@ -1,12 +1,8 @@
 #!/usr/bin/env python3
 """Compares two `metrics.json` files field by field.
 
-Two uses, and both come from the centralized-collection design doc:
-
-  - PR-fetch optimization gate: the engine's output has to be identical
-    before and after, on the same commit and window;
-  - pilot parity measurement: the worker's output against a local run on
-    the same repositories.
+CLI wrapper for the PR-fetch optimization gate and the pilot parity
+measurement — see `iris.reports.metrics_diff` for why each one needs this.
 
 Usage:
     python scripts/compare_metrics.py BEFORE.json AFTER.json

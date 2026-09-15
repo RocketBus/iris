@@ -3,8 +3,6 @@
 This is the premise parity depends on: if two identical runs already
 diverge, comparing a worker run against a local one proves nothing. The
 test builds a real repository and runs the engine against it twice.
-
-Runnable as: `python -m pytest tests/test_metrics_determinism.py -v`
 """
 
 import glob
@@ -28,11 +26,10 @@ def _git(args: list[str], cwd: Path) -> None:
 
 
 def _build_repo(path: Path) -> None:
-    """Small history, but with a file touched across several commits.
+    """Small history with one file touched across several commits.
 
-    Several touches to the same file is what makes the durability
-    calculation actually run - it is the path that uses `git blame` and the
-    current clock, and therefore the most exposed to drift between two runs.
+    That repetition exercises durability's `git blame` + clock path, the
+    part most exposed to drift between two runs.
     """
     _git(["init", "-q", "-b", "main", "."], cwd=path)
     _git(["config", "user.email", "test@example.com"], cwd=path)
@@ -61,9 +58,8 @@ def _build_repo(path: Path) -> None:
 
 
 def _run_engine(repo: Path, out_dir: Path) -> dict:
-    # The console script, not `python -m iris`: the package has no
-    # `__main__.py`, and `[project.scripts]` declares `iris = "iris.cli:main"`.
-    # CI installs it with `pip install -e .` before running the tests.
+    # Console script, not `python -m iris` (no `__main__.py`). `[project.scripts]`
+    # maps it to `iris.cli:main`; CI installs it via `pip install -e .`.
     engine = shutil.which("iris")
     if engine is None:
         pytest.skip("console script `iris` missing - run `pip install -e .`")
