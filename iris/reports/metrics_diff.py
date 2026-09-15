@@ -37,8 +37,11 @@ MISSING = _Missing()
 # Starts empty — a new entry requires proof of drift from a real run.
 # Known candidates, not yet proven:
 #   "durability_by_origin.*.median_age_days" and
-#   "durability_by_tool.*.median_age_days" — age is derived from the clock.
-#   "open_pr_aging.*" — ages measured against an injected `now`.
+#   "durability_by_tool.*.median_age_days" — age is `(now - commit_date)`,
+#       rounded to one decimal place, which absorbs ~2.4h of drift and is
+#       why it has never actually been seen diverging.
+#   "open_pr_aging.*" — ages measured against an injected `now`; unproven
+#       because the measurements above had no PRs to exercise it.
 IGNORED_PATHS: dict[str, str] = {}
 
 
