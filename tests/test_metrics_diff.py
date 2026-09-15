@@ -1,8 +1,7 @@
-"""Tests for metrics_diff — field-by-field comparison of two metrics.json.
+"""Tests for metrics_diff — field-by-field comparison of two metrics.json."""
 
-Runnable as: `python -m pytest tests/test_metrics_diff.py -v`
-"""
-
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -13,8 +12,11 @@ from iris.reports.metrics_diff import (
     Divergence,
     compare_metrics,
     flatten_metrics,
+    format_divergences,
     path_is_ignored,
 )
+
+SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "compare_metrics.py"
 
 
 def test_flatten_nested_dict_uses_dotted_paths():
@@ -114,14 +116,6 @@ def test_ignore_list_ships_empty():
     assert IGNORED_PATHS == {}
 
 
-import json
-import subprocess
-
-from iris.reports.metrics_diff import format_divergences
-
-SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "compare_metrics.py"
-
-
 def test_format_is_empty_when_there_is_nothing_to_report():
     assert format_divergences([]) == ""
 
@@ -147,14 +141,18 @@ def _write(path: Path, payload: dict) -> Path:
     return path
 
 
+def _run_cli(a: Path, b: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), str(a), str(b)],
+        capture_output=True, text=True,
+    )
+
+
 def test_cli_exits_zero_on_identical_files(tmp_path):
     payload = {"commits_total": 2}
     a = _write(tmp_path / "a.json", payload)
     b = _write(tmp_path / "b.json", payload)
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), str(a), str(b)],
-        capture_output=True, text=True,
-    )
+    result = _run_cli(a, b)
     assert result.returncode == 0
     assert "identic" in result.stdout.lower()
 
@@ -162,20 +160,14 @@ def test_cli_exits_zero_on_identical_files(tmp_path):
 def test_cli_exits_one_and_names_the_key_on_divergence(tmp_path):
     a = _write(tmp_path / "a.json", {"commits_total": 2})
     b = _write(tmp_path / "b.json", {"commits_total": 3})
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), str(a), str(b)],
-        capture_output=True, text=True,
-    )
+    result = _run_cli(a, b)
     assert result.returncode == 1
     assert "commits_total" in result.stdout
 
 
 def test_cli_exits_two_when_a_file_is_missing(tmp_path):
     a = _write(tmp_path / "a.json", {"commits_total": 2})
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), str(a), str(tmp_path / "nope.json")],
-        capture_output=True, text=True,
-    )
+    result = _run_cli(a, tmp_path / "nope.json")
     assert result.returncode == 2
     assert "nope.json" in result.stderr
 
@@ -184,10 +176,7 @@ def test_cli_exits_two_when_a_path_is_a_directory(tmp_path):
     a = _write(tmp_path / "a.json", {"commits_total": 2})
     directory = tmp_path / "a_directory"
     directory.mkdir()
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), str(a), str(directory)],
-        capture_output=True, text=True,
-    )
+    result = _run_cli(a, directory)
     assert result.returncode == 2
     assert result.stderr.strip()
 
@@ -196,9 +185,6 @@ def test_cli_exits_two_on_non_utf8_bytes(tmp_path):
     a = _write(tmp_path / "a.json", {"commits_total": 2})
     bad = tmp_path / "bad.bin"
     bad.write_bytes(b"\xff\xfe\x00bad")
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), str(a), str(bad)],
-        capture_output=True, text=True,
-    )
+    result = _run_cli(a, bad)
     assert result.returncode == 2
     assert result.stderr.strip()
