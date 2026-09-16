@@ -1,25 +1,26 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import {
   LayoutDashboard,
   GitBranch,
   ArrowLeftRight,
   Eye,
+  KanbanSquare,
   Users,
   User,
   ScrollText,
   Settings,
-} from 'lucide-react';
+} from "lucide-react";
 
-import { useTenant } from './TenantProvider';
+import { useTenant } from "./TenantProvider";
 
-import { useTranslation } from '@/hooks/useTranslation';
-import type { FeatureKey } from '@/lib/features';
-import { useFeatureFlags } from '@/lib/features/client';
-import { cn } from '@/lib/utils';
+import { useTranslation } from "@/hooks/useTranslation";
+import type { FeatureKey } from "@/lib/features";
+import { useFeatureFlags } from "@/lib/features/client";
+import { cn } from "@/lib/utils";
 
 export interface TenantNavItem {
   translationKey: string;
@@ -31,53 +32,59 @@ export interface TenantNavItem {
 
 export const tenantNavItems: TenantNavItem[] = [
   {
-    translationKey: 'navigation.dashboard',
-    href: '/dashboard',
+    translationKey: "navigation.dashboard",
+    href: "/dashboard",
     icon: LayoutDashboard,
-    roles: ['owner', 'admin', 'member'],
+    roles: ["owner", "admin", "member"],
   },
   {
-    translationKey: 'navigation.repositories',
-    href: '/repos',
+    translationKey: "navigation.repositories",
+    href: "/repos",
     icon: GitBranch,
-    roles: ['owner', 'admin', 'member'],
+    roles: ["owner", "admin", "member"],
   },
   {
-    translationKey: 'navigation.compare',
-    href: '/compare',
+    translationKey: "navigation.compare",
+    href: "/compare",
     icon: ArrowLeftRight,
-    roles: ['owner', 'admin', 'member'],
+    roles: ["owner", "admin", "member"],
   },
   {
-    translationKey: 'navigation.aiExposure',
-    href: '/ai-exposure',
+    translationKey: "navigation.aiExposure",
+    href: "/ai-exposure",
     icon: Eye,
-    roles: ['owner', 'admin', 'member'],
+    roles: ["owner", "admin", "member"],
   },
   {
-    translationKey: 'navigation.team',
-    href: '/team',
+    translationKey: "navigation.boardFlow",
+    href: "/flow",
+    icon: KanbanSquare,
+    roles: ["owner", "admin", "member"],
+  },
+  {
+    translationKey: "navigation.team",
+    href: "/team",
     icon: Users,
-    roles: ['owner', 'admin'],
+    roles: ["owner", "admin"],
   },
   {
-    translationKey: 'navigation.settings',
-    href: '/settings',
+    translationKey: "navigation.settings",
+    href: "/settings",
     icon: Settings,
-    roles: ['owner', 'admin'],
+    roles: ["owner", "admin"],
   },
   {
-    translationKey: 'navigation.auditLog',
-    href: '/audit-log',
+    translationKey: "navigation.auditLog",
+    href: "/audit-log",
     icon: ScrollText,
-    roles: ['owner', 'admin'],
-    featureKey: 'auditLog',
+    roles: ["owner", "admin"],
+    featureKey: "auditLog",
   },
   {
-    translationKey: 'navigation.profile',
-    href: '/profile',
+    translationKey: "navigation.profile",
+    href: "/profile",
     icon: User,
-    roles: ['owner', 'admin', 'member'],
+    roles: ["owner", "admin", "member"],
   },
 ];
 
@@ -103,7 +110,7 @@ export function TenantNavList({ onItemClick, className }: TenantNavListProps) {
   });
 
   return (
-    <nav className={cn('space-y-1', className)}>
+    <nav className={cn("space-y-1", className)}>
       {filteredNavItems.map((item) => {
         const isActive = pathname === `/${tenant}${item.href}`;
         const Icon = item.icon;
@@ -113,14 +120,14 @@ export function TenantNavList({ onItemClick, className }: TenantNavListProps) {
             key={item.href}
             href={`/${tenant}${item.href}`}
             onClick={onItemClick}
-            aria-current={isActive ? 'page' : undefined}
+            aria-current={isActive ? "page" : undefined}
             className={cn(
-              'flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors',
-              'hover:bg-accent hover:text-accent-foreground',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+              "flex min-h-10 items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+              "hover:bg-accent hover:text-accent-foreground",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
               isActive
-                ? 'bg-accent text-accent-foreground'
-                : 'text-muted-foreground'
+                ? "bg-accent text-accent-foreground"
+                : "text-muted-foreground",
             )}
           >
             <Icon className="h-4 w-4 flex-shrink-0" />

@@ -15,6 +15,7 @@ export const translations = {
       repositories: "Repositories",
       compare: "Compare",
       aiExposure: "AI Exposure",
+      boardFlow: "Delivery Flow",
       team: "Team",
       auditLog: "Audit Log",
       profile: "Profile",
@@ -769,6 +770,95 @@ export const translations = {
         cascadesTitle: "Correction Cascades",
         cascadesSubtitle: "Fix cascade trigger rate — Human vs AI",
       },
+    },
+    boardFlow: {
+      title: "Delivery Flow",
+      subtitle:
+        "How work moves across a GitHub Projects board — lead time, time per column, and where it waits. Read the data-quality gates first; they decide how much the numbers below can carry.",
+      notConfigured:
+        "No board connected. Configure a GitHub Projects integration to measure delivery flow beyond the code window.",
+      empty:
+        "This board has no items yet, or the first sync hasn't run. Flow metrics appear once the sync has read the board's history.",
+      boardLabel: "Board",
+      lastSynced: "Last synced",
+      neverSynced: "never",
+      quality: {
+        title: "Data quality",
+        subtitle:
+          "These run before the metrics. A failing gate does not hide the numbers — it tells you what they can and cannot support.",
+        degraded:
+          "At least one critical gate fired. Read every figure below with that caveat attached.",
+        clean: "All gates passed. The figures below rest on clean board data.",
+        affected: "{count} item(s) affected",
+      },
+      leadTime: {
+        title: "Lead time",
+        subtitle: "Board entry to a terminal column",
+        cycleTitle: "Cycle time",
+        cycleSubtitle: "First active column to terminal",
+        flowEfficiency: "Flow efficiency",
+        flowEfficiencyHint: "Active time as a share of total lead time",
+        suppressed: "{list} withheld — sample too small",
+        sample: "n={count}",
+        approximate: "{count} approximated from a fallback",
+      },
+      phases: {
+        title: "Time per column",
+        subtitle:
+          "Median hours per column, accumulating re-entries. The terminal column is excluded — time there measures age since delivery, not flow.",
+        reentered: "{count} re-entered",
+        empty: "No transition history yet.",
+      },
+      aging: {
+        title: "Work in progress",
+        subtitle: "Age of items that haven't reached a terminal column",
+        count: "items",
+        median: "median",
+        max: "oldest",
+        empty: "Nothing in flight.",
+      },
+      throughput: {
+        title: "Throughput and flow balance",
+        subtitle:
+          "Items reaching a terminal column per ISO week, against what arrived. A rising cumulative delta means the board is filling faster than it empties.",
+        inflow: "Arrived",
+        outflow: "Completed",
+        cumulative: "Cumulative delta",
+        empty: "Not enough weeks of history yet.",
+      },
+      cfd: {
+        title: "Cumulative flow",
+        subtitle:
+          "Items per column at the end of each week, reconstructed from the transition history. Widening bands mark where work accumulates.",
+        empty: "Not enough history to draw a flow diagram.",
+      },
+      stalled: {
+        title: "Stalled items",
+        subtitle:
+          "Longest without a column change. This is the most actionable list on the page.",
+        sinceMove: "Since last move",
+        totalAge: "Total age",
+        column: "Column",
+        item: "Item",
+        empty: "Nothing has been sitting still for a week or more.",
+      },
+      littlesLaw: {
+        title: "Little's Law check",
+        subtitle:
+          "WIP divided by throughput, shown beside the observed lead time. A wide gap usually means phantom WIP or a mis-mapped terminal column — not a slower team.",
+        predicted: "Predicted",
+        observed: "Observed",
+        wip: "WIP",
+        throughput: "Throughput/week",
+        divergence: "Divergence",
+      },
+      coverage: {
+        title: "Coverage",
+        withHistory: "{count} of {total} items carry transition history",
+        unmapped:
+          "Unrecognised columns: {list}. They are treated as non-terminal, which skews the lead time of anything ending there — map them in the board's status config.",
+      },
+      units: { days: "d", hours: "h" },
     },
     aiExposure: {
       title: "Shadow AI Exposure",
@@ -1667,6 +1757,7 @@ export const translations = {
       repositories: "Repositórios",
       compare: "Comparar",
       aiExposure: "Exposição a IA",
+      boardFlow: "Fluxo de Entrega",
       team: "Equipe",
       auditLog: "Log de Auditoria",
       profile: "Perfil",
@@ -2193,6 +2284,96 @@ export const translations = {
         cascadesSubtitle:
           "Taxa de gatilho de cascata de correção — Humano vs IA",
       },
+    },
+    boardFlow: {
+      title: "Fluxo de Entrega",
+      subtitle:
+        "Como o trabalho se move por um board do GitHub Projects — lead time, tempo por coluna e onde ele espera. Leia primeiro os portões de qualidade: eles definem quanto os números abaixo aguentam.",
+      notConfigured:
+        "Nenhum board conectado. Configure uma integração com o GitHub Projects para medir o fluxo de entrega além da janela de código.",
+      empty:
+        "Este board ainda não tem itens, ou a primeira sincronização não rodou. As métricas aparecem quando o sync tiver lido o histórico do board.",
+      boardLabel: "Board",
+      lastSynced: "Última sincronização",
+      neverSynced: "nunca",
+      quality: {
+        title: "Qualidade dos dados",
+        subtitle:
+          "Rodam antes das métricas. Um portão que falha não esconde os números — ele diz o que eles sustentam e o que não sustentam.",
+        degraded:
+          "Ao menos um portão crítico disparou. Leia cada número abaixo com essa ressalva.",
+        clean:
+          "Todos os portões passaram. Os números abaixo se apoiam em dados limpos.",
+        affected: "{count} item(ns) afetado(s)",
+      },
+      leadTime: {
+        title: "Lead time",
+        subtitle: "Entrada no board até uma coluna terminal",
+        cycleTitle: "Cycle time",
+        cycleSubtitle: "Primeira coluna ativa até o terminal",
+        flowEfficiency: "Eficiência de fluxo",
+        flowEfficiencyHint: "Tempo ativo como fração do lead time total",
+        suppressed: "{list} suprimido(s) — amostra pequena",
+        sample: "n={count}",
+        approximate: "{count} aproximado(s) por fallback",
+      },
+      phases: {
+        title: "Tempo por coluna",
+        subtitle:
+          "Mediana de horas por coluna, acumulando reentradas. A coluna terminal fica de fora — o tempo ali mede idade desde a entrega, não fluxo.",
+        reentered: "{count} reentraram",
+        empty: "Ainda sem histórico de transições.",
+      },
+      aging: {
+        title: "Trabalho em andamento",
+        subtitle: "Idade dos itens que não chegaram a uma coluna terminal",
+        count: "itens",
+        median: "mediana",
+        max: "mais antigo",
+        empty: "Nada em andamento.",
+      },
+      throughput: {
+        title: "Vazão e balanço de fluxo",
+        subtitle:
+          "Itens que chegaram a uma coluna terminal por semana ISO, contra o que entrou. Delta cumulativo subindo significa que o board enche mais rápido do que esvazia.",
+        inflow: "Entraram",
+        outflow: "Concluídos",
+        cumulative: "Delta cumulativo",
+        empty: "Ainda sem semanas suficientes de histórico.",
+      },
+      cfd: {
+        title: "Fluxo cumulativo",
+        subtitle:
+          "Itens por coluna ao fim de cada semana, reconstruído do histórico de transições. Faixas que engordam marcam onde o trabalho acumula.",
+        empty: "Histórico insuficiente para desenhar o diagrama.",
+      },
+      stalled: {
+        title: "Itens parados",
+        subtitle:
+          "Mais tempo sem trocar de coluna. Esta é a lista mais acionável da página.",
+        sinceMove: "Desde o último movimento",
+        totalAge: "Idade total",
+        column: "Coluna",
+        item: "Item",
+        empty: "Nada parado por uma semana ou mais.",
+      },
+      littlesLaw: {
+        title: "Verificação da Lei de Little",
+        subtitle:
+          "WIP dividido pela vazão, ao lado do lead time observado. Uma diferença grande costuma indicar WIP fantasma ou coluna terminal mal mapeada — não um time mais lento.",
+        predicted: "Previsto",
+        observed: "Observado",
+        wip: "WIP",
+        throughput: "Vazão/semana",
+        divergence: "Divergência",
+      },
+      coverage: {
+        title: "Cobertura",
+        withHistory: "{count} de {total} itens têm histórico de transições",
+        unmapped:
+          "Colunas não reconhecidas: {list}. São tratadas como não-terminais, o que distorce o lead time de tudo que termina nelas — mapeie-as na configuração de status do board.",
+      },
+      units: { days: "d", hours: "h" },
     },
     aiExposure: {
       title: "Exposição a Shadow AI",

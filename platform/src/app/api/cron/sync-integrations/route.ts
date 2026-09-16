@@ -5,6 +5,7 @@ import {
   rematchUnlinkedDeployments,
   syncOrganization,
 } from "@/lib/integrations/datadog/sync";
+import { syncOrganization as syncGitHubProjects } from "@/lib/integrations/github-projects/sync";
 import { supabaseAdmin } from "@/lib/supabase";
 
 // The cron loops sequentially across active integrations; allow it to
@@ -15,6 +16,7 @@ export const dynamic = "force-dynamic";
 
 interface PerOrgOutcome {
   organizationId: string;
+  provider: string;
   ok: boolean;
   deploymentsUpserted?: number;
   commitsUpserted?: number;
@@ -22,6 +24,14 @@ interface PerOrgOutcome {
   unmatchedDeployments?: number;
   /** Rows whose `repository_id` flipped from null to a repo this run. */
   rematched?: number;
+  /** GitHub Projects: one entry per synced board. */
+  boards?: Array<{
+    title: string;
+    itemsUpserted: number;
+    eventsUpserted: number;
+    historyFetched: number;
+    itemsWithoutHistory: number;
+  }>;
   error?: string;
 }
 
@@ -50,6 +60,35 @@ export async function GET(request: NextRequest) {
 
   const outcomes: PerOrgOutcome[] = [];
   for (const integration of integrations ?? []) {
+    if (integration.provider === "github_projects") {
+      const result = await syncGitHubProjects(
+        supabaseAdmin,
+        integration.organization_id,
+      );
+      outcomes.push(
+        "error" in result
+          ? {
+              organizationId: integration.organization_id,
+              provider: integration.provider,
+              ok: false,
+              error: result.error,
+            }
+          : {
+              organizationId: integration.organization_id,
+              provider: integration.provider,
+              ok: true,
+              boards: result.boards.map((b) => ({
+                title: b.title,
+                itemsUpserted: b.itemsUpserted,
+                eventsUpserted: b.eventsUpserted,
+                historyFetched: b.historyFetched,
+                itemsWithoutHistory: b.itemsWithoutHistory,
+              })),
+            },
+      );
+      continue;
+    }
+
     if (integration.provider !== "datadog") continue;
 
     const result = await syncOrganization(
@@ -60,6 +99,7 @@ export async function GET(request: NextRequest) {
     if ("error" in result) {
       outcomes.push({
         organizationId: integration.organization_id,
+        provider: integration.provider,
         ok: false,
         error: result.error,
       });
@@ -87,6 +127,7 @@ export async function GET(request: NextRequest) {
 
     outcomes.push({
       organizationId: integration.organization_id,
+      provider: integration.provider,
       ok: true,
       deploymentsUpserted: result.deploymentsUpserted,
       commitsUpserted: result.commitsUpserted,
