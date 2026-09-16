@@ -10,6 +10,23 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ## v1.7.0 — Decoupled analysis windows, merged Hyper Engineers identities (2026-09-16)
 
+### Fixed
+
+- **A person with more than one git identity in a repo could report 0% AI
+  for a repo they used AI on almost entirely** (#193, #240). `/me/ai-usage`
+  pinned each user to the *first* author row that matched them and ignored
+  the rest — a one-commit identity (typically the GitHub account's primary
+  email, author of merges and web-UI edits) could hide a several-hundred-commit
+  one. Every matching identity is now aggregated: commits summed,
+  `ai_commit_pct` weighted by commit count, `high_velocity_weeks` maxed, and
+  the trend chart merges each identity's weekly data before dedup. A verified
+  real payload went from 1 commit / 0% AI to 184 commits / 98.96% AI across 2
+  identities. Matching runs in tiers — account email, then account display
+  name, then email local-part as a last resort only when no row matched by
+  email — so a generic local part can no longer pull in a bot or service
+  account, and `matchedBy` degrades to `"name"` to flag the weaker guarantee
+  whenever it applies.
+
 ### Added
 
 - **`--iris-days` on `clone_and_analyze.py`** decouples repo selection from
