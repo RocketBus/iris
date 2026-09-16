@@ -373,6 +373,10 @@ function assigneeConcentrationGate(items: BoardItemInput[]): QualityGate {
 function historyCoverageGate(items: BoardItemInput[]): QualityGate {
   const withHistory = items.filter((i) => i.historyAvailable).length;
   const drafts = items.filter((i) => i.contentType === "DRAFT_ISSUE").length;
+  // Distinct from drafts: content the API can no longer resolve (deleted,
+  // transferred, or access revoked) — never had a chance at a timeline, for
+  // a different reason than a draft never having one.
+  const inaccessible = items.filter((i) => i.contentType === "UNKNOWN").length;
   const truncated = items.filter(
     (i) => i.historyAvailable && i.historyTruncated,
   ).length;
@@ -395,6 +399,9 @@ function historyCoverageGate(items: BoardItemInput[]): QualityGate {
       `${withHistory} of ${items.length} items (${pct}%) carry transition history` +
       (drafts > 0
         ? `; ${drafts} are draft items, which have no timeline on the API and can never contribute phase durations`
+        : "") +
+      (inaccessible > 0
+        ? `; ${inaccessible} item(s) point to content this token can no longer read (deleted, transferred, or access revoked), so no history could be fetched for them`
         : "") +
       (truncated > 0
         ? `; ${truncated} item(s) have more transitions than the sync paginated through — their phase durations are a lower bound, not the complete history`

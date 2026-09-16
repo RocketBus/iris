@@ -36,7 +36,7 @@ export interface StatusClassification {
 export interface BoardItemInput {
   id: string;
   title: string;
-  contentType: "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE";
+  contentType: "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE" | "UNKNOWN";
   currentStatus: string | null;
   /** OPEN | CLOSED | MERGED; null for drafts. */
   contentState: string | null;

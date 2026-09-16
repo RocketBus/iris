@@ -215,6 +215,11 @@ describe("buildItemFlow", () => {
     expect(flow.leadTimeSource).toBe("closed_at");
     expect(flow.leadTimeHours).toBe(72);
     expect(flow.approximate).toBe(true);
+    // Regression: no transitions means activeHours is 0 by construction (an
+    // empty sum, not a measurement), so flowEfficiency used to come out as a
+    // real-looking 0 — claiming "100% waiting" when the truth is "unknown".
+    // Rule 1 says an unsupported duration must be null, not a fabricated zero.
+    expect(flow.flowEfficiency).toBeNull();
   });
 
   it("does not use updatedAt as a lead time for an item that never finished", () => {

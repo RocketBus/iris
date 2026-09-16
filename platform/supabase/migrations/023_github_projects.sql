@@ -72,10 +72,14 @@ CREATE TABLE project_items (
   board_id UUID NOT NULL REFERENCES project_boards(id) ON DELETE CASCADE,
   -- GitHub's global node id for the board item ("PVTI_..."). Idempotency key.
   provider_item_id TEXT NOT NULL,
+  -- UNKNOWN: the item's content came back null from the API (deleted,
+  -- transferred, or no longer visible to the sync token) — distinct from
+  -- DRAFT_ISSUE, which has no content by design, not by loss.
   content_type TEXT NOT NULL
-    CHECK (content_type IN ('ISSUE', 'PULL_REQUEST', 'DRAFT_ISSUE')),
-  -- NULL for DRAFT_ISSUE: a draft lives only on the board, so it has no
-  -- repository and no number. Code reading these must not assume an issue.
+    CHECK (content_type IN ('ISSUE', 'PULL_REQUEST', 'DRAFT_ISSUE', 'UNKNOWN')),
+  -- NULL for DRAFT_ISSUE (lives only on the board, no repo or number) and
+  -- for UNKNOWN (content gone, nothing left to read). Code reading these
+  -- must not assume an issue.
   content_repo TEXT,
   content_number INTEGER,
   -- Best-effort link to a tracked Iris repo, when content_repo resolves.

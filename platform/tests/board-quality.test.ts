@@ -367,6 +367,25 @@ describe("history_coverage gate", () => {
     expect(result.affectedItemIds).toContain("b");
     expect(result.summary).toContain("paginated through");
   });
+
+  it("blames unreadable content, not a draft, for an UNKNOWN item", () => {
+    // Regression: content the API can no longer resolve (deleted,
+    // transferred, access revoked) used to parse as DRAFT_ISSUE and the gate
+    // told the user "this is a draft" — the wrong cause.
+    const items = [
+      item({ id: "a" }),
+      item({
+        id: "b",
+        contentType: "UNKNOWN",
+        contentState: null,
+        historyAvailable: false,
+      }),
+    ];
+    const result = gate(items)("history_coverage");
+
+    expect(result.summary).toContain("no longer read");
+    expect(result.summary).not.toContain("are draft items");
+  });
 });
 
 // ---------------------------------------------------------------------------

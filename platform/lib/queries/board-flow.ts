@@ -242,8 +242,13 @@ export function buildItemFlow(
     leadTimeSource,
     cycleTimeHours,
     activeHours,
+    // Rule 1: a duration is only reported when the data supports it. An item
+    // with no transitions has activeHours = 0 by construction (nothing to sum),
+    // not because it spent zero time active — reporting that as flowEfficiency
+    // 0 would claim 100% waiting when the truth is "unknown". Require at least
+    // one real visit before dividing.
     flowEfficiency:
-      leadTimeHours !== null && leadTimeHours > 0
+      visits.length > 0 && leadTimeHours !== null && leadTimeHours > 0
         ? activeHours / leadTimeHours
         : null,
     ageHours:

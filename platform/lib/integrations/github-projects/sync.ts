@@ -245,6 +245,7 @@ async function syncBoard(
       supabase,
       boardId,
       needHistory,
+      history.eventsByContentId,
       history.truncatedContentIds,
     );
   }
@@ -259,7 +260,7 @@ async function syncBoard(
   };
 }
 
-interface KnownItem {
+export interface KnownItem {
   itemUpdatedAt: string | null;
   historyAvailable: boolean;
 }
@@ -296,7 +297,7 @@ async function loadKnownItems(
  * since we last saw it, or when a previous run never managed to record history.
  * Drafts are excluded up front — they have no timeline to read.
  */
-function needsHistoryFetch(
+export function needsHistoryFetch(
   item: RawProjectItem,
   known: Map<string, KnownItem>,
   force: boolean,
@@ -415,18 +416,46 @@ async function upsertEvents(
   return total;
 }
 
-async function markHistoryAvailable(
-  supabase: SupabaseClient,
-  boardId: string,
-  fetched: RawProjectItem[],
+/**
+ * Splits the items attempted this run into those that truly got a timeline
+ * back (complete or truncated) and silently drops the rest.
+ *
+ * `attempted` is every item `needsHistoryFetch` queued — not every one of
+ * them actually got a timeline back. A node can come back null (content
+ * deleted between the item read and this one) or without `timelineItems`,
+ * and `fetchStatusHistory` then never adds an `eventsByContentId` entry for
+ * it. Marking those `history_available = true` anyway would report a lead
+ * time as complete for an item that was never actually read.
+ */
+export function classifyHistoryResults(
+  attempted: RawProjectItem[],
+  eventsByContentId: Map<string, RawStatusEvent[]>,
   truncatedContentIds: Set<string>,
-): Promise<void> {
+): { complete: string[]; truncated: string[] } {
+  const fetched = attempted.filter(
+    (i) => i.contentId !== null && eventsByContentId.has(i.contentId),
+  );
   const truncated = fetched
     .filter((i) => i.contentId && truncatedContentIds.has(i.contentId))
     .map((i) => i.itemId);
   const complete = fetched
     .filter((i) => !i.contentId || !truncatedContentIds.has(i.contentId))
     .map((i) => i.itemId);
+  return { complete, truncated };
+}
+
+async function markHistoryAvailable(
+  supabase: SupabaseClient,
+  boardId: string,
+  attempted: RawProjectItem[],
+  eventsByContentId: Map<string, RawStatusEvent[]>,
+  truncatedContentIds: Set<string>,
+): Promise<void> {
+  const { complete, truncated } = classifyHistoryResults(
+    attempted,
+    eventsByContentId,
+    truncatedContentIds,
+  );
 
   for (const [ids, isTruncated] of [
     [complete, false],

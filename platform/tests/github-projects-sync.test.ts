@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import type {
+  RawProjectItem,
+  RawStatusEvent,
+} from "@/lib/integrations/github-projects/client";
 import {
+  classifyHistoryResults,
+  needsHistoryFetch,
   ownerRepoFromRemoteUrl,
   readBoardConfig,
   resolveRepositoryId,
+  type KnownItem,
 } from "@/lib/integrations/github-projects/sync";
 
 /**
@@ -127,5 +134,128 @@ describe("resolveRepositoryId", () => {
   it("returns null for content with no repo", () => {
     const lookup = new Map([["acme/backend", "repo-acme"]]);
     expect(resolveRepositoryId(null, lookup)).toBeNull();
+  });
+});
+
+function rawItem(overrides: Partial<RawProjectItem> = {}): RawProjectItem {
+  return {
+    itemId: "PVTI_1",
+    contentId: "I_1",
+    contentType: "ISSUE",
+    contentRepo: "acme/backend",
+    contentNumber: 42,
+    title: "Add rate limiting",
+    contentState: "OPEN",
+    createdAt: "2026-03-01T00:00:00Z",
+    closedAt: null,
+    itemUpdatedAt: "2026-03-05T00:00:00Z",
+    status: "In Progress",
+    iteration: null,
+    priority: null,
+    size: null,
+    assignees: [],
+    labels: [],
+    ...overrides,
+  };
+}
+
+describe("needsHistoryFetch", () => {
+  it("skips drafts up front — they have no timeline to read", () => {
+    const item = rawItem({ contentId: null, contentType: "DRAFT_ISSUE" });
+    expect(needsHistoryFetch(item, new Map(), false)).toBe(false);
+  });
+
+  it("fetches an item never seen before", () => {
+    expect(needsHistoryFetch(rawItem(), new Map(), false)).toBe(true);
+  });
+
+  it("re-fetches an item whose last run never recorded history", () => {
+    const known = new Map<string, KnownItem>([
+      [
+        "PVTI_1",
+        { itemUpdatedAt: "2026-03-05T00:00:00Z", historyAvailable: false },
+      ],
+    ]);
+    expect(needsHistoryFetch(rawItem(), known, false)).toBe(true);
+  });
+
+  it("re-fetches when the board item's updatedAt moved since last sync", () => {
+    const known = new Map<string, KnownItem>([
+      [
+        "PVTI_1",
+        { itemUpdatedAt: "2026-02-01T00:00:00Z", historyAvailable: true },
+      ],
+    ]);
+    expect(needsHistoryFetch(rawItem(), known, false)).toBe(true);
+  });
+
+  it("skips a known, complete, unmoved item — the daily-cost guarantee", () => {
+    const known = new Map<string, KnownItem>([
+      [
+        "PVTI_1",
+        { itemUpdatedAt: "2026-03-05T00:00:00Z", historyAvailable: true },
+      ],
+    ]);
+    expect(needsHistoryFetch(rawItem(), known, false)).toBe(false);
+  });
+
+  it("force re-fetches even a known, complete, unmoved item", () => {
+    const known = new Map<string, KnownItem>([
+      [
+        "PVTI_1",
+        { itemUpdatedAt: "2026-03-05T00:00:00Z", historyAvailable: true },
+      ],
+    ]);
+    expect(needsHistoryFetch(rawItem(), known, true)).toBe(true);
+  });
+});
+
+describe("classifyHistoryResults", () => {
+  it("drops an attempted item whose content never returned a timeline", () => {
+    // Regression: history_available used to be set for every item that was
+    // *attempted*, regardless of whether fetchStatusHistory actually got a
+    // timeline back for it. A node coming back null (content deleted
+    // mid-sync) or without timelineItems leaves no entry in
+    // eventsByContentId — that item's history was never really fetched.
+    const attempted = [rawItem({ itemId: "PVTI_1", contentId: "I_1" })];
+    const eventsByContentId = new Map<string, RawStatusEvent[]>(); // empty: I_1 never came back
+
+    const result = classifyHistoryResults(
+      attempted,
+      eventsByContentId,
+      new Set(),
+    );
+
+    expect(result.complete).toEqual([]);
+    expect(result.truncated).toEqual([]);
+  });
+
+  it("counts an item complete once its content id has an entry, even an empty one", () => {
+    const attempted = [rawItem({ itemId: "PVTI_1", contentId: "I_1" })];
+    // An empty array is a real answer ("zero status events"), not a miss.
+    const eventsByContentId = new Map<string, RawStatusEvent[]>([["I_1", []]]);
+
+    const result = classifyHistoryResults(
+      attempted,
+      eventsByContentId,
+      new Set(),
+    );
+
+    expect(result.complete).toEqual(["PVTI_1"]);
+    expect(result.truncated).toEqual([]);
+  });
+
+  it("routes a fetched-but-truncated item to truncated, not complete", () => {
+    const attempted = [rawItem({ itemId: "PVTI_1", contentId: "I_1" })];
+    const eventsByContentId = new Map<string, RawStatusEvent[]>([["I_1", []]]);
+
+    const result = classifyHistoryResults(
+      attempted,
+      eventsByContentId,
+      new Set(["I_1"]),
+    );
+
+    expect(result.complete).toEqual([]);
+    expect(result.truncated).toEqual(["PVTI_1"]);
   });
 });

@@ -45,7 +45,16 @@ export interface BoardRef {
   number: number;
 }
 
-export type ProjectContentType = "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE";
+/**
+ * UNKNOWN is distinct from DRAFT_ISSUE: it means the board item's content
+ * came back `null` — the underlying issue/PR was deleted, transferred, or is
+ * no longer visible to this token — not that the item genuinely has no
+ * content. Conflating the two mislabels the reason in the history_coverage
+ * gate: "this is a draft" is a different, and wrong, story from "this
+ * token can no longer read what this item points to".
+ */
+export type ProjectContentType =
+  "ISSUE" | "PULL_REQUEST" | "DRAFT_ISSUE" | "UNKNOWN";
 
 export interface RawProjectItem {
   /** Board item node id ("PVTI_..."). */
@@ -239,7 +248,7 @@ interface RawFieldValue {
   field?: { name?: string };
 }
 
-interface RawItemNode {
+export interface RawItemNode {
   id: string;
   type: string;
   updatedAt: string | null;
@@ -273,30 +282,43 @@ function readField(
   return null;
 }
 
-function toContentType(typename: string | undefined): ProjectContentType {
-  if (typename === "Issue") return "ISSUE";
-  if (typename === "PullRequest") return "PULL_REQUEST";
-  return "DRAFT_ISSUE";
+/**
+ * `content` is `null` when GitHub can no longer resolve the item's
+ * issue/PR/draft (deleted, transferred, or access revoked) — a real
+ * DraftIssue node always comes back with `__typename: "DraftIssue"`, never
+ * as a null content. That case is UNKNOWN, not DRAFT_ISSUE.
+ */
+export function toContentType(
+  content: { __typename?: string } | null | undefined,
+): ProjectContentType {
+  if (!content) return "UNKNOWN";
+  if (content.__typename === "Issue") return "ISSUE";
+  if (content.__typename === "PullRequest") return "PULL_REQUEST";
+  if (content.__typename === "DraftIssue") return "DRAFT_ISSUE";
+  return "UNKNOWN";
 }
 
-function parseItem(node: RawItemNode): RawProjectItem {
+export function parseItem(node: RawItemNode): RawProjectItem {
   const content = node.content;
   const values = node.fieldValues?.nodes ?? [];
-  const contentType = toContentType(content?.__typename);
-  const isDraft = contentType === "DRAFT_ISSUE";
+  const contentType = toContentType(content);
+  // Neither has a timeline: a draft never had one, and unreadable content
+  // means there is nothing left to ask for one.
+  const hasNoTimeline =
+    contentType === "DRAFT_ISSUE" || contentType === "UNKNOWN";
 
   return {
     itemId: node.id,
-    // Drafts get no contentId: without one, the history fetch skips them
-    // instead of asking for a timeline that cannot exist.
-    contentId: isDraft ? null : (content?.id ?? null),
+    // No timeline → no contentId: without one, the history fetch skips the
+    // item instead of asking for a timeline that cannot exist or is gone.
+    contentId: hasNoTimeline ? null : (content?.id ?? null),
     contentType,
     contentRepo: content?.repository?.nameWithOwner ?? null,
     contentNumber: content?.number ?? null,
     // The Title *field* wins over content title only when content is absent;
     // a draft's title lives on the content itself.
     title: content?.title ?? readField(values, "Title") ?? "(untitled)",
-    contentState: isDraft ? null : (content?.state ?? null),
+    contentState: hasNoTimeline ? null : (content?.state ?? null),
     createdAt: content?.createdAt ?? null,
     closedAt: content?.closedAt ?? null,
     itemUpdatedAt: node.updatedAt ?? null,
