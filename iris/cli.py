@@ -19,7 +19,7 @@ from iris.models.context import AnalysisContext
 from iris.reports.narrative import generate_narrative
 from iris.reports.writer import write_output
 
-VERSION = "v1.7.0"
+VERSION = "v1.8.0"
 
 # Analysis windows the platform's window selector (issue #80) expects.
 # Running `--windows 7,15,30,60,90` populates one snapshot per window so the

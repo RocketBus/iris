@@ -8,6 +8,56 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.8.0 — Metrics parity gate and stabilization wording fix (2026-09-16)
+
+### Added
+
+- **`scripts/compare_metrics.py` — field-by-field `metrics.json` comparator**
+  (#214, #250). Flattens a payload into dotted paths and reports every key
+  that diverges, with both sides. Type-strict: `True == 1` and `1 == 1.0` in
+  Python, but a JSON type flip is a real change — a real payload carries 8 of
+  48 float keys with an integral value, exactly where that distinction
+  matters. Backs two acceptance gates: the PR-fetch optimization (identical
+  `metrics.json` before/after on the same commit and window) and the
+  centralized-collection pilot's parity measurement (worker run vs. local
+  run). `tests/test_metrics_determinism.py` proves the premise the
+  comparator depends on — two engine runs on the same commit already agree —
+  by building a real repository and running the engine against it twice.
+
+### Fixed
+
+- **Stabilization narrative overstated what the metric proves** (#237).
+  `stabilization_ratio` measures whether a file was *not* touched again
+  within the churn window — several EN/PT-BR narrative strings and
+  `docs/METRICS.md` / `docs/ONE-PAGER.md` read that as "durable delivery" or
+  as grounds to compare which AI tools "produce the most durable code," a
+  correctness claim the metric can't support and a tool-ranking framing
+  Principle #7 (Vendor-Agnostic Intelligence) forbids. Reworded to describe
+  rework absence, not correctness or vendor comparison; a new
+  `tests/test_i18n_parity.py` keeps EN and PT-BR in lockstep and locks this
+  specific wording so the inference can't quietly return.
+- **git/gh subprocess output was locale-dependent** (#239). Every git/gh
+  subprocess call across the engine now runs under the new
+  `iris.shell.git_env()`, pinning `LC_ALL=C` / `LANG=C` so error text and
+  command output are byte-identical across machines instead of varying with
+  the operator's locale.
+
+### Changed
+
+- **Stage 3 status reconciled across `CLAUDE.md` and `docs/DECISIONS.md`**
+  (#238). `CHANGELOG.md` v1.0.6 already declared "Stage 3 opens" in May 2026
+  alongside the Datadog DORA integration, but `CLAUDE.md`'s stage table and
+  non-goals list were never amended to match — read literally, `CLAUDE.md`
+  still instructed against work the project had already shipped. The stage
+  table now reflects the real opening date and its actual scope
+  (cross-system correlation only; SSO, RBAC, and benchmarking remain
+  pending), and the non-goals line is split into "billing and webhooks"
+  (still out) versus analytical data-source integrations (Stage 3 scope,
+  with the Datadog integration as the landing precedent). Recorded
+  retroactively as an ADR in `docs/DECISIONS.md`.
+
+---
+
 ## v1.7.0 — Decoupled analysis windows, merged Hyper Engineers identities (2026-09-16)
 
 ### Fixed
