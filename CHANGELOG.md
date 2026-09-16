@@ -8,6 +8,41 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.7.0 — Decoupled analysis windows, merged Hyper Engineers identities (2026-09-16)
+
+### Added
+
+- **`--iris-days` on `clone_and_analyze.py`** decouples repo selection from
+  the analysis window (#205). `--days` previously controlled both which
+  repos got picked up *and* which lookback `iris .` analyzed them with, so
+  there was no way to select repos active in, say, the last 7 days and
+  still analyze them across the full `RECOMMENDED_WINDOWS` set with a
+  30-day lookback. `--iris-days` lets callers set that analysis window
+  independently of the selection window.
+
+### Fixed
+
+- **The same contributor could still show up as two separate "Hyper
+  Engineers" cards** when a repo's commit author *name* was literally
+  their GitHub handle (e.g. `lucastribioliclickbus`) in one repo and their
+  real name in another, each paired with a different commit email (#206).
+  Push-time API resolution ties an email to a login per repo; when that
+  resolution failed for the handle-as-name variant, `nameToGithub` had no
+  entry for it even though `userMap` already knew the mapping from a
+  different repo's successful resolution — just not until display time.
+  `computeHyperEngineers` now checks `userMap` by name during grouping
+  itself, and repo counts are deduplicated via a `Set` of repo ids instead
+  of a raw counter.
+
+- **Hyper Engineers could still split when only the raw commit email tied
+  two name variants together** (#207). Extends the same grouping-time
+  lookup with one more signal: a name→GitHub mapping learned from any
+  entry is now also indexed by that entry's raw commit email, so a later
+  entry with a different name but the same real email resolves to the
+  same identity instead of rendering as a separate "unidentified" card.
+
+---
+
 ## v1.6.1 — Dashboard timeline and identity fixes (2026-08-27)
 
 ### Fixed
