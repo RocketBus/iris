@@ -37,6 +37,7 @@ function item(overrides: Partial<BoardItemInput> = {}): BoardItemInput {
     priority: "P2",
     size: "M",
     historyAvailable: true,
+    historyTruncated: false,
     ...overrides,
   };
 }

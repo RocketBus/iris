@@ -373,6 +373,9 @@ function assigneeConcentrationGate(items: BoardItemInput[]): QualityGate {
 function historyCoverageGate(items: BoardItemInput[]): QualityGate {
   const withHistory = items.filter((i) => i.historyAvailable).length;
   const drafts = items.filter((i) => i.contentType === "DRAFT_ISSUE").length;
+  const truncated = items.filter(
+    (i) => i.historyAvailable && i.historyTruncated,
+  ).length;
   const pct = percentOf(withHistory, items.length);
 
   return {
@@ -385,11 +388,16 @@ function historyCoverageGate(items: BoardItemInput[]): QualityGate {
     ),
     value: pct,
     unit: "percent",
-    affectedItemIds: items.filter((i) => !i.historyAvailable).map((i) => i.id),
+    affectedItemIds: items
+      .filter((i) => !i.historyAvailable || i.historyTruncated)
+      .map((i) => i.id),
     summary:
       `${withHistory} of ${items.length} items (${pct}%) carry transition history` +
       (drafts > 0
         ? `; ${drafts} are draft items, which have no timeline on the API and can never contribute phase durations`
+        : "") +
+      (truncated > 0
+        ? `; ${truncated} item(s) have more transitions than the sync paginated through — their phase durations are a lower bound, not the complete history`
         : "") +
       ". Phase and lead-time figures describe only the items with history, not the whole board.",
   };

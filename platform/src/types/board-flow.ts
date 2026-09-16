@@ -50,6 +50,12 @@ export interface BoardItemInput {
   size: string | null;
   /** False for drafts and for items whose history fetch never succeeded. */
   historyAvailable: boolean;
+  /**
+   * True when the item's timeline had more status events than the sync
+   * paginated through. Its phase durations are a lower bound, computed from
+   * a partial transition history, not the full one.
+   */
+  historyTruncated: boolean;
 }
 
 export interface StatusEventInput {

@@ -32,6 +32,7 @@ function item(overrides: Partial<BoardItemInput> = {}): BoardItemInput {
     priority: "P2",
     size: "M",
     historyAvailable: true,
+    historyTruncated: false,
     ...overrides,
   };
 }
@@ -351,6 +352,20 @@ describe("history_coverage gate", () => {
     expect(gate([item(), item({ id: "b" })])("history_coverage").severity).toBe(
       "ok",
     );
+  });
+
+  it("flags items whose history was paginated short, not just items with none", () => {
+    // Regression: a truncated item still has historyAvailable = true (it has
+    // *some* history), so it must be caught by a separate check — silently
+    // reporting its lead time as complete would understate it.
+    const items = [
+      item({ id: "a" }),
+      item({ id: "b", historyTruncated: true }),
+    ];
+    const result = gate(items)("history_coverage");
+
+    expect(result.affectedItemIds).toContain("b");
+    expect(result.summary).toContain("paginated through");
   });
 });
 

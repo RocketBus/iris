@@ -476,9 +476,17 @@ export function readBoardConfig(config: unknown): BoardConfig[] {
 }
 
 /**
- * Map bare repo name → repositories.id. Board content carries
- * "owner/repo" while Iris stores the bare name, so both sides are
- * normalized to the bare, lowercased name.
+ * Map repo identity → repositories.id, keyed by "owner/repo" (from
+ * `remote_url`) whenever it is known, falling back to the bare repo name
+ * only for rows registered before `remote_url` was populated.
+ *
+ * A board commonly spans more than one GitHub owner (an org's repos plus a
+ * fork, or a multi-owner enterprise setup); two different owners sharing a
+ * repo name is not rare. Keying by bare name alone — as this used to do —
+ * silently links a project item to whichever same-named repo happens to be
+ * in the map, with no owner check anywhere in the chain. `remote_url`-based
+ * matching is the same fix the Datadog integration already made for this
+ * exact reason (`lib/integrations/datadog/sync.ts`).
  */
 async function loadRepoLookup(
   supabase: SupabaseClient,
@@ -489,25 +497,53 @@ async function loadRepoLookup(
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from("repositories")
-      .select("id, name")
+      .select("id, name, remote_url")
       .eq("organization_id", organizationId)
       .range(from, from + pageSize - 1);
 
     if (error) throw new Error(`load repositories: ${error.message}`);
     for (const row of data ?? []) {
-      out.set(bareName(row.name), row.id);
+      const key = ownerRepoFromRemoteUrl(row.remote_url) ?? bareName(row.name);
+      out.set(key, row.id);
     }
     if (!data || data.length < pageSize) break;
   }
   return out;
 }
 
-function resolveRepositoryId(
+export function resolveRepositoryId(
   contentRepo: string | null,
   lookup: Map<string, string>,
 ): string | null {
   if (!contentRepo) return null;
-  return lookup.get(bareName(contentRepo)) ?? null;
+  const normalized = contentRepo.trim().toLowerCase();
+  // Exact "owner/repo" first — only falls back to bare-name matching (and
+  // its cross-owner collision risk) for repos with no remote_url on file.
+  return lookup.get(normalized) ?? lookup.get(bareName(contentRepo)) ?? null;
+}
+
+/**
+ * Extracts lowercased "owner/repo" from a git remote URL. Returns `null`
+ * when the URL is empty or doesn't parse into an owner + repo path, so the
+ * caller can fall back to bare-name matching.
+ */
+export function ownerRepoFromRemoteUrl(
+  remoteUrl: string | null,
+): string | null {
+  if (!remoteUrl) return null;
+  let s = remoteUrl.trim().toLowerCase();
+  if (!s) return null;
+  // git@github.com:org/repo.git → github.com/org/repo
+  s = s.replace(/^git@([^:]+):/, "$1/");
+  // ssh://git@host/org/repo or https://host/org/repo → host/org/repo
+  s = s.replace(/^[a-z]+:\/\//, "");
+  s = s.replace(/^git@/, "");
+  s = s.replace(/^www\./, "");
+  s = s.replace(/\.git$/, "");
+  s = s.replace(/\/+$/, "");
+  const parts = s.split("/").filter(Boolean);
+  if (parts.length < 2) return null;
+  return parts.slice(-2).join("/");
 }
 
 function bareName(repo: string): string {

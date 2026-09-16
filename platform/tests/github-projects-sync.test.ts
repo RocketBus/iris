@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { readBoardConfig } from "@/lib/integrations/github-projects/sync";
+import {
+  ownerRepoFromRemoteUrl,
+  readBoardConfig,
+  resolveRepositoryId,
+} from "@/lib/integrations/github-projects/sync";
 
 /**
  * `org_integrations.config` is operator-edited JSON, so the parser is the
@@ -71,5 +75,57 @@ describe("readBoardConfig", () => {
       boards: [{ owner: "acme-inc", number: 1, ownerType: "team" }],
     });
     expect(board.ownerType).toBe("organization");
+  });
+});
+
+describe("ownerRepoFromRemoteUrl", () => {
+  it("extracts owner/repo from an https remote", () => {
+    expect(ownerRepoFromRemoteUrl("https://github.com/Acme/Backend.git")).toBe(
+      "acme/backend",
+    );
+  });
+
+  it("extracts owner/repo from an ssh remote", () => {
+    expect(ownerRepoFromRemoteUrl("git@github.com:acme/backend.git")).toBe(
+      "acme/backend",
+    );
+  });
+
+  it("returns null for a bare name with no owner segment", () => {
+    expect(ownerRepoFromRemoteUrl("backend")).toBeNull();
+  });
+
+  it("returns null for empty input", () => {
+    expect(ownerRepoFromRemoteUrl(null)).toBeNull();
+    expect(ownerRepoFromRemoteUrl("")).toBeNull();
+  });
+});
+
+describe("resolveRepositoryId", () => {
+  it("does not collide two owners that share a bare repo name", () => {
+    // Regression: the old lookup keyed only by bare repo name, so a board
+    // item from "acme-labs/backend" resolved to "acme/backend" whenever both
+    // were tracked under the same Iris org. Both rows now carry a
+    // remote_url-derived "owner/repo" key (see loadRepoLookup), so each
+    // content_repo resolves to its own owner, never the other's.
+    const lookup = new Map([
+      ["acme/backend", "repo-acme"],
+      ["acme-labs/backend", "repo-acme-labs"],
+    ]);
+
+    expect(resolveRepositoryId("acme/backend", lookup)).toBe("repo-acme");
+    expect(resolveRepositoryId("acme-labs/backend", lookup)).toBe(
+      "repo-acme-labs",
+    );
+  });
+
+  it("falls back to bare-name matching for repos with no remote_url on file", () => {
+    const lookup = new Map([["backend", "repo-legacy"]]);
+    expect(resolveRepositoryId("acme/backend", lookup)).toBe("repo-legacy");
+  });
+
+  it("returns null for content with no repo", () => {
+    const lookup = new Map([["acme/backend", "repo-acme"]]);
+    expect(resolveRepositoryId(null, lookup)).toBeNull();
   });
 });

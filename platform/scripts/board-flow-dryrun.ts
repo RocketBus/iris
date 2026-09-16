@@ -45,6 +45,7 @@ function resolveToken(): string {
 function toItemInput(
   raw: RawProjectItem,
   historyAvailable: boolean,
+  historyTruncated: boolean,
 ): BoardItemInput {
   return {
     id: raw.itemId,
@@ -61,6 +62,7 @@ function toItemInput(
     priority: raw.priority,
     size: raw.size,
     historyAvailable,
+    historyTruncated,
   };
 }
 
@@ -138,7 +140,15 @@ async function main() {
     const itemEvents = rawItem.contentId
       ? (history.eventsByContentId.get(rawItem.contentId) ?? [])
       : [];
-    items.push(toItemInput(rawItem, itemEvents.length > 0));
+    items.push(
+      toItemInput(
+        rawItem,
+        itemEvents.length > 0,
+        rawItem.contentId
+          ? history.truncatedContentIds.has(rawItem.contentId)
+          : false,
+      ),
+    );
     events.push(...toEventInputs(rawItem.itemId, itemEvents));
   }
 

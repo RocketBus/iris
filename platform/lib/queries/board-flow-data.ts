@@ -137,7 +137,7 @@ async function loadItems(
     const { data, error } = await supabase
       .from("project_items")
       .select(
-        "id, title, content_type, current_status, content_state, source_created_at, source_closed_at, item_updated_at, assignees, labels, iteration, priority, size, history_available",
+        "id, title, content_type, current_status, content_state, source_created_at, source_closed_at, item_updated_at, assignees, labels, iteration, priority, size, history_available, history_truncated",
       )
       .eq("board_id", boardId)
       .range(from, from + PAGE_SIZE - 1);
@@ -160,6 +160,7 @@ async function loadItems(
         priority: row.priority,
         size: row.size,
         historyAvailable: row.history_available,
+        historyTruncated: row.history_truncated,
       });
     }
 
