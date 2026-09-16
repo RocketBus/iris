@@ -79,9 +79,10 @@ Always populated. These are the foundational signal/noise proxy.
 
 **`stabilization_ratio`** — of all files touched in the window, the
 fraction that had *no* subsequent modification within `churn_days` of any
-prior touch. Files touched exactly once count as stabilized. Core quality
+prior touch. Files touched exactly once count as stabilized. Core rework
 signal: closer to `1.0` = changes persist; closer to `0.0` = constant
-rework.
+rework. Persistence means a file was not revisited within the window — it
+is not evidence of correctness (unreviewed or defective code persists too).
 
 **`churn_events`** — count of files modified 2+ times with at least one
 consecutive pair of modifications ≤ `churn_days` apart.
