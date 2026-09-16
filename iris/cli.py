@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 
+from iris.shell import git_env
 from iris.i18n import get_strings, SUPPORTED_LANGS
 from iris.platform.telemetry import span, record_metric, record_counter, record_duration, flush
 from iris.ingestion import window_cache
@@ -243,6 +244,7 @@ def _git_remote_url(repo_path: str) -> str | None:
         result = subprocess.run(
             ["git", "-C", repo_path, "remote", "get-url", "origin"],
             capture_output=True, text=True, check=True,
+            env=git_env(),
         )
         url = result.stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
@@ -942,6 +944,7 @@ def _run_pr(argv: list[str]) -> None:
             result = subprocess.run(
                 ["gh", "pr", "view", "--json", "number", "-q", ".number"],
                 capture_output=True, text=True, check=True, cwd=repo_path,
+                env=git_env(),
             )
             pr_number = int(result.stdout.strip())
         except (subprocess.CalledProcessError, ValueError):
@@ -982,6 +985,7 @@ def _run_pr(argv: list[str]) -> None:
             subprocess.run(
                 ["gh", "pr", "comment", str(pr_number), "--body", markdown],
                 check=True, cwd=repo_path,
+                env=git_env(),
             )
             print(f"Comment posted on PR #{pr_number}.", file=sys.stderr)
         except subprocess.CalledProcessError:
@@ -1170,6 +1174,7 @@ def _hook_file_is_tracked(repo_path: str, hook_file: str) -> bool:
             cwd=repo_path,
             capture_output=True,
             timeout=10,
+            env=git_env(),
         )
     except (OSError, subprocess.SubprocessError):
         return False
@@ -1183,6 +1188,7 @@ def _hook_file_is_tracked(repo_path: str, hook_file: str) -> bool:
         capture_output=True,
         text=True,
         timeout=10,
+        env=git_env(),
     )
     if top.returncode != 0:
         return False

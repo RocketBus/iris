@@ -18,6 +18,8 @@ import json
 import re
 import shutil
 import subprocess
+
+from iris.shell import git_env
 from datetime import datetime, timedelta, timezone
 
 from iris.ingestion import window_cache
@@ -39,6 +41,7 @@ def detect_github_remote(repo_path: str) -> str | None:
             capture_output=True,
             text=True,
             check=True,
+            env=git_env(),
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
@@ -231,6 +234,7 @@ def _fetch_pr_enrichment_graphql(
         try:
             result = subprocess.run(
                 args, capture_output=True, text=True, check=True,
+                env=git_env(),
             )
         except (subprocess.CalledProcessError, FileNotFoundError):
             return by_pr
@@ -296,6 +300,7 @@ def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] 
             capture_output=True,
             text=True,
             check=True,
+            env=git_env(),
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
@@ -396,6 +401,7 @@ def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:
             capture_output=True,
             text=True,
             check=True,
+            env=git_env(),
         )
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None

@@ -26,6 +26,8 @@ way `merge_strategy_detector` marks squash repos' per-commit metrics.
 
 import os
 import subprocess
+
+from iris.shell import git_env
 from enum import Enum
 
 
@@ -147,6 +149,7 @@ def _tracked_files(repo_path: str) -> list[str]:
             errors="surrogateescape",
             check=True,
             timeout=60,
+            env=git_env(),
         )
     except (subprocess.SubprocessError, OSError):
         return []

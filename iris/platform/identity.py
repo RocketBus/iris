@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import re
 import subprocess
+
+from iris.shell import git_env
 from datetime import datetime, timedelta, timezone
 
 from iris.models.commit import Commit
@@ -33,6 +35,7 @@ def _resolve_gh_name(username: str) -> str | None:
         r = subprocess.run(
             ["gh", "api", f"users/{username}", "-q", ".name"],
             capture_output=True, text=True, timeout=5,
+            env=git_env(),
         )
         if r.returncode == 0 and r.stdout.strip():
             return r.stdout.strip()
@@ -66,6 +69,7 @@ def _resolve_authors_via_commit_list(nwo: str, days: int) -> dict[str, str]:
                       '"\\(.commit.author.email)\\t\\(.author.login)"',
             ],
             capture_output=True, text=True, timeout=30,
+            env=git_env(),
         )
     except (FileNotFoundError, subprocess.TimeoutExpired):
         return {}
@@ -90,6 +94,7 @@ def _resolve_emails_via_repo(nwo: str, emails: set[str]) -> dict[str, str]:
                 ["gh", "api", f"repos/{nwo}/commits?author={email}&per_page=1",
                  "-q", ".[0].author.login"],
                 capture_output=True, text=True, timeout=10,
+                env=git_env(),
             )
             if r.returncode == 0 and r.stdout.strip():
                 result[email] = r.stdout.strip()

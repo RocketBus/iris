@@ -13,6 +13,8 @@ Performance:
 
 import re
 import subprocess
+
+from iris.shell import git_env
 from dataclasses import dataclass
 
 from iris.models.commit import Commit
@@ -80,6 +82,7 @@ def read_commit_diff(repo_path: str, commit_hash: str) -> CommitDiff | None:
             capture_output=True,
             text=True,
             timeout=DIFF_TIMEOUT_SECONDS,
+            env=git_env(),
         )
         if result.returncode != 0:
             return None

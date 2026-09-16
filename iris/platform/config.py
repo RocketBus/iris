@@ -2,6 +2,7 @@
 
 import json
 import os
+from iris.shell import git_env
 
 CONFIG_DIR = os.path.expanduser("~/.iris")
 CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
@@ -66,6 +67,7 @@ def get_github_user() -> str | None:
         result = subprocess.run(
             ["gh", "api", "user", "-q", ".login"],
             capture_output=True, text=True, timeout=5,
+            env=git_env(),
         )
         if result.returncode == 0 and result.stdout.strip():
             user = result.stdout.strip()
@@ -78,6 +80,7 @@ def get_github_user() -> str | None:
             result = subprocess.run(
                 ["git", "config", "user.email"],
                 capture_output=True, text=True, timeout=5,
+                env=git_env(),
             )
             if result.returncode == 0 and result.stdout.strip():
                 user = result.stdout.strip()
