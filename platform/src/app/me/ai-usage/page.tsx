@@ -166,11 +166,14 @@ export default async function PersonalAIUsagePage({
                       >
                         <td
                           className="py-2 pr-4 font-mono"
-                          title={
-                            row.matchedAuthorEmail
-                              ? `Matched via ${row.matchedBy}: ${row.matchedAuthorName} <${row.matchedAuthorEmail}>`
-                              : `Matched via ${row.matchedBy}: ${row.matchedAuthorName}`
-                          }
+                          title={[
+                            `Matched via ${row.matchedBy}:`,
+                            ...row.matchedIdentities.map((identity) =>
+                              identity.email
+                                ? `${identity.name} <${identity.email}>`
+                                : identity.name,
+                            ),
+                          ].join("\n")}
                         >
                           {row.repositoryName}
                           {row.matchedBy === "name" && (

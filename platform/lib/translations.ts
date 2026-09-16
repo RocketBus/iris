@@ -255,7 +255,7 @@ export const translations = {
         lastSeen: "Last seen",
         nameMatchBadge: "name-only",
         nameMatchWarning:
-          "Matched by author name, not email — verify this is really you.",
+          "At least one git identity in this row was matched by author name, not email — verify this is really you.",
       },
       coverageNote:
         "Tool-level and intent-level breakdowns per author aren't in the engine yet. When they are, this page will pick them up automatically.",
@@ -1657,7 +1657,7 @@ export const translations = {
         lastSeen: "Última vez visto",
         nameMatchBadge: "só por nome",
         nameMatchWarning:
-          "Atribuído pelo nome do autor, sem email — vale conferir se é você mesmo.",
+          "Pelo menos uma identidade git desta linha foi atribuída pelo nome do autor, sem email — vale conferir se é você mesmo.",
       },
       coverageNote:
         "Detalhamento por ferramenta e por intenção, no nível de autor, ainda não está no motor. Quando estiver, esta página vai puxar automaticamente.",
