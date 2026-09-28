@@ -104,6 +104,18 @@ def test_release_prerelease_version_is_bot() -> None:
     assert classify_origin(c) is CommitOrigin.BOT
 
 
+def test_squash_merged_release_pr_is_bot() -> None:
+    # A release PR squash-merged gets the PR number appended to the subject.
+    c = _release_commit("Alice", "chore(release): 1.4.0 [skip ci] (#123)")
+    assert classify_origin(c) is CommitOrigin.BOT
+
+
+def test_release_subject_with_free_text_after_skip_ci_stays_human() -> None:
+    # Only the PR-number suffix is tolerated; anything else is a person typing.
+    c = _release_commit("Alice", "chore: release v1.0.0 [skip ci] and bump deps")
+    assert classify_origin(c) is CommitOrigin.HUMAN
+
+
 def test_hand_written_release_commit_stays_human() -> None:
     # Without [skip ci] it is a person cutting a release, not the pipeline.
     c = _release_commit("Alice", "chore(release): v1.8.0 — metrics parity gate")

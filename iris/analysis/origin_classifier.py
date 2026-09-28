@@ -107,9 +107,11 @@ _BOT_AUTHOR_PATTERNS = re.compile(
 # `chore(release): 1.4.0 [skip ci]`. Release pipelines often commit as
 # $GITHUB_ACTOR — the person who merged — so the author check above misses
 # them and every merge adds one HUMAN commit. `[skip ci]` at the end is what
-# separates the pipeline from a person cutting a release by hand.
+# separates the pipeline from a person cutting a release by hand. The only
+# suffix tolerated after it is the ` (#123)` a squash-merged release PR gets.
 _CI_RELEASE_SUBJECT_PATTERN = re.compile(
-    r"^chore(?:\(release\))?: (?:release )?v?\d+\.\d+\.\d+\S* \[skip ci\]$",
+    r"^chore(?:\(release\))?: (?:release )?v?\d+\.\d+\.\d+\S* \[skip ci\]"
+    r"(?: \(#\d+\))?$",
     re.IGNORECASE,
 )
 
