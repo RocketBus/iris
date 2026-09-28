@@ -133,7 +133,10 @@ Classification heuristic in `origin_classifier.py`:
    `anthropic`, `cursor`, `codeium`, `tabnine`, `amazon-q`, `gemini`,
    `windsurf`, `devin-ai`) → `AI_ASSISTED`
 2. Author patterns (`[bot]`, `-bot`, known bot names) → `BOT`
-3. Default → `HUMAN`
+3. CI release subject (`chore: release v1.2.3 [skip ci]`,
+   `chore(release): 1.2.3 [skip ci]`) → `BOT` — release pipelines often
+   commit as `$GITHUB_ACTOR`, so the author check alone misses them
+4. Default → `HUMAN`
 
 Trailers are read from the commit body by `ingestion/git_reader.py`, which
 accepts three keys — `Co-authored-by`, `Assisted-by`, and `Made-with` — and
