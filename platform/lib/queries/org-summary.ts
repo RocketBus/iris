@@ -48,13 +48,55 @@ export async function getOrgLatestPayloads(
     .eq("organization_id", organizationId)
     .eq("window_days", windowDays)
     .in("repository_id", repoIds);
-  logQueryError("getOrgLatestPayloads", error);
 
-  if (!data) return new Map();
+  if (error) {
+    // Falls back to the pre-023 read path if the view doesn't have `payload`
+    // yet (migration 023 not applied against this project) or the view read
+    // fails for any other reason — every panel showing "no data" is worse
+    // than the skew this fallback can still theoretically hit.
+    logQueryError("getOrgLatestPayloads (view)", error);
+    return getOrgLatestPayloadsLegacy(
+      supabase,
+      organizationId,
+      repoIds,
+      windowDays,
+    );
+  }
 
   const map = new Map<string, ReportMetrics>();
-  for (const row of data) {
+  for (const row of data ?? []) {
     if (row.payload) map.set(row.repository_id, row.payload as ReportMetrics);
+  }
+  return map;
+}
+
+/**
+ * Pre-023 read path, kept only as a fallback for `getOrgLatestPayloads` when
+ * `repo_metric_summaries` doesn't have `payload` yet. See that function's
+ * comment for why the ordered-global-limit approach here is degraded (can
+ * drop a repo's latest payload under uneven ingestion or PostgREST's row
+ * cap) — remove this once 023 is confirmed applied everywhere.
+ */
+async function getOrgLatestPayloadsLegacy(
+  supabase: SupabaseClient,
+  organizationId: string,
+  repoIds: string[],
+  windowDays: number,
+): Promise<Map<string, ReportMetrics>> {
+  const { data, error } = await supabase
+    .from("metrics")
+    .select("repository_id, payload")
+    .eq("organization_id", organizationId)
+    .eq("window_days", windowDays)
+    .order("created_at", { ascending: false })
+    .limit(repoIds.length * 2);
+  logQueryError("getOrgLatestPayloads (legacy fallback)", error);
+
+  const map = new Map<string, ReportMetrics>();
+  for (const row of data ?? []) {
+    if (!map.has(row.repository_id) && row.payload) {
+      map.set(row.repository_id, row.payload as ReportMetrics);
+    }
   }
   return map;
 }
