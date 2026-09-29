@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { logQueryError } from "@/lib/queries/log-error";
 import type {
   TimeSeriesPoint,
   AIImpactPoint,
@@ -59,7 +60,8 @@ export async function getAvailableWindowDays(
     .limit(2000);
   if (repositoryId !== undefined) q = q.eq("repository_id", repositoryId);
 
-  const { data } = await q;
+  const { data, error } = await q;
+  logQueryError("getAvailableWindowDays", error);
 
   const windows = new Set<number>();
   for (const row of data ?? []) {
@@ -107,7 +109,7 @@ export async function getRepoTimeSeries(
   // `limit` runs — the chart (and the "latest" point every caller derives
   // from the last array entry) would freeze on a stale run and never
   // advance as new analyses land.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("metrics")
     .select(
       "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct",
@@ -116,6 +118,7 @@ export async function getRepoTimeSeries(
     .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(limit);
+  logQueryError("getRepoTimeSeries", error);
 
   return (data ?? []).reverse().map((row) => ({
     date: row.created_at,
@@ -133,7 +136,7 @@ export async function getRepoLatestPayload(
   repositoryId: string,
   windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<Record<string, unknown> | null> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("metrics")
     .select("payload")
     .eq("repository_id", repositoryId)
@@ -141,6 +144,10 @@ export async function getRepoLatestPayload(
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
+  // .single() also errors with PGRST116 on "no rows" — the expected case
+  // for a repo with no metrics yet, so that one code is excluded from
+  // logging to avoid drowning real failures in routine empty-state noise.
+  if (error?.code !== "PGRST116") logQueryError("getRepoLatestPayload", error);
 
   return (data?.payload as Record<string, unknown>) ?? null;
 }
@@ -155,13 +162,14 @@ export async function getRepoAITimeSeries(
   // See getRepoTimeSeries above: fetch newest-first then reverse, or a repo
   // with more than `limit` runs would get the oldest `limit` instead and
   // the AI-impact charts would freeze on a stale slice.
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("metrics")
     .select("created_at, payload, ai_detection_coverage_pct")
     .eq("repository_id", repositoryId)
     .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(limit);
+  logQueryError("getRepoAITimeSeries", error);
 
   if (!data) return [];
 
@@ -171,17 +179,13 @@ export async function getRepoAITimeSeries(
       const p = (row.payload ?? {}) as Record<string, unknown>;
 
       const stabByOrigin = p.stabilization_by_origin as
-        | Record<string, { stabilization_ratio: number }>
-        | undefined;
+        Record<string, { stabilization_ratio: number }> | undefined;
       const durByOrigin = p.durability_by_origin as
-        | Record<string, { survival_rate: number }>
-        | undefined;
+        Record<string, { survival_rate: number }> | undefined;
       const cascByOrigin = p.cascade_rate_by_origin as
-        | Record<string, { cascade_rate: number }>
-        | undefined;
+        Record<string, { cascade_rate: number }> | undefined;
       const originDist = p.commit_origin_distribution as
-        | Record<string, number>
-        | undefined;
+        Record<string, number> | undefined;
 
       return {
         date: row.created_at,
@@ -219,22 +223,24 @@ export async function getOrgReposSummary(
   windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<RepoSummary[]> {
   // Query 1: all repos
-  const { data: repos } = await supabase
+  const { data: repos, error: reposError } = await supabase
     .from("repositories")
     .select("id, name, remote_url")
     .eq("organization_id", organizationId)
     .order("name");
+  logQueryError("getOrgReposSummary (repositories)", reposError);
 
   if (!repos || repos.length === 0) return [];
 
   // Query 2: pre-aggregated summary, one row per repo (see doc comment).
-  const { data: summaries } = await supabase
+  const { data: summaries, error: summariesError } = await supabase
     .from("repo_metric_summaries")
     .select(
       "repository_id, runs_count, last_run_at, stabilization_ratio, prev_stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable, recent_stabilization",
     )
     .eq("organization_id", organizationId)
     .eq("window_days", windowDays);
+  logQueryError("getOrgReposSummary (repo_metric_summaries)", summariesError);
 
   const summaryByRepo = new Map<
     string,
@@ -378,36 +384,73 @@ export function detectChanges(
   return changes;
 }
 
-/** Detect changes across all repos in an org. */
+/**
+ * Detect changes across all repos in an org.
+ *
+ * Uses 2 bulk queries instead of an N+1 (one `metrics` query per repo,
+ * serialized): `repo_metric_summaries` already carries the latest and
+ * previous run's values for every repo in one pre-aggregated row (see
+ * 023_repo_metric_summaries_payload_and_prev.sql), so this reads one row
+ * per repo instead of looping — mirroring the same fix getOrgReposSummary
+ * already applies against this view. The serialized per-repo loop this
+ * replaced scaled linearly with repo count and could stall this panel's
+ * stream (or the whole page render, absent an error boundary) on large orgs.
+ */
 export async function getOrgChangeDetections(
   supabase: SupabaseClient,
   organizationId: string,
   windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<ChangeDetection[]> {
-  const { data: repos } = await supabase
+  const { data: repos, error: reposError } = await supabase
     .from("repositories")
     .select("id, name")
     .eq("organization_id", organizationId);
+  logQueryError("getOrgChangeDetections (repositories)", reposError);
 
-  if (!repos) return [];
+  if (!repos || repos.length === 0) return [];
+
+  const { data: summaries, error: summariesError } = await supabase
+    .from("repo_metric_summaries")
+    .select(
+      "repository_id, runs_count, last_run_at, stabilization_ratio, prev_stabilization_ratio, revert_rate, prev_revert_rate, churn_events, prev_churn_events, ai_detection_coverage_pct, prev_ai_detection_coverage_pct, prev_created_at",
+    )
+    .eq("organization_id", organizationId)
+    .eq("window_days", windowDays);
+  logQueryError(
+    "getOrgChangeDetections (repo_metric_summaries)",
+    summariesError,
+  );
+
+  const summaryByRepo = new Map<
+    string,
+    NonNullable<typeof summaries>[number]
+  >();
+  for (const row of summaries ?? []) summaryByRepo.set(row.repository_id, row);
 
   const allChanges: ChangeDetection[] = [];
 
   for (const repo of repos) {
-    const { data: runs } = await supabase
-      .from("metrics")
-      .select(
-        "created_at, stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate",
-      )
-      .eq("repository_id", repo.id)
-      .eq("window_days", windowDays)
-      .order("created_at", { ascending: false })
-      .limit(2);
+    const s = summaryByRepo.get(repo.id);
+    if (!s || s.runs_count < 2) continue;
 
-    if (!runs || runs.length < 2) continue;
-
-    const current: TimeSeriesPoint = { date: runs[0].created_at, ...runs[0] };
-    const previous: TimeSeriesPoint = { date: runs[1].created_at, ...runs[1] };
+    // commits_total isn't compared by detectChanges — left null rather than
+    // guessed at, since the view doesn't track a "previous" value for it.
+    const current: TimeSeriesPoint = {
+      date: s.last_run_at,
+      stabilization_ratio: s.stabilization_ratio,
+      revert_rate: s.revert_rate,
+      churn_events: s.churn_events,
+      commits_total: null,
+      ai_detection_coverage_pct: s.ai_detection_coverage_pct,
+    };
+    const previous: TimeSeriesPoint = {
+      date: s.prev_created_at,
+      stabilization_ratio: s.prev_stabilization_ratio,
+      revert_rate: s.prev_revert_rate,
+      churn_events: s.prev_churn_events,
+      commits_total: null,
+      ai_detection_coverage_pct: s.prev_ai_detection_coverage_pct,
+    };
 
     allChanges.push(...detectChanges(repo.name, repo.id, current, previous));
   }

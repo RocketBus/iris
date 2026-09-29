@@ -28,6 +28,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { logQueryError } from "@/lib/queries/log-error";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/queries/temporal";
 import type { ReportMetrics } from "@/types/metrics";
 import type { RepoSummary } from "@/types/temporal";
@@ -46,7 +47,7 @@ export async function getOrgUsageRollup(
   organizationId: string,
   sinceDay: string,
 ): Promise<UsageRollupRow[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("usage_rollup")
     .select(
       "repository_id, period_day, agent, model, sessions, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, tool_calls, sidechain_tool_calls, duration_buckets",
@@ -54,6 +55,7 @@ export async function getOrgUsageRollup(
     .eq("organization_id", organizationId)
     .gte("period_day", sinceDay)
     .limit(5000);
+  logQueryError("getOrgUsageRollup", error);
 
   return (data ?? []) as UsageRollupRow[];
 }
@@ -67,13 +69,14 @@ export async function getRepoContributorCounts(
   organizationId: string,
   windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<Map<string, number>> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("analysis_runs")
     .select("repository_id, active_users, created_at")
     .eq("organization_id", organizationId)
     .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(500);
+  logQueryError("getRepoContributorCounts", error);
 
   const seen = new Set<string>();
   const counts = new Map<string, number>();

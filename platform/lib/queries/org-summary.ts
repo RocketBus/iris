@@ -6,6 +6,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { summarizeFlow, type FlowRow } from "@/lib/queries/cycle-time-flow";
+import { logQueryError } from "@/lib/queries/log-error";
 import { DEFAULT_WINDOW_DAYS } from "@/lib/queries/temporal";
 import type { ReportMetrics } from "@/types/metrics";
 import type {
@@ -33,24 +34,27 @@ export async function getOrgLatestPayloads(
 ): Promise<Map<string, ReportMetrics>> {
   if (repoIds.length === 0) return new Map();
 
-  // Fetch recent payloads for the org, newest first.
-  // We fetch enough rows to cover one per repo, then deduplicate client-side.
-  const { data } = await supabase
-    .from("metrics")
+  // Reads `repo_metric_summaries` (one pre-aggregated row per repo) instead
+  // of a raw `metrics` fetch with a global `.limit(repoIds.length * 2)`. That
+  // used to break the same way the pre-fix getOrgReposSummary did: ordered
+  // globally by created_at, a burst of re-analyses on a handful of repos (or
+  // PostgREST's default 1000-row cap) could push another repo's actual
+  // latest row out of the fetched window, dropping that repo from the map
+  // entirely with no error — every payload-driven panel (AI Delivery
+  // Timeline, Org Timeline) would silently render as if it had no data.
+  const { data, error } = await supabase
+    .from("repo_metric_summaries")
     .select("repository_id, payload")
     .eq("organization_id", organizationId)
     .eq("window_days", windowDays)
-    .order("created_at", { ascending: false })
-    .limit(repoIds.length * 2);
+    .in("repository_id", repoIds);
+  logQueryError("getOrgLatestPayloads", error);
 
   if (!data) return new Map();
 
   const map = new Map<string, ReportMetrics>();
   for (const row of data) {
-    // Keep only the first (newest) per repo
-    if (!map.has(row.repository_id) && row.payload) {
-      map.set(row.repository_id, row.payload as ReportMetrics);
-    }
+    if (row.payload) map.set(row.repository_id, row.payload as ReportMetrics);
   }
   return map;
 }
@@ -86,13 +90,14 @@ export async function getOrgActiveContributors(
   organizationId: string,
   windowDays: number = DEFAULT_WINDOW_DAYS,
 ): Promise<OrgContributorInfo> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("analysis_runs")
     .select("repository_id, active_users, created_at")
     .eq("organization_id", organizationId)
     .eq("window_days", windowDays)
     .order("created_at", { ascending: false })
     .limit(200);
+  logQueryError("getOrgActiveContributors", error);
 
   if (!data || data.length === 0) {
     return { count: 0, userMap: new Map(), nameToGithub: new Map() };
