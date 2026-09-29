@@ -19,6 +19,7 @@ import {
   computeAgentUsage,
 } from "@/lib/queries/agent-usage";
 import { computeOrgDORA } from "@/lib/queries/dora";
+import { logQueryError } from "@/lib/queries/log-error";
 import {
   getOrgLatestPayloads,
   getOrgActiveContributors,
@@ -75,7 +76,7 @@ export const loadPreviousPeriod = cache(
   async (orgId: string, windowDays: number) => {
     const repos = await loadRepoSummaries(orgId, windowDays);
 
-    const { data } = await supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from("metrics")
       .select(
         "repository_id, commits_total, pr_merged_count, ai_detection_coverage_pct, payload",
@@ -84,6 +85,7 @@ export const loadPreviousPeriod = cache(
       .eq("window_days", windowDays)
       .order("created_at", { ascending: false })
       .limit(repos.length * 15);
+    logQueryError("loadPreviousPeriod", error);
 
     const rows = data ?? [];
     return {
