@@ -45,19 +45,26 @@ SELECT
   (array_agg(cascade_rate              ORDER BY created_at DESC))[1]  AS cascade_rate,
   (array_agg(merge_strategy            ORDER BY created_at DESC))[1]  AS merge_strategy,
   (array_agg(commit_metrics_reliable   ORDER BY created_at DESC))[1]  AS commit_metrics_reliable,
-  (array_agg(payload                   ORDER BY created_at DESC))[1]  AS payload,
 
-  -- Previous run's values ([2] = second newest), for delta calculations.
-  (array_agg(created_at                ORDER BY created_at DESC))[2]  AS prev_created_at,
+  -- Previous run's stabilization ([2] = second newest) for the delta arrow.
   (array_agg(stabilization_ratio       ORDER BY created_at DESC))[2]  AS prev_stabilization_ratio,
-  (array_agg(revert_rate               ORDER BY created_at DESC))[2]  AS prev_revert_rate,
-  (array_agg(churn_events              ORDER BY created_at DESC))[2]  AS prev_churn_events,
-  (array_agg(ai_detection_coverage_pct ORDER BY created_at DESC))[2]  AS prev_ai_detection_coverage_pct,
 
   -- Newest-first stabilization values; the caller slices SPARKLINE_POINTS,
   -- reverses to chronological, and drops nulls. 50 is more than any sparkline
   -- needs while keeping the array small.
-  (array_agg(stabilization_ratio       ORDER BY created_at DESC))[1:50] AS recent_stabilization
+  (array_agg(stabilization_ratio       ORDER BY created_at DESC))[1:50] AS recent_stabilization,
+
+  -- Everything below is new in this migration. `CREATE OR REPLACE VIEW`
+  -- requires every pre-existing column to keep its name AND ordinal
+  -- position — only appending at the end is allowed, or Postgres errors
+  -- with "cannot change name of view column X to Y" (it reads a shifted
+  -- position as a rename). So new columns are appended here, never
+  -- interleaved with the columns above.
+  (array_agg(payload                   ORDER BY created_at DESC))[1]  AS payload,
+  (array_agg(created_at                ORDER BY created_at DESC))[2]  AS prev_created_at,
+  (array_agg(revert_rate               ORDER BY created_at DESC))[2]  AS prev_revert_rate,
+  (array_agg(churn_events              ORDER BY created_at DESC))[2]  AS prev_churn_events,
+  (array_agg(ai_detection_coverage_pct ORDER BY created_at DESC))[2]  AS prev_ai_detection_coverage_pct
 
 FROM metrics
 GROUP BY repository_id, organization_id, window_days;
