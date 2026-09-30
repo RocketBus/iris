@@ -6,6 +6,16 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ## Unreleased
 
+### Fixed
+
+- **CI release commits counted as HUMAN.** Release pipelines that commit as
+  `$GITHUB_ACTOR` (the person who merged), such as the shared auto-devops
+  workflow, wrote one `chore: release vX.Y.Z [skip ci]` commit per merge under
+  a human identity, so the author check never saw a bot. A repo whose feature
+  and fix commits were all AI-assisted showed 36% HUMAN. `origin_classifier`
+  now classifies that subject shape as `BOT`; a release commit without
+  `[skip ci]` (cut by hand) is unaffected.
+
 ---
 
 ## v1.8.0 — Metrics parity gate and stabilization wording fix (2026-09-16)

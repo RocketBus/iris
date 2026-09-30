@@ -3,7 +3,8 @@
 Heuristics (first match wins):
 1. Attribution trailer names an AI tool → AI_ASSISTED
 2. Author patterns: [bot], dependabot, renovate, github-actions, mergify → BOT
-3. Default: HUMAN
+3. Subject is a CI release commit (`chore: release v1.2.3 [skip ci]`) → BOT
+4. Default: HUMAN
 
 Rules:
 - Case-insensitive matching
@@ -101,6 +102,20 @@ _BOT_AUTHOR_PATTERNS = re.compile(
 )
 
 
+# Subject of a release commit written by a CI pipeline, e.g.
+# `chore: release v0.1.10 [skip ci]` or semantic-release's default
+# `chore(release): 1.4.0 [skip ci]`. Release pipelines often commit as
+# $GITHUB_ACTOR — the person who merged — so the author check above misses
+# them and every merge adds one HUMAN commit. `[skip ci]` at the end is what
+# separates the pipeline from a person cutting a release by hand. The only
+# suffix tolerated after it is the ` (#123)` a squash-merged release PR gets.
+_CI_RELEASE_SUBJECT_PATTERN = re.compile(
+    r"^chore(?:\(release\))?: (?:release )?v?\d+\.\d+\.\d+\S* \[skip ci\]"
+    r"(?: \(#\d+\))?$",
+    re.IGNORECASE,
+)
+
+
 def classify_origin(commit: Commit) -> CommitOrigin:
     """Classify a commit by its origin (human, AI-assisted, or bot).
 
@@ -116,6 +131,10 @@ def classify_origin(commit: Commit) -> CommitOrigin:
 
     # Heuristic 2: author patterns → BOT
     if _BOT_AUTHOR_PATTERNS.search(commit.author):
+        return CommitOrigin.BOT
+
+    # Heuristic 3: CI release commit under a human identity → BOT
+    if _CI_RELEASE_SUBJECT_PATTERN.match(commit.message):
         return CommitOrigin.BOT
 
     # Default: HUMAN
