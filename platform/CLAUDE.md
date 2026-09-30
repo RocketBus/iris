@@ -103,6 +103,23 @@ Supabase with 12 migrations under `platform/supabase/migrations/`:
 - `009_github_user`, `010_active_users` — analysis_runs columns
 - `011_github_org_link`, `012_github_org_members` — link Iris orgs to GitHub orgs
 
+**Every migration file must end with an INSERT registering itself in
+`supabase_migrations.schema_migrations`** (`version`, `name` — match the
+filename: `version` is the zero-padded number prefix, `name` is the rest of
+the filename without the extension). Migrations here are often applied by
+pasting the file into the Supabase SQL editor rather than `supabase db
+push`, which never touches that tracking table — without the INSERT,
+`schema_migrations` silently falls behind the database's real schema, which
+is exactly what happened with migrations 022 and 023 (the view they created
+existed in prod, untracked, until this was caught by hand). Use
+`ON CONFLICT (version) DO NOTHING` so re-running the file is harmless:
+
+```sql
+insert into supabase_migrations.schema_migrations (version, name)
+values ('024', 'my_new_migration')
+on conflict (version) do nothing;
+```
+
 RLS policies in `supabase/policies/rls_policies.sql`.
 
 ## Deployment
