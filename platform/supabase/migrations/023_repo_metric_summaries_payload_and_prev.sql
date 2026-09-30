@@ -68,3 +68,15 @@ SELECT
 
 FROM metrics
 GROUP BY repository_id, organization_id, window_days;
+
+-- Registers this migration in the CLI's tracking table. Migrations here are
+-- often applied by pasting the file into the Supabase SQL editor rather than
+-- `supabase db push`, which never touches this table — 022 and 023 both
+-- drifted out of it that way, undetected until checked by hand. Also backfills
+-- 022, which shipped without this insert and was found already applied (its
+-- columns exist) but untracked.
+insert into supabase_migrations.schema_migrations (version, name)
+values
+  ('022', 'repo_metric_summaries'),
+  ('023', 'repo_metric_summaries_payload_and_prev')
+on conflict (version) do nothing;
