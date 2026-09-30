@@ -1,5 +1,11 @@
--- 023_github_projects.sql
+-- 024_github_projects.sql
 -- Board-level flow analysis from GitHub Projects V2.
+--
+-- Renumbered from 023 to 024: 023_repo_metric_summaries_payload_and_prev.sql
+-- landed in parallel (both authored against a main still at 022) and was
+-- applied to the live project first, self-registering as version 023 in
+-- supabase_migrations.schema_migrations — so this one moves instead of
+-- that one, since this migration had not yet been applied anywhere.
 --
 -- Why there is no snapshot table here
 -- -----------------------------------
@@ -148,3 +154,7 @@ CREATE TABLE project_status_events (
 -- Phase derivation always reads one item's events in chronological order.
 CREATE INDEX idx_project_status_events_item_time
   ON project_status_events(item_id, occurred_at);
+
+insert into supabase_migrations.schema_migrations (version, name)
+values ('024', 'github_projects')
+on conflict (version) do nothing;
