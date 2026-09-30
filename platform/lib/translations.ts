@@ -996,6 +996,13 @@ export const translations = {
             detail:
               "Once connected, Iris will sync deployment and failure events daily and use them to compute real Change Failure Rate and MTTR alongside the git-derived estimates.",
           },
+          github_projects: {
+            name: "GitHub Projects",
+            description:
+              "Read a GitHub Projects V2 board to measure delivery flow beyond the code window.",
+            detail:
+              "Once connected, Iris will sync the board's item history daily and use it to compute lead time, time per column, throughput, WIP aging, and the cumulative flow diagram on the Delivery Flow page.",
+          },
         },
         detail: {
           backLink: "Back to integrations",
@@ -1043,6 +1050,49 @@ export const translations = {
             title: "Disconnect Datadog?",
             description:
               "The credentials will be removed and the daily sync will stop. Deployments and incidents already ingested will remain in Iris. You can reconnect any time.",
+            cancel: "Cancel",
+            confirm: "Yes, disconnect",
+          },
+        },
+        githubProjects: {
+          connectTitle: "Connect a board",
+          connectDescription:
+            "Provide a token with read:project scope (plus repo for private repositories) and the board to sync. We'll validate it against the live board before saving.",
+          connectButton: "Connect board",
+          connectSuccess: "Board connected successfully.",
+          connectError: "Failed to connect the board.",
+          errorTitle: "GitHub Projects sync is failing",
+          errorDescription:
+            "Iris is still connected, but the most recent sync errored. Review the message below; once GitHub accepts the credentials again, the next daily run resumes ingestion.",
+          connectedTitle: "Board is connected",
+          connectedDescription:
+            "Iris reads this board's item history on a daily cadence to compute delivery flow.",
+          disconnectButton: "Disconnect",
+          disconnectSuccess:
+            "Board disconnected. Historical data is preserved.",
+          disconnectError: "Failed to disconnect the board.",
+          fields: {
+            token: "Personal access token",
+            tokenHint:
+              "Needs read:project on the board's owner, plus repo to read private repository content. Stored encrypted, never shown again after saving.",
+            owner: "Owner",
+            ownerType: "Owner type",
+            ownerTypeOrg: "Organization",
+            ownerTypeUser: "User",
+            number: "Project number",
+            numberHint: "The number from the board's URL, e.g. 42.",
+            teamSlug: "Team label (optional)",
+            teamSlugHint:
+              "Free-form grouping label — Iris has no team entity of its own and never interprets this string.",
+            board: "Board",
+            lastSyncAt: "Last sync",
+            connectedAt: "Connected at",
+            neverSynced: "Never synced yet",
+          },
+          disconnectDialog: {
+            title: "Disconnect this board?",
+            description:
+              "The credentials will be removed and the daily sync will stop. Item and status-change history already ingested will remain in Iris. You can reconnect any time.",
             cancel: "Cancel",
             confirm: "Yes, disconnect",
           },
@@ -2511,6 +2561,13 @@ export const translations = {
             detail:
               "Conectado, o Iris vai sincronizar eventos de deploy e falha diariamente e usá-los para calcular Change Failure Rate e MTTR reais junto com os estimados derivados do git.",
           },
+          github_projects: {
+            name: "GitHub Projects",
+            description:
+              "Leia um board do GitHub Projects V2 para medir o fluxo de entrega além da janela de código.",
+            detail:
+              "Conectado, o Iris vai sincronizar o histórico de itens do board diariamente e usá-lo para calcular lead time, tempo por coluna, throughput, WIP aging e o diagrama de fluxo cumulativo na página de Fluxo de Entrega.",
+          },
         },
         detail: {
           backLink: "Voltar para integrações",
@@ -2558,6 +2615,49 @@ export const translations = {
             title: "Desconectar o Datadog?",
             description:
               "As credenciais serão removidas e a sincronização diária será interrompida. Os deploys e incidentes já ingeridos permanecem no Iris. Você pode reconectar a qualquer momento.",
+            cancel: "Cancelar",
+            confirm: "Sim, desconectar",
+          },
+        },
+        githubProjects: {
+          connectTitle: "Conectar um board",
+          connectDescription:
+            "Forneça um token com escopo read:project (e repo para repositórios privados) e o board a sincronizar. Validamos contra o board real antes de salvar.",
+          connectButton: "Conectar board",
+          connectSuccess: "Board conectado com sucesso.",
+          connectError: "Falha ao conectar o board.",
+          errorTitle: "A sincronização do GitHub Projects está falhando",
+          errorDescription:
+            "O Iris segue conectado, mas a sincronização mais recente deu erro. Confira a mensagem abaixo; assim que o GitHub voltar a aceitar as credenciais, a próxima execução diária retoma a ingestão.",
+          connectedTitle: "Board conectado",
+          connectedDescription:
+            "O Iris lê o histórico de itens deste board diariamente para calcular o fluxo de entrega.",
+          disconnectButton: "Desconectar",
+          disconnectSuccess:
+            "Board desconectado. Os dados históricos foram preservados.",
+          disconnectError: "Falha ao desconectar o board.",
+          fields: {
+            token: "Token de acesso pessoal",
+            tokenHint:
+              "Precisa de read:project no dono do board, e repo para ler conteúdo de repositórios privados. Armazenado criptografado, nunca mostrado novamente após salvar.",
+            owner: "Dono",
+            ownerType: "Tipo do dono",
+            ownerTypeOrg: "Organização",
+            ownerTypeUser: "Usuário",
+            number: "Número do projeto",
+            numberHint: "O número que aparece na URL do board, ex: 42.",
+            teamSlug: "Rótulo de time (opcional)",
+            teamSlugHint:
+              "Rótulo livre de agrupamento — o Iris não tem entidade de time própria e nunca interpreta essa string.",
+            board: "Board",
+            lastSyncAt: "Última sincronização",
+            connectedAt: "Conectado em",
+            neverSynced: "Ainda não sincronizado",
+          },
+          disconnectDialog: {
+            title: "Desconectar este board?",
+            description:
+              "As credenciais serão removidas e a sincronização diária será interrompida. O histórico de itens e mudanças de status já ingerido permanece no Iris. Você pode reconectar a qualquer momento.",
             cancel: "Cancelar",
             confirm: "Sim, desconectar",
           },
