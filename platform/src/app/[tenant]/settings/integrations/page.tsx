@@ -24,7 +24,10 @@ interface IntegrationsPageProps {
  * Provider catalog. Slice 2 wired the Datadog status to org_integrations;
  * new providers get added here without touching the page layout.
  */
-const PROVIDERS = [{ id: "datadog" as const }];
+const PROVIDERS = [
+  { id: "datadog" as const },
+  { id: "github_projects" as const },
+];
 
 type ProviderStatus = "active" | "error" | "disconnected" | "not_connected";
 

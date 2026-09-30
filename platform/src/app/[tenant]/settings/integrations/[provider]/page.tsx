@@ -9,6 +9,10 @@ import {
   type DatadogIntegrationStatus,
 } from "@/components/integrations/datadog-connect-form";
 import {
+  GithubProjectsConnectForm,
+  type GithubProjectsIntegrationStatus,
+} from "@/components/integrations/github-projects-connect-form";
+import {
   Card,
   CardContent,
   CardDescription,
@@ -20,7 +24,7 @@ import { canManageMembers } from "@/lib/permissions";
 import { getServerTranslation } from "@/lib/server-translation";
 import { supabaseAdmin } from "@/lib/supabase";
 
-const SUPPORTED_PROVIDERS = new Set(["datadog"]);
+const SUPPORTED_PROVIDERS = new Set(["datadog", "github_projects"]);
 
 interface ProviderPageProps {
   params: Promise<{ tenant: string; provider: string }>;
@@ -118,6 +122,43 @@ export default async function IntegrationProviderPage({
     }
   }
 
+  let githubProjectsInitial: GithubProjectsIntegrationStatus = {
+    status: "not_connected",
+  };
+  if (provider === "github_projects") {
+    const { data } = await supabaseAdmin
+      .from("org_integrations")
+      .select(
+        "status, config, last_sync_at, last_error, created_at, updated_at",
+      )
+      .eq("organization_id", org.id)
+      .eq("provider", "github_projects")
+      .maybeSingle();
+
+    if (data) {
+      const config = (data.config ?? {}) as {
+        boards?: Array<{
+          owner: string;
+          ownerType?: string;
+          number: number;
+          teamSlug?: string;
+        }>;
+        boardTitle?: string;
+        tokenMask?: string;
+      };
+      githubProjectsInitial = {
+        status: data.status as "active" | "error" | "disconnected",
+        board: config.boards?.[0] ?? null,
+        boardTitle: config.boardTitle ?? null,
+        tokenMask: config.tokenMask ?? null,
+        lastSyncAt: data.last_sync_at,
+        lastError: data.last_error,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      };
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Link
@@ -139,6 +180,11 @@ export default async function IntegrationProviderPage({
 
       {provider === "datadog" ? (
         <DatadogConnectForm organizationId={org.id} initial={initial} />
+      ) : provider === "github_projects" ? (
+        <GithubProjectsConnectForm
+          organizationId={org.id}
+          initial={githubProjectsInitial}
+        />
       ) : (
         <Card>
           <CardHeader>

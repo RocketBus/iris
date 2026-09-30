@@ -11,10 +11,14 @@ import {
   validateCredentials,
   type DatadogSite,
 } from "@/lib/integrations/datadog/client";
+import {
+  fetchProjectItems,
+  GitHubProjectsError,
+} from "@/lib/integrations/github-projects/client";
 import { canManageMembers } from "@/lib/permissions";
 import { supabaseAdmin } from "@/lib/supabase";
 
-const SUPPORTED_PROVIDERS = new Set(["datadog"]);
+const SUPPORTED_PROVIDERS = new Set(["datadog", "github_projects"]);
 
 interface RouteContext {
   params: Promise<{ organizationId: string; provider: string }>;
@@ -90,6 +94,30 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
       return NextResponse.json({ status: "not_connected" });
     }
 
+    if (provider === "github_projects") {
+      const config = (data.config ?? {}) as {
+        boards?: Array<{
+          owner: string;
+          ownerType?: string;
+          number: number;
+          teamSlug?: string;
+        }>;
+        boardTitle?: string;
+        tokenMask?: string;
+      };
+      const board = config.boards?.[0] ?? null;
+      return NextResponse.json({
+        status: data.status,
+        board,
+        boardTitle: config.boardTitle ?? null,
+        tokenMask: config.tokenMask ?? null,
+        lastSyncAt: data.last_sync_at,
+        lastError: data.last_error,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+      });
+    }
+
     const config = (data.config ?? {}) as {
       site?: string;
       apiKeyMask?: string;
@@ -117,7 +145,7 @@ export async function GET(request: NextRequest, { params }: RouteContext) {
 export async function POST(request: NextRequest, { params }: RouteContext) {
   try {
     const { organizationId, provider } = await params;
-    if (provider !== "datadog") {
+    if (!SUPPORTED_PROVIDERS.has(provider)) {
       return NextResponse.json(
         { message: "Provider not supported yet" },
         { status: 404 },
@@ -126,6 +154,10 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
 
     const auth = await authorize(request, organizationId);
     if (auth instanceof NextResponse) return auth;
+
+    if (provider === "github_projects") {
+      return connectGithubProjects(organizationId, await request.json());
+    }
 
     const body = (await request.json()) as {
       apiKey?: string;
@@ -234,6 +266,105 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
       { status: 500 },
     );
   }
+}
+
+/**
+ * Connects a single GitHub Projects V2 board (see
+ * docs/integrations/github-projects.md for the full config shape —
+ * `statusConfig` and additional boards are DB-only for now, set by hand
+ * until a form exists for them). Validates the token against the real board
+ * before saving, same as Datadog's `validateCredentials` above: a bad
+ * token/owner/number combination should fail here, not silently at the next
+ * cron run.
+ */
+async function connectGithubProjects(
+  organizationId: string,
+  body: {
+    token?: string;
+    owner?: string;
+    ownerType?: string;
+    number?: number;
+    teamSlug?: string;
+  },
+): Promise<NextResponse> {
+  const token = body.token?.trim();
+  const owner = body.owner?.trim();
+  const ownerType = body.ownerType === "user" ? "user" : "organization";
+  const number = body.number;
+  const teamSlug = body.teamSlug?.trim() || undefined;
+
+  if (!token || !owner || !number) {
+    return NextResponse.json(
+      { message: "token, owner, and number are required" },
+      { status: 400 },
+    );
+  }
+
+  let boardTitle: string;
+  try {
+    const board = await fetchProjectItems(
+      { token },
+      { ownerLogin: owner, ownerType, number },
+    );
+    boardTitle = board.title;
+  } catch (err) {
+    const message =
+      err instanceof GitHubProjectsError
+        ? err.message
+        : "Could not reach GitHub with these credentials.";
+    return NextResponse.json({ message }, { status: 400 });
+  }
+
+  let encrypted: string;
+  try {
+    encrypted = await encryptCredentials({ token });
+  } catch (err) {
+    logger.error("encrypt failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json(
+      {
+        message:
+          "Server is missing INTEGRATIONS_ENCRYPTION_KEY. Contact your administrator.",
+      },
+      { status: 500 },
+    );
+  }
+
+  const config = {
+    boards: [{ owner, ownerType, number, teamSlug }],
+    boardTitle,
+    tokenMask: maskSecret(token),
+  };
+
+  const { error: upsertError } = await supabaseAdmin
+    .from("org_integrations")
+    .upsert(
+      {
+        organization_id: organizationId,
+        provider: "github_projects",
+        status: "active",
+        credentials_encrypted: encrypted,
+        config,
+        last_error: null,
+      },
+      { onConflict: "organization_id,provider" },
+    );
+
+  if (upsertError) {
+    logger.error("integration upsert failed", { error: upsertError.message });
+    return NextResponse.json(
+      { message: "Failed to save integration" },
+      { status: 500 },
+    );
+  }
+
+  return NextResponse.json({
+    status: "active",
+    board: config.boards[0],
+    boardTitle,
+    tokenMask: config.tokenMask,
+  });
 }
 
 export async function DELETE(request: NextRequest, { params }: RouteContext) {
