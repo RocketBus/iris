@@ -8,6 +8,46 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.10.0 — GitHub Projects connect UI and security hardening (2026-09-30)
+
+### Added
+
+- **Self-serve connect UI for GitHub Projects boards** (#274). Delivery
+  Flow (#170) shipped the board-flow analysis and daily sync job, but
+  connecting a board required an operator to hand-insert an
+  `org_integrations` row — the flow page's own "Configurações" button led
+  to a settings page that 404'd, since the provider was never registered in
+  either the UI or the integrations API route. Adds `GithubProjectsConnectForm`
+  (token, owner, project number, optional team label), mirroring the
+  Datadog connect flow: the token is validated against the real board
+  before saving, so a bad token/owner/number combination fails at connect
+  time instead of silently at the next cron run. Scope for this pass: one
+  board per org; multi-board config and `statusConfig` column mapping stay
+  DB-only, per `docs/integrations/github-projects.md`.
+
+### Security
+
+- **`repo_metric_summaries` view ran as SECURITY DEFINER** (#273). No
+  explicit `security_invoker` meant the view ran with its owner's
+  privileges for every querying role rather than the querying role's own;
+  any `anon`/`authenticated` grant on it would have read straight through
+  RLS on the underlying tables. Set `security_invoker = on`.
+- **`ingest_usage_rollup` had no grant restriction** (#273), unlike the
+  other credential-adjacent RPCs. It upserts `usage_rollup` keyed by
+  caller-supplied `organization_id` with no identity check of its own — the
+  org boundary is enforced one layer up, by `api/ingest/usage`'s token
+  lookup, always via the service-role client. Left open, anyone could have
+  called `/rest/v1/rpc/ingest_usage_rollup` directly and injected usage
+  data into any org's dashboard. Revoked from `PUBLIC`/`anon`/`authenticated`,
+  matching the restriction `encrypt_credentials`/`decrypt_credentials`
+  already had.
+- **Four functions had a mutable `search_path`** (#273):
+  `update_updated_at_column`, `encrypt_credentials`, `decrypt_credentials`,
+  `ingest_usage_rollup`. Pinned on all four — defense in depth against a
+  caller shadowing a table or function the definition relies on.
+
+---
+
 ## v1.9.0 — GitHub Projects board flow and dashboard reliability fixes (2026-09-30)
 
 ### Added
