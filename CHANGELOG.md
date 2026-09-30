@@ -6,15 +6,74 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ## Unreleased
 
+---
+
+## v1.9.0 — GitHub Projects board flow and dashboard reliability fixes (2026-09-30)
+
+### Added
+
+- **Board-level flow analysis from GitHub Projects V2** (#170). New
+  `/[tenant]/flow` view: lead time, time per column, throughput, WIP aging,
+  and a cumulative flow diagram. Derived entirely from
+  `ProjectV2ItemStatusChangedEvent` timeline events — the GraphQL API exposes
+  full column-transition history retroactively at second precision on the
+  first sync, so no periodic snapshot/diffing job or detection window is
+  needed. Quality gates render before any metric.
+
 ### Fixed
 
-- **CI release commits counted as HUMAN.** Release pipelines that commit as
-  `$GITHUB_ACTOR` (the person who merged), such as the shared auto-devops
-  workflow, wrote one `chore: release vX.Y.Z [skip ci]` commit per merge under
-  a human identity, so the author check never saw a bot. A repo whose feature
-  and fix commits were all AI-assisted showed 36% HUMAN. `origin_classifier`
-  now classifies that subject shape as `BOT`; a release commit without
-  `[skip ci]` (cut by hand) is unaffected.
+- **CI release commits counted as HUMAN** (#258). Release pipelines that
+  commit as `$GITHUB_ACTOR` (the person who merged), such as the shared
+  auto-devops workflow, wrote one `chore: release vX.Y.Z [skip ci]` commit
+  per merge under a human identity, so the author check never saw a bot. A
+  repo whose feature and fix commits were all AI-assisted showed 36% HUMAN.
+  `origin_classifier` now classifies that subject shape as `BOT`; a release
+  commit without `[skip ci]` (cut by hand) is unaffected.
+- **A failing dashboard panel could take down the entire page** (#264). No
+  `error.tsx` existed anywhere in the app, so an uncaught exception in any
+  one panel — e.g. `computeOrgDORA` throwing on a transient
+  `external_*`/`org_integrations` query failure — blanked the whole
+  dashboard instead of just that section. Added a segment error boundary at
+  `[tenant]/dashboard`.
+- **Some repos silently dropped out of payload-driven panels** (#264, #265),
+  most visibly on AI Delivery Timeline and Org Timeline. `getOrgLatestPayloads`
+  read raw `metrics` rows with a single `LIMIT` sized off repo count, ordered
+  globally by `created_at`; a burst of re-analyses on a handful of repos, or
+  PostgREST's row cap, could push another repo's actual latest payload out of
+  the fetched window entirely, with nothing indicating a problem. Now reads
+  `repo_metric_summaries` — one pre-aggregated row per repo, guaranteed — the
+  same fix `getOrgReposSummary` already had, and falls back to the old read
+  path if the view isn't ready yet so a pending migration degrades instead of
+  blanking every panel.
+- **`getOrgChangeDetections` issued one `metrics` query per repo in a
+  sequential loop** (#264), an N+1 that scaled linearly with repo count and
+  could stall that panel's stream — or, absent the error boundary above, the
+  whole page — on large orgs. Now reads the same pre-aggregated view, 2 bulk
+  queries total regardless of repo count.
+- Logged, without changing behavior, every dashboard query that previously
+  destructured `{ data }` alone and treated a real Supabase error identically
+  to "no rows yet" — a second, quieter cause of panels rendering empty with
+  nothing in the logs to explain why.
+
+### Changed
+
+- **Migrations must now self-register in
+  `supabase_migrations.schema_migrations`** (documented in
+  `platform/CLAUDE.md`). Migrations here are often applied via the Supabase
+  SQL editor rather than `supabase db push`, which never touches that
+  tracking table — exactly how migrations 022–024 drifted out of it,
+  including two files independently landing on the same number, caught only
+  by hand while shipping the fixes above.
+
+### Security
+
+- **Platform deps:** `next` bumped to 16.3.8 (High: SSRF in Image
+  Optimization; Medium: SSG/ISR cache poisoning across two advisories, Draft
+  Mode content leaking via a pending `use cache` fill, metadata route
+  `dynamicParams` bypass, cache leak across root param values). `@grpc/grpc-js`
+  bumped to 1.14.5 (excessive error detail sent to clients by default;
+  `getAuthContext` reporting unverified certificates as verified).
+  `brace-expansion` (dev/build tooling, transitive) bumped to 1.1.21 (ReDoS).
 
 ---
 
