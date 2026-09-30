@@ -34,6 +34,7 @@ Multi-tenant Next.js application: public marketing site + authenticated engineer
 - `/[tenant]/repos/[repoName]` — Repo detail with charts
 - `/[tenant]/compare` — Cross-repo comparison
 - `/[tenant]/ai-exposure` — AI shadow detection
+- `/[tenant]/flow` — Delivery flow from a GitHub Projects board (lead time, time per column, throughput, WIP aging, CFD); quality gates render before any metric
 - `/[tenant]/audit-log` — Org audit log (feature flag `auditLog`, enabled by default)
 - `/[tenant]/team` — Team management
 - `/[tenant]/settings` — Organization settings
