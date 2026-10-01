@@ -414,6 +414,16 @@ export function computeAIvsHuman(
       totalHuman += dist.HUMAN ?? 0;
       totalAI += dist.AI_ASSISTED ?? 0;
       totalBot += dist.BOT ?? 0;
+    } else if (p.attribution_gap) {
+      // The engine omits commit_origin_distribution when a repo has zero
+      // AI/bot-classified commits in-window (a separate gate from
+      // attribution_gap's own >=3-flagged-commits threshold below) — an
+      // all-human repo can still trip the attribution-gap heuristic. Without
+      // this, such a repo's flagged_commits fed totalFlagged further down
+      // while its own human commits never reached totalHuman, letting
+      // flaggedPct exceed 100% (seen as "174 of 142" on a narrow window,
+      // where a short lookback makes an all-human burst more likely).
+      totalHuman += p.attribution_gap.total_human_commits;
     }
 
     // Stabilization
@@ -529,7 +539,14 @@ export function computeAIvsHuman(
     toolBreakdown,
     attributionGap: hasAttributionGap
       ? {
-          flaggedPct: totalHuman > 0 ? (totalFlagged / totalHuman) * 100 : 0,
+          // Clamped defense-in-depth: flagged_commits is a subset of
+          // total_human_commits by construction, but a withheld attribution
+          // gate we haven't anticipated feeding totalFlagged without its
+          // matching human count should degrade to "100%", not nonsense.
+          flaggedPct:
+            totalHuman > 0
+              ? Math.min(100, (totalFlagged / totalHuman) * 100)
+              : 0,
           flaggedCommits: totalFlagged,
           totalHumanCommits: totalHuman,
         }

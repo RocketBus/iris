@@ -149,6 +149,65 @@ describe("computeAIvsHuman — attribution gap", () => {
     expect(out!.attributionGap!.totalHumanCommits).toBe(9000);
     expect(out!.attributionGap!.flaggedPct).toBeCloseTo((3 / 9000) * 100, 5);
   });
+
+  it("counts an all-human repo's flagged commits toward the denominator even without commit_origin_distribution", () => {
+    const payloads = new Map<string, ReportMetrics>();
+    // The engine omits commit_origin_distribution for a repo with zero
+    // AI/bot-classified commits in-window — a separate gate from
+    // attribution_gap's own >=3-flagged threshold, so an all-human repo can
+    // still trip it. Two such repos here, to show the bug was an org-wide
+    // aggregate effect, not a per-repo invariant violation (flagged_commits
+    // is always <= total_human_commits within a single repo's own numbers).
+    payloads.set(
+      "r1",
+      payload({
+        ai_detection_coverage_pct: 0,
+        commit_origin_distribution: undefined,
+        attribution_gap: {
+          flagged_commits: 100,
+          total_human_commits: 110,
+          flagged_pct: 91,
+          avg_loc: 0,
+          avg_files: 0,
+          avg_interval_minutes: 0,
+        },
+      }),
+    );
+    payloads.set(
+      "r2",
+      payload({
+        ai_detection_coverage_pct: 0,
+        commit_origin_distribution: undefined,
+        attribution_gap: {
+          flagged_commits: 74,
+          total_human_commits: 80,
+          flagged_pct: 93,
+          avg_loc: 0,
+          avg_files: 0,
+          avg_interval_minutes: 0,
+        },
+      }),
+    );
+    // Needs at least one repo with AI detected, or computeAIvsHuman bails
+    // out entirely (reposWithAI === 0).
+    payloads.set(
+      "r3",
+      payload({
+        ai_detection_coverage_pct: 10,
+        commit_origin_distribution: { HUMAN: 50, AI_ASSISTED: 5, BOT: 0 },
+      }),
+    );
+
+    const out = computeAIvsHuman(payloads);
+    expect(out).not.toBeNull();
+    // Before the fix: totalHuman only summed r3's dist.HUMAN (50), while
+    // totalFlagged summed r1+r2 (174) — a 348% "gap". Fixed denominator is
+    // 110 + 80 + 50 = 240, so the percentage stays under 100.
+    expect(out!.attributionGap!.totalHumanCommits).toBe(240);
+    expect(out!.attributionGap!.flaggedCommits).toBe(174);
+    expect(out!.attributionGap!.flaggedPct).toBeCloseTo((174 / 240) * 100, 5);
+    expect(out!.attributionGap!.flaggedPct).toBeLessThanOrEqual(100);
+  });
 });
 
 describe("computePRHealth — by-origin weighting", () => {
