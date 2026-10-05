@@ -621,7 +621,7 @@ export const translations = {
         prData: {
           incomplete: "PR data incomplete",
           incompleteTooltip:
-            "This run's PR read failed at: {steps}. Merge strategy is shown as unknown, and flow, review and in-PR metrics may be missing or understated until the next run.",
+            "This run's PR read failed at: {steps}. Merge strategy isn't classified when enrichment fails, and flow, review and in-PR metrics may be missing or skewed.",
         },
         dora: {
           title: "DORA",
@@ -2186,7 +2186,7 @@ export const translations = {
         prData: {
           incomplete: "Dados de PR incompletos",
           incompleteTooltip:
-            "A leitura de PRs desta execução falhou em: {steps}. A estratégia de merge aparece como desconhecida, e métricas de flow, de review e de commits em PR podem faltar ou sair subestimadas até a próxima execução.",
+            "A leitura de PRs desta execução falhou em: {steps}. A estratégia de merge não é classificada quando o enriquecimento falha, e métricas de flow, de review e de commits em PR podem faltar ou sair distorcidas.",
         },
         dora: {
           title: "DORA",

@@ -166,14 +166,14 @@ export interface VelocityResult {
   windows: VelocityWindow[];
 }
 
-/**
- * The complete metrics payload from the CLI.
- * Matches ReportMetrics.to_dict() output — only non-None fields are present.
- */
 // Steps of the engine's GitHub PR read that can fail and fall back to partial
 // data. Mirrors `DEGRADED_*` in `iris/models/pull_request.py`.
 export type PrReadStep = "basic" | "enrichment" | "reviews" | "fetch";
 
+/**
+ * The complete metrics payload from the CLI.
+ * Matches ReportMetrics.to_dict() output — only non-None fields are present.
+ */
 export interface ReportMetrics {
   // Core (always present)
   commits_total: number;
