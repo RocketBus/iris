@@ -618,3 +618,48 @@ describe("computeHyperEngineers — dedupes the same person across name variants
     expect(result[0].github).toBeUndefined();
   });
 });
+
+describe("acceptance groups without review metrics (engine omits them when reviews degraded)", () => {
+  const group = (extra: Record<string, number>) => ({
+    total_commits: 10,
+    commits_in_prs: 10,
+    pr_rate: 1,
+    ...extra,
+  });
+
+  it("computePRHealth ignores a group lacking single_pass_rate/median_review_rounds, with no NaN", () => {
+    const repos = [
+      repo({ id: "r1", pr_merged_count: 5 }),
+      repo({ id: "r2", pr_merged_count: 5 }),
+    ];
+    const full = payload({
+      acceptance_by_origin: {
+        HUMAN: group({ single_pass_rate: 0.8, median_review_rounds: 2 }),
+        AI_ASSISTED: group({ single_pass_rate: 0.5, median_review_rounds: 1 }),
+        BOT: group({}),
+      },
+    });
+    const degraded = payload({
+      acceptance_by_origin: {
+        HUMAN: group({}),
+        AI_ASSISTED: group({}),
+        BOT: group({}),
+      },
+    });
+
+    const withDegraded = computePRHealth(
+      repos,
+      new Map([
+        ["r1", full],
+        ["r2", degraded],
+      ]),
+    );
+    const without = computePRHealth(repos, new Map([["r1", full]]));
+
+    expect(withDegraded!.byOrigin).toEqual(without!.byOrigin);
+    expect(withDegraded!.byOrigin.human!.singlePassRate).toBe(0.8);
+    expect(Number.isNaN(withDegraded!.byOrigin.ai!.medianReviewRounds)).toBe(
+      false,
+    );
+  });
+});

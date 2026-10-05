@@ -81,8 +81,11 @@ export interface AcceptanceMetrics {
   total_commits: number;
   commits_in_prs: number;
   pr_rate: number;
-  single_pass_rate: number;
-  median_review_rounds: number;
+  // Omitted by the engine when the PR reviews read degraded (see
+  // `pr_enrichment_degraded`): a missing value is not zero. Callers must check
+  // `typeof === "number"` before aggregating.
+  single_pass_rate?: number;
+  median_review_rounds?: number;
 }
 
 export interface FunnelStage {
