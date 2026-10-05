@@ -33,6 +33,12 @@ EN = {
         "below describe documentation and specification changes, not software "
         "delivery. They are not comparable to a service's."
     ),
+    "pr_enrichment_degraded_caveat": (
+        "PR data is incomplete for this run — failed steps: {steps}. Merge "
+        "strategy is reported as unknown when enrichment failed, and flow, "
+        "review and in-PR metrics may be missing or understated. A re-run "
+        "usually recovers them."
+    ),
     "system_disclaimer": (
         "Engineering outcomes emerge from system dynamics, domain complexity, "
         "and organizational context. Metrics describe observable patterns and "
@@ -910,6 +916,13 @@ PT_BR = {
         "portanto as métricas abaixo descrevem mudanças de documentação e "
         "especificação, não entrega de software. Não são comparáveis às de "
         "um serviço."
+    ),
+    "pr_enrichment_degraded_caveat": (
+        "Os dados de PR estão incompletos nesta execução — passos com falha: "
+        "{steps}. A estratégia de merge sai como desconhecida quando o "
+        "enriquecimento falha, e métricas de flow, de review e de commits em "
+        "PR podem faltar ou sair subestimadas. Uma nova execução costuma "
+        "recuperá-las."
     ),
     "system_disclaimer": (
         "Resultados de engenharia emergem de dinâmicas sistêmicas, complexidade do domínio "
