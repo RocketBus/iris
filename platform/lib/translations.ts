@@ -618,6 +618,11 @@ export const translations = {
           unreliableTooltip:
             "This repo collapses commits on merge (squash/mixed), so commit-level metrics (commit shape, cascades, AI detection coverage) are approximate.",
         },
+        prData: {
+          incomplete: "PR data incomplete",
+          incompleteTooltip:
+            "This run's PR read failed at: {steps}. Merge strategy is shown as unknown, and flow, review and in-PR metrics may be missing or understated until the next run.",
+        },
         dora: {
           title: "DORA",
           subtitle:
@@ -2177,6 +2182,11 @@ export const translations = {
           unreliable: "Métricas por-commit aproximadas",
           unreliableTooltip:
             "Este repo colapsa commits no merge (squash/mixed), então métricas por-commit (formato de commit, cascades, cobertura de detecção de IA) são aproximadas.",
+        },
+        prData: {
+          incomplete: "Dados de PR incompletos",
+          incompleteTooltip:
+            "A leitura de PRs desta execução falhou em: {steps}. A estratégia de merge aparece como desconhecida, e métricas de flow, de review e de commits em PR podem faltar ou sair subestimadas até a próxima execução.",
         },
         dora: {
           title: "DORA",

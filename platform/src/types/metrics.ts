@@ -170,6 +170,10 @@ export interface VelocityResult {
  * The complete metrics payload from the CLI.
  * Matches ReportMetrics.to_dict() output — only non-None fields are present.
  */
+// Steps of the engine's GitHub PR read that can fail and fall back to partial
+// data. Mirrors `DEGRADED_*` in `iris/models/pull_request.py`.
+export type PrReadStep = "basic" | "enrichment" | "reviews" | "fetch";
+
 export interface ReportMetrics {
   // Core (always present)
   commits_total: number;
@@ -276,6 +280,13 @@ export interface ReportMetrics {
   merge_strategy?: "merge" | "squash" | "rebase" | "mixed" | "unknown";
   merge_strategy_dominant_share?: number; // 0.0–1.0
   commit_metrics_reliable?: boolean;
+
+  // Steps of the engine's GitHub PR read that failed and fell back to partial
+  // data in this run. Absent when every step succeeded, and on payloads from
+  // CLI versions before the field existed. When present, PR-derived fields may
+  // be missing or understated, and `merge_strategy` is "unknown" if
+  // "enrichment" failed. Read it through `prDegradedSteps` (lib/pr-enrichment).
+  pr_enrichment_degraded?: PrReadStep[];
 
   // Repository kind — `NON_CODE` marks a documentation / issue-board repo:
   // no project manifest is tracked, so nothing is built or deployed from it

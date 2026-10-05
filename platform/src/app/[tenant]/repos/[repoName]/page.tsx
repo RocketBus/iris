@@ -13,6 +13,7 @@ import { MetricCard } from "@/components/charts/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { WindowSelector } from "@/components/WindowSelector";
 import { authOptions } from "@/lib/auth";
+import { prDegradedSteps } from "@/lib/pr-enrichment";
 import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
 import { computeRepoDORA } from "@/lib/queries/dora";
 import { computeInvestmentHotspots } from "@/lib/queries/invest-here";
@@ -100,6 +101,7 @@ function extractInsights(payload: Record<string, unknown> | null) {
       number | undefined,
     commitMetricsReliable: payload.commit_metrics_reliable as
       boolean | undefined,
+    prDegradedSteps: prDegradedSteps(payload.pr_enrichment_degraded),
   };
 }
 
@@ -163,6 +165,7 @@ export default async function RepoDetailPage({
   ]);
 
   const insights = extractInsights(payload);
+  const prDegraded = insights.prDegradedSteps ?? [];
   const hotspots = computeInvestmentHotspots(payload as ReportMetrics | null);
   const adoptionSummary = extractAdoptionSummary(
     payload as ReportMetrics | null,
@@ -251,6 +254,19 @@ export default async function RepoDetailPage({
                   {insights.mergeStrategy}
                 </Badge>
               ))}
+            {/* In the header, not in the flow or merge panels: both are absent
+                exactly when the read degraded. */}
+            {prDegraded.length > 0 && (
+              <Badge
+                variant="outline"
+                className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                title={t("repos.detail.prData.incompleteTooltip", {
+                  steps: prDegraded.join(", "),
+                })}
+              >
+                {t("repos.detail.prData.incomplete")}
+              </Badge>
+            )}
           </div>
           {repo.remote_url && (
             <p className="text-sm text-muted-foreground">{repo.remote_url}</p>
