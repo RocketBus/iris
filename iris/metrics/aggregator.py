@@ -42,7 +42,7 @@ from iris.metrics.stabilization import calculate_stabilization
 from iris.models.commit import Commit
 from iris.models.external import ExternalDORAData
 from iris.models.metrics import ReportMetrics
-from iris.models.pull_request import DEGRADED_ENRICHMENT, PullRequest
+from iris.models.pull_request import DEGRADED_ENRICHMENT, DEGRADED_REVIEWS, PullRequest
 
 logger = logging.getLogger(__name__)
 
@@ -68,12 +68,18 @@ def aggregate(
         pr_fetch_degraded: Steps of the PR read that failed this run
             (`PullRequestFetch.degraded`). Reported as
             ``pr_enrichment_degraded``; when it includes ``enrichment`` the
-            merge strategy is not classified.
+            merge strategy is not classified; when it includes ``reviews``
+            every review-derived field is omitted rather than reported as
+            the 0% / 100% an empty review list would give.
 
     Returns:
         ReportMetrics with all fields populated. PR fields are None
         when prs is None or empty.
     """
+    # With the reviews pass failed every PR has no reviews: review-derived
+    # fields would read as fabricated facts, so they are left out.
+    reviews_degraded = DEGRADED_REVIEWS in pr_fetch_degraded
+
     churn_result = calculate_churn(commits, churn_days)
     stab_result = calculate_stabilization(commits, churn_days)
 
@@ -285,22 +291,30 @@ def aggregate(
                         "total_commits": g.total_commits,
                         "commits_in_prs": g.commits_in_prs,
                         "pr_rate": g.pr_rate,
-                        "single_pass_rate": g.single_pass_rate,
-                        "median_review_rounds": g.median_review_rounds,
                     }
                     for g in acceptance_result.by_origin
                 }
+                if not reviews_degraded:
+                    for g in acceptance_result.by_origin:
+                        acceptance_kwargs["acceptance_by_origin"][g.group].update({
+                            "single_pass_rate": g.single_pass_rate,
+                            "median_review_rounds": g.median_review_rounds,
+                        })
             if acceptance_result.by_tool:
                 acceptance_kwargs["acceptance_by_tool"] = {
                     g.group: {
                         "total_commits": g.total_commits,
                         "commits_in_prs": g.commits_in_prs,
                         "pr_rate": g.pr_rate,
-                        "single_pass_rate": g.single_pass_rate,
-                        "median_review_rounds": g.median_review_rounds,
                     }
                     for g in acceptance_result.by_tool
                 }
+                if not reviews_degraded:
+                    for g in acceptance_result.by_tool:
+                        acceptance_kwargs["acceptance_by_tool"][g.group].update({
+                            "single_pass_rate": g.single_pass_rate,
+                            "median_review_rounds": g.median_review_rounds,
+                        })
 
     # Flow Efficiency — active vs wait decomposition of merged PR lifecycle
     flow_efficiency_kwargs: dict = {}
@@ -319,7 +333,10 @@ def aggregate(
             flow_efficiency_kwargs["flow_pr_count"] = (
                 flow_efficiency_result.pr_count
             )
-            if flow_efficiency_result.median_time_to_first_review_hours is not None:
+            if (
+                not reviews_degraded
+                and flow_efficiency_result.median_time_to_first_review_hours is not None
+            ):
                 flow_efficiency_kwargs["median_time_to_first_review_hours"] = (
                     flow_efficiency_result.median_time_to_first_review_hours
                 )
@@ -334,7 +351,7 @@ def aggregate(
 
     # Human Review Coverage — fraction of merged PRs a human actually reviewed
     human_review_coverage_kwargs: dict = {}
-    if prs:
+    if prs and not reviews_degraded:
         coverage_result = analyze_human_review_coverage(
             prs,
             commit_origin_map=origin_map,
@@ -451,9 +468,10 @@ def aggregate(
                 },
                 "pr_median_size_files": pr_result.pr_median_size_files,
                 "pr_median_size_lines": pr_result.pr_median_size_lines,
-                "pr_review_rounds_median": pr_result.pr_review_rounds_median,
-                "pr_single_pass_rate": pr_result.pr_single_pass_rate,
             }
+            if not reviews_degraded:
+                pr_kwargs["pr_review_rounds_median"] = pr_result.pr_review_rounds_median
+                pr_kwargs["pr_single_pass_rate"] = pr_result.pr_single_pass_rate
 
     # Fix targeting — which origin's code attracts the most bug fixes
     fix_target_kwargs: dict = {}

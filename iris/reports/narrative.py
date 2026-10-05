@@ -477,7 +477,10 @@ def generate_pr_findings(metrics: ReportMetrics, lang: str = "en") -> str:
         hours=metrics.pr_median_time_to_merge_hours,
     ))
 
-    if metrics.pr_single_pass_rate >= PR_SINGLE_PASS_THRESHOLD:
+    # Absent when the reviews pass of the PR read failed.
+    if metrics.pr_single_pass_rate is None:
+        pass
+    elif metrics.pr_single_pass_rate >= PR_SINGLE_PASS_THRESHOLD:
         findings.append(s["finding_pr_single_pass_high"].format(
             rate=f"{metrics.pr_single_pass_rate:.0%}",
         ))
@@ -508,14 +511,15 @@ def generate_pr_explanations(metrics: ReportMetrics, lang: str = "en") -> str:
         ),
     ))
 
-    sections.append(_explain(
-        s["explain_pr_single_pass_title"],
-        f"{metrics.pr_single_pass_rate:.0%}",
-        s["explain_pr_single_pass_body"].format(
-            rate=f"{metrics.pr_single_pass_rate:.0%}",
-            rounds=metrics.pr_review_rounds_median,
-        ),
-    ))
+    if metrics.pr_single_pass_rate is not None:
+        sections.append(_explain(
+            s["explain_pr_single_pass_title"],
+            f"{metrics.pr_single_pass_rate:.0%}",
+            s["explain_pr_single_pass_body"].format(
+                rate=f"{metrics.pr_single_pass_rate:.0%}",
+                rounds=metrics.pr_review_rounds_median,
+            ),
+        ))
 
     return "\n\n".join(sections)
 

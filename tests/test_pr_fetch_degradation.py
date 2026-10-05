@@ -457,3 +457,132 @@ def test_single_repo_cli_says_the_pr_read_failed_instead_of_skipped(
     out = capsys.readouterr().out
     assert "failed (basic)" in out
     assert "skipped (no GitHub remote or gh CLI)" not in out
+
+
+# --- a failed reviews pass omits the review-derived fields ------------------
+#
+# With the reviews pass failed every PR carries no reviews, so review coverage
+# could only read 0% and the single-pass rate 100%. Those would be numbers the
+# run fabricated, so they are left out instead.
+
+from dataclasses import replace
+
+from iris.models.context import AnalysisContext
+from iris.models.metrics import ReportMetrics
+from iris.models.pull_request import PRReview
+from iris.reports.writer import write_report_md
+
+_REVIEW_KEYS = (
+    "pr_review_rounds_median",
+    "pr_single_pass_rate",
+    "median_time_to_first_review_hours",
+    "human_review_coverage_pct",
+    "human_approval_coverage_pct",
+    "human_review_coverage_by_intent",
+    "human_review_coverage_by_origin_of_pr",
+)
+
+
+def _reviewed_prs() -> list[PullRequest]:
+    reviews = [
+        PRReview(author="reviewer", state="CHANGES_REQUESTED",
+                 submitted_at=_NOW + timedelta(minutes=30)),
+        PRReview(author="reviewer", state="APPROVED",
+                 submitted_at=_NOW + timedelta(minutes=45)),
+    ]
+    return [replace(pr, reviews=reviews) for pr in _merged_prs()]
+
+
+def test_degraded_reviews_omit_review_metrics():
+    payload = aggregate(
+        _stamped_commits(), churn_days=14, prs=_reviewed_prs(),
+        pr_fetch_degraded=("reviews",),
+    ).to_dict()
+
+    assert payload["pr_merged_count"] == 6
+    for key in _REVIEW_KEYS:
+        assert key not in payload, key
+    for group in payload.get("acceptance_by_origin", {}).values():
+        assert "single_pass_rate" not in group
+        assert "median_review_rounds" not in group
+    for group in payload.get("acceptance_by_tool", {}).values():
+        assert "single_pass_rate" not in group
+        assert "median_review_rounds" not in group
+
+
+def test_clean_run_keeps_review_metrics():
+    payload = aggregate(
+        _stamped_commits(), churn_days=14, prs=_reviewed_prs(),
+    ).to_dict()
+
+    assert payload["pr_single_pass_rate"] == 0.0
+    assert payload["pr_review_rounds_median"] == 1.0
+    for group in payload.get("acceptance_by_origin", {}).values():
+        assert "single_pass_rate" in group
+        assert "median_review_rounds" in group
+
+
+def test_report_renders_without_review_metrics(tmp_path):
+    ctx = AnalysisContext(
+        repo_path=str(tmp_path), repo_name="widgets", days=90, churn_days=14,
+        out_dir=str(tmp_path), lang="en",
+    )
+    metrics = ReportMetrics(
+        commits_total=100, commits_revert=10, revert_rate=0.1, churn_events=5,
+        churn_lines_affected=500, files_touched=50, files_stabilized=45,
+        stabilization_ratio=0.90,
+        pr_merged_count=6, pr_median_time_to_merge_hours=3.5,
+        pr_median_size_files=1, pr_median_size_lines=1,
+        pr_review_rounds_median=None, pr_single_pass_rate=None,
+        acceptance_by_origin={
+            "HUMAN": {"total_commits": 10, "commits_in_prs": 8, "pr_rate": 0.8},
+        },
+        acceptance_by_tool={
+            "tool-a": {"total_commits": 4, "commits_in_prs": 3, "pr_rate": 0.75},
+        },
+    )
+
+    path = write_report_md(ctx, metrics, out_dir=str(tmp_path))
+    text = Path(path).read_text(encoding="utf-8")
+
+    assert "| 80% | — | — |" in text
+    assert "| 75% | — | — |" in text
+    assert "Single-pass rate" not in text
+
+
+def test_narrative_skips_single_pass_without_review_metrics():
+    from iris.reports.narrative import generate_pr_explanations, generate_pr_findings
+
+    metrics = ReportMetrics(
+        commits_total=100, commits_revert=10, revert_rate=0.1, churn_events=5,
+        churn_lines_affected=500, files_touched=50, files_stabilized=45,
+        stabilization_ratio=0.90,
+        pr_merged_count=6, pr_median_time_to_merge_hours=3.5,
+    )
+
+    findings = generate_pr_findings(metrics)
+    explanations = generate_pr_explanations(metrics)
+
+    assert "6" in findings
+    assert "single-pass" not in findings.lower()
+    assert "single-pass" not in explanations.lower()
+
+
+from iris.analysis.trend_delta import compute_trend_delta
+
+
+def test_trend_skips_single_pass_when_missing():
+    def metrics(single_pass):
+        return ReportMetrics(
+            commits_total=100, commits_revert=10, revert_rate=0.1,
+            churn_events=5, churn_lines_affected=500, files_touched=50,
+            files_stabilized=45, stabilization_ratio=0.90,
+            pr_merged_count=6, pr_median_time_to_merge_hours=3.5,
+            pr_single_pass_rate=single_pass,
+        )
+
+    trend = compute_trend_delta(metrics(0.8), metrics(None), 90, 30)
+
+    names = [d.metric for d in trend.deltas]
+    assert "pr_time_to_merge" in names
+    assert "pr_single_pass" not in names

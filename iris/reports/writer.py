@@ -136,6 +136,14 @@ def _render_delta_table(deltas, s: dict) -> list[str]:
     return lines
 
 
+def _acceptance_cell(entry: dict, key: str, spec: str) -> str:
+    """One review-derived cell of an acceptance table; a dash when the key is
+    missing (the reviews pass failed, so the value was omitted)."""
+    if key not in entry:
+        return "—"
+    return format(entry[key], spec)
+
+
 def write_report_md(
     ctx: AnalysisContext,
     metrics: ReportMetrics,
@@ -806,7 +814,7 @@ def write_report_md(
                     continue
                 label = s.get(origin_labels.get(origin, ""), origin)
                 lines.append(
-                    f"| {label} | {entry['total_commits']} | {entry['commits_in_prs']} | {entry['pr_rate']:.0%} | {entry['single_pass_rate']:.0%} | {entry['median_review_rounds']:.1f} |"
+                    f"| {label} | {entry['total_commits']} | {entry['commits_in_prs']} | {entry['pr_rate']:.0%} | {_acceptance_cell(entry, 'single_pass_rate', '.0%')} | {_acceptance_cell(entry, 'median_review_rounds', '.1f')} |"
                 )
             lines.append("")
 
@@ -817,7 +825,7 @@ def write_report_md(
             ])
             for tool, entry in sorted(metrics.acceptance_by_tool.items()):
                 lines.append(
-                    f"| {tool} | {entry['total_commits']} | {entry['commits_in_prs']} | {entry['pr_rate']:.0%} | {entry['single_pass_rate']:.0%} | {entry['median_review_rounds']:.1f} |"
+                    f"| {tool} | {entry['total_commits']} | {entry['commits_in_prs']} | {entry['pr_rate']:.0%} | {_acceptance_cell(entry, 'single_pass_rate', '.0%')} | {_acceptance_cell(entry, 'median_review_rounds', '.1f')} |"
                 )
             lines.append("")
 
@@ -896,10 +904,16 @@ def write_report_md(
         pr_rows.extend([
             f"| {s['metric_pr_median_size_files']} | {metrics.pr_median_size_files} |",
             f"| {s['metric_pr_median_size_lines']} | {metrics.pr_median_size_lines} |",
-            f"| {s['metric_pr_review_rounds_median']} | {metrics.pr_review_rounds_median} |",
-            f"| {s['metric_pr_single_pass_rate']} | {metrics.pr_single_pass_rate:.0%} |",
-            f"",
         ])
+        if metrics.pr_review_rounds_median is not None:
+            pr_rows.append(
+                f"| {s['metric_pr_review_rounds_median']} | {metrics.pr_review_rounds_median} |"
+            )
+        if metrics.pr_single_pass_rate is not None:
+            pr_rows.append(
+                f"| {s['metric_pr_single_pass_rate']} | {metrics.pr_single_pass_rate:.0%} |"
+            )
+        pr_rows.append("")
         lines.extend(pr_rows)
 
     # Merge Strategy section (conditional — only when PR data classified it)

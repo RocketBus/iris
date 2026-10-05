@@ -210,13 +210,18 @@ def compute_trend_delta(
             "h",
         ))
 
-        deltas.append(_make_delta(
-            "pr_single_pass",
-            s["trend_label_pr_single_pass"],
-            baseline.pr_single_pass_rate * 100,
-            recent.pr_single_pass_rate * 100,
-            "pp",
-        ))
+        # Absent when the reviews pass of the PR read failed in either window.
+        if (
+            baseline.pr_single_pass_rate is not None
+            and recent.pr_single_pass_rate is not None
+        ):
+            deltas.append(_make_delta(
+                "pr_single_pass",
+                s["trend_label_pr_single_pass"],
+                baseline.pr_single_pass_rate * 100,
+                recent.pr_single_pass_rate * 100,
+                "pp",
+            ))
 
     return TrendResult(
         baseline_days=baseline_days,
