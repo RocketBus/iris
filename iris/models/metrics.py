@@ -165,6 +165,13 @@ class ReportMetrics:
     merge_strategy_dominant_share: float | None = None  # 0.0–1.0
     commit_metrics_reliable: bool | None = None
 
+    # PR read degradation — the steps of this run's GitHub PR read that failed
+    # and fell back to partial data (``basic``, ``enrichment``, ``reviews``,
+    # ``fetch``). None when every step succeeded, or when PRs were absent by
+    # design. When present, the PR-derived fields above may be missing or
+    # understated, and ``merge_strategy`` is ``unknown`` if enrichment failed.
+    pr_enrichment_degraded: list[str] | None = None
+
     # Repository kind — CODE when a project manifest is tracked, NON_CODE for
     # documentation / issue-board repos where nothing is built or deployed.
     # Every metric below is still computed for a NON_CODE repo; the flag says

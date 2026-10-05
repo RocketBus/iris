@@ -520,6 +520,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
             churn_days=args.churn_days,
             prs=prs or None,
             external_data=external_data,
+            pr_fetch_degraded=pr_fetch.degraded,
         )
     print(s["cli_classified"].format(count=len(commits)))
     _tick("aggregate analysis done")

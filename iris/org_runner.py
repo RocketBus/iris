@@ -85,7 +85,12 @@ def analyze_single_repo(
     prs = pr_fetch.prs
 
     # Step 3+4: Aggregate metrics
-    metrics = aggregate(commits, churn_days=churn_days, prs=prs or None)
+    metrics = aggregate(
+        commits,
+        churn_days=churn_days,
+        prs=prs or None,
+        pr_fetch_degraded=pr_fetch.degraded,
+    )
 
     # Step 4a: Repository kind (keeps docs/board repos out of org comparisons)
     from iris.cli import _merge_repo_kind

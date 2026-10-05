@@ -42,7 +42,7 @@ from iris.metrics.stabilization import calculate_stabilization
 from iris.models.commit import Commit
 from iris.models.external import ExternalDORAData
 from iris.models.metrics import ReportMetrics
-from iris.models.pull_request import PullRequest
+from iris.models.pull_request import DEGRADED_ENRICHMENT, PullRequest
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,7 @@ def aggregate(
     churn_days: int,
     prs: list[PullRequest] | None = None,
     external_data: ExternalDORAData | None = None,
+    pr_fetch_degraded: tuple[str, ...] = (),
 ) -> ReportMetrics:
     """Run all analyses on commits and return the combined ReportMetrics.
 
@@ -64,6 +65,10 @@ def aggregate(
             provided, populates the ``dora_*`` fields on ReportMetrics;
             when None, those fields stay None and the report renders the
             DORA section as "not available".
+        pr_fetch_degraded: Steps of the PR read that failed this run
+            (`PullRequestFetch.degraded`). Reported as
+            ``pr_enrichment_degraded``; when it includes ``enrichment`` the
+            merge strategy is not classified.
 
     Returns:
         ReportMetrics with all fields populated. PR fields are None
@@ -390,7 +395,11 @@ def aggregate(
     # local main history. Strictly per-repository — no author axis.
     merge_strategy_kwargs: dict = {}
     if prs:
-        merge_strategy_result = detect_merge_strategy(prs, commits)
+        merge_strategy_result = detect_merge_strategy(
+            prs,
+            commits,
+            enrichment_degraded=DEGRADED_ENRICHMENT in pr_fetch_degraded,
+        )
         merge_strategy_kwargs["merge_strategy"] = merge_strategy_result.merge_strategy
         merge_strategy_kwargs["commit_metrics_reliable"] = (
             merge_strategy_result.commit_metrics_reliable
@@ -516,6 +525,7 @@ def aggregate(
         **human_review_coverage_kwargs,
         **open_pr_aging_kwargs,
         **merge_strategy_kwargs,
+        pr_enrichment_degraded=list(pr_fetch_degraded) or None,
         **_dora_real_kwargs(external_data, origin_map),
     )
 

@@ -165,3 +165,25 @@ def test_squash_pr_numbers_extracts_trailing_stamp_only():
         _commit("d", "refs #999 mid-message, not trailing"),
     ]
     assert _squash_pr_numbers(commits) == {71, 56}
+
+
+# ---------------------------------------------------------------------------
+# Degraded PR enrichment (issue #236)
+# ---------------------------------------------------------------------------
+
+
+def test_degraded_enrichment_reports_unknown_instead_of_squash():
+    # What a degraded read leaves behind: merged PRs with no commit refs and
+    # no parent counts, and squash-stamped subjects on main. Only the stamps
+    # classify, so the heuristic can only ever answer "squash".
+    prs = [_merged_pr(i) for i in range(1, 7)]
+    commits = [_commit(f"c{i}", f"change {i} (#{i})") for i in range(1, 7)]
+
+    assert detect_merge_strategy(prs, commits).merge_strategy == "squash"
+
+    result = detect_merge_strategy(prs, commits, enrichment_degraded=True)
+
+    assert result.merge_strategy == "unknown"
+    assert result.dominant_share is None
+    assert result.commit_metrics_reliable is True
+    assert "enrichment" in result.reason
