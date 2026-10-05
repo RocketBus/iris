@@ -550,6 +550,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
 
         recent_metrics = aggregate(
             recent_commits, churn_days=args.churn_days, prs=recent_prs,
+            pr_fetch_degraded=pr_fetch.degraded,
         )
         trend = compute_trend_delta(
             baseline=metrics,
@@ -680,8 +681,14 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         pre_prs = [p for p in (prs or []) if p.created_at < event.adoption_ramp_start] or None
         post_prs = [p for p in (prs or []) if p.created_at >= event.adoption_ramp_start] or None
 
-        pre_metrics = aggregate(pre_commits, churn_days=args.churn_days, prs=pre_prs)
-        post_metrics = aggregate(post_commits, churn_days=args.churn_days, prs=post_prs)
+        pre_metrics = aggregate(
+            pre_commits, churn_days=args.churn_days, prs=pre_prs,
+            pr_fetch_degraded=pr_fetch.degraded,
+        )
+        post_metrics = aggregate(
+            post_commits, churn_days=args.churn_days, prs=post_prs,
+            pr_fetch_degraded=pr_fetch.degraded,
+        )
 
         # Compute day spans from commit date ranges
         pre_days = max(1, (pre_commits[-1].date - pre_commits[0].date).days)

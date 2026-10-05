@@ -108,6 +108,7 @@ def analyze_single_repo(
 
         recent_metrics = aggregate(
             recent_commits, churn_days=churn_days, prs=recent_prs,
+            pr_fetch_degraded=pr_fetch.degraded,
         )
         trend = compute_trend_delta(
             baseline=metrics,
@@ -143,8 +144,14 @@ def analyze_single_repo(
         pre_prs = [p for p in (prs or []) if p.created_at < event.adoption_ramp_start] or None
         post_prs = [p for p in (prs or []) if p.created_at >= event.adoption_ramp_start] or None
 
-        pre_metrics = aggregate(pre_commits, churn_days=churn_days, prs=pre_prs)
-        post_metrics = aggregate(post_commits, churn_days=churn_days, prs=post_prs)
+        pre_metrics = aggregate(
+            pre_commits, churn_days=churn_days, prs=pre_prs,
+            pr_fetch_degraded=pr_fetch.degraded,
+        )
+        post_metrics = aggregate(
+            post_commits, churn_days=churn_days, prs=post_prs,
+            pr_fetch_degraded=pr_fetch.degraded,
+        )
 
         pre_days = max(1, (pre_commits[-1].date - pre_commits[0].date).days)
         post_days = max(1, (post_commits[-1].date - post_commits[0].date).days)

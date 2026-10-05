@@ -371,3 +371,64 @@ def test_org_runner_writes_the_degradation_to_metrics_json(tmp_path, monkeypatch
     )
 
     assert _metrics_json(tmp_path / "out")["pr_enrichment_degraded"] == ["enrichment"]
+
+
+# --- the adoption split inherits it -----------------------------------------
+
+
+def _adoption_after_first_commit(monkeypatch):
+    """Make adoption detection split the history after its first commit."""
+    from iris.analysis import adoption_detector
+    from iris.models.adoption import AdoptionEvent
+
+    def detect(commits):
+        ordered = sorted(commits, key=lambda c: c.date)
+        start = ordered[1].date
+        event = AdoptionEvent(
+            first_ai_commit_date=start, adoption_ramp_start=start,
+            adoption_ramp_end=ordered[-1].date, adoption_confidence="clear",
+            total_ai_commits=2,
+        )
+        return event, ordered[:1], ordered[1:]
+
+    monkeypatch.setattr(adoption_detector, "detect_adoption", detect)
+
+
+def _assert_adoption_split_is_degraded(out_dir: Path) -> None:
+    timeline = _metrics_json(out_dir)["adoption_timeline"]
+    assert timeline["pre_adoption"]["pr_enrichment_degraded"] == ["enrichment"]
+    assert timeline["post_adoption"]["pr_enrichment_degraded"] == ["enrichment"]
+
+
+def test_single_repo_cli_adoption_split_inherits_the_degradation(tmp_path, monkeypatch):
+    from iris import cli
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(cli, "read_pull_requests_with_fallback", _degraded_read)
+    _adoption_after_first_commit(monkeypatch)
+
+    args = argparse.Namespace(
+        repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+        verbose=False, trend=False, out=str(tmp_path / "out"), no_push=True,
+    )
+    cli._run_single_repo(args)
+
+    _assert_adoption_split_is_degraded(tmp_path / "out")
+
+
+def test_org_runner_adoption_split_inherits_the_degradation(tmp_path, monkeypatch):
+    from iris import org_runner
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(org_runner, "read_pull_requests_with_fallback", _degraded_read)
+    _adoption_after_first_commit(monkeypatch)
+
+    org_runner.analyze_single_repo(
+        str(repo), days=30, churn_days=14, out_dir=str(tmp_path / "out"),
+    )
+
+    _assert_adoption_split_is_degraded(tmp_path / "out")
