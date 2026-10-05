@@ -30,6 +30,7 @@ function repo(over: Partial<RepoSummary>): RepoSummary {
     cascade_rate: null,
     merge_strategy: null,
     commit_metrics_reliable: null,
+    pr_degraded_steps: [],
     stabilization_delta: null,
     health: "unknown",
     sparkline: [],

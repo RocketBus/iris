@@ -267,6 +267,8 @@ export const translations = {
       member: "Member",
     },
     dashboard: {
+      prDataIncomplete:
+        "PR data is incomplete in the latest run of {count} repository(ies) ({repos}); PR metrics below may be missing or skewed.",
       pulse: {
         totalCommits: "Total Commits",
         prsMerged: "PRs Merged",
@@ -1831,6 +1833,8 @@ export const translations = {
       member: "Membro",
     },
     dashboard: {
+      prDataIncomplete:
+        "Os dados de PR estão incompletos no run mais recente de {count} repositório(s) ({repos}); as métricas de PR abaixo podem faltar ou sair distorcidas.",
       pulse: {
         totalCommits: "Commits totais",
         prsMerged: "PRs mesclados",

@@ -3,8 +3,9 @@
  * Pure functions that take a Supabase client and return typed data.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
+import { prDegradedSteps } from "@/lib/pr-enrichment";
 import { logQueryError } from "@/lib/queries/log-error";
 import type {
   TimeSeriesPoint,
@@ -15,6 +16,13 @@ import type {
 import { classifyHealth } from "@/types/temporal";
 
 const SPARKLINE_POINTS = 12;
+
+// Loosely typed on purpose: this mirrors the view's columns (see
+// SUMMARY_COLUMNS) as the untyped client used to return them.
+type SummaryRow = Record<string, any>;
+
+const SUMMARY_COLUMNS =
+  "repository_id, runs_count, last_run_at, stabilization_ratio, prev_stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable, recent_stabilization";
 
 /**
  * Canonical percentage-point significance thresholds, mirrored from
@@ -233,19 +241,35 @@ export async function getOrgReposSummary(
   if (!repos || repos.length === 0) return [];
 
   // Query 2: pre-aggregated summary, one row per repo (see doc comment).
-  const { data: summaries, error: summariesError } = await supabase
-    .from("repo_metric_summaries")
-    .select(
-      "repository_id, runs_count, last_run_at, stabilization_ratio, prev_stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable, recent_stabilization",
-    )
-    .eq("organization_id", organizationId)
-    .eq("window_days", windowDays);
+  // The column list is built at runtime, so supabase-js can't infer the row.
+  const readSummaries = async (columns: string) =>
+    (await supabase
+      .from("repo_metric_summaries")
+      .select(columns)
+      .eq("organization_id", organizationId)
+      .eq("window_days", windowDays)) as unknown as {
+      data: SummaryRow[] | null;
+      error: PostgrestError | null;
+    };
+
+  // Selecting one key out of `payload` marks degraded PR reads without
+  // shipping whole payloads. The view only has `payload` since migration 023;
+  // when the select fails (older database) retry without it so the table stays
+  // populated, just unmarked.
+  let { data: summaries, error: summariesError } = await readSummaries(
+    `${SUMMARY_COLUMNS}, pr_enrichment_degraded:payload->pr_enrichment_degraded`,
+  );
+  if (summariesError) {
+    logQueryError(
+      "getOrgReposSummary (repo_metric_summaries with payload)",
+      summariesError,
+    );
+    ({ data: summaries, error: summariesError } =
+      await readSummaries(SUMMARY_COLUMNS));
+  }
   logQueryError("getOrgReposSummary (repo_metric_summaries)", summariesError);
 
-  const summaryByRepo = new Map<
-    string,
-    NonNullable<typeof summaries>[number]
-  >();
+  const summaryByRepo = new Map<string, SummaryRow>();
   for (const row of summaries ?? []) summaryByRepo.set(row.repository_id, row);
 
   return repos.map((repo) => {
@@ -282,6 +306,7 @@ export async function getOrgReposSummary(
       cascade_rate: s?.cascade_rate ?? null,
       merge_strategy: s?.merge_strategy ?? null,
       commit_metrics_reliable: s?.commit_metrics_reliable ?? null,
+      pr_degraded_steps: prDegradedSteps(s?.pr_enrichment_degraded),
       stabilization_delta: delta,
       health: classifyHealth(stabilization),
       sparkline,

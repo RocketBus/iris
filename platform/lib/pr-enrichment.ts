@@ -23,3 +23,29 @@ export function prDegradedSteps(value: unknown): PrReadStep[] {
       typeof step === "string" && Object.hasOwn(KNOWN_STEPS, step),
   );
 }
+
+export interface DegradedRepo {
+  id: string;
+  name: string;
+  steps: PrReadStep[];
+}
+
+/**
+ * The repos whose latest payload reports a degraded PR read, in the order of
+ * `repos`. Takes the payloads the dashboard already loads, so it costs no
+ * extra query.
+ */
+export function degradedReposFromPayloads(
+  repos: ReadonlyArray<{ id: string; name: string }>,
+  payloads: ReadonlyMap<string, { pr_enrichment_degraded?: unknown }>,
+): DegradedRepo[] {
+  const degraded: DegradedRepo[] = [];
+  for (const repo of repos) {
+    const steps = prDegradedSteps(
+      payloads.get(repo.id)?.pr_enrichment_degraded,
+    );
+    if (steps.length > 0)
+      degraded.push({ id: repo.id, name: repo.name, steps });
+  }
+  return degraded;
+}

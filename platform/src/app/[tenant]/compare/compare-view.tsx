@@ -219,6 +219,13 @@ function MergeStrategyCell({
 
 export function CompareView({ repos }: CompareViewProps) {
   const { t } = useTranslation();
+  // Amber dot next to a repo whose latest run read PR data only partially.
+  // The text is also in the DOM (sr-only), so it doesn't hinge on colour or on
+  // the `title` tooltip.
+  const prDataTooltip = (repo: RepoSummary) =>
+    t("repos.detail.prData.incompleteTooltip", {
+      steps: repo.pr_degraded_steps.join(", "),
+    });
   const [sort, setSort] = useState<SortState>({
     key: "stabilization_ratio",
     dir: "desc",
@@ -411,6 +418,18 @@ export function CompareView({ repos }: CompareViewProps) {
                     </td>
                     <td className="py-2 pr-3">
                       <span className="font-mono text-sm">{repo.name}</span>
+                      {repo.pr_degraded_steps.length > 0 && (
+                        <span
+                          className="ml-2 inline-flex items-center align-middle"
+                          title={prDataTooltip(repo)}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="h-2 w-2 rounded-full bg-amber-500"
+                          />
+                          <span className="sr-only">{prDataTooltip(repo)}</span>
+                        </span>
+                      )}
                     </td>
                     <MetricCell
                       value={repo.stabilization_ratio}
