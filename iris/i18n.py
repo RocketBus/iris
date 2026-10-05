@@ -527,6 +527,10 @@ EN = {
         "project manifest, so their metrics describe documentation rather than "
         "delivery: {repos}."
     ),
+    "org_pr_read_degraded": (
+        "PR data is incomplete this run for {count} repositories ({repos}): "
+        "their PR counts and PR-derived metrics below may be missing or skewed."
+    ),
     "org_ai_impact_title": "AI Impact Across Organization",
     "org_ai_impact_body": (
         "Of {total_repos} repositories, {ai_repos} contain AI-assisted commits. "
@@ -1416,6 +1420,11 @@ PT_BR = {
         "{count} repositório(s) fora das comparações abaixo — sem manifesto "
         "de projeto, então suas métricas descrevem documentação e não "
         "entrega: {repos}."
+    ),
+    "org_pr_read_degraded": (
+        "Os dados de PR estão incompletos nesta execução para {count} "
+        "repositórios ({repos}): as contagens de PR e as métricas derivadas "
+        "de PR abaixo podem faltar ou sair distorcidas."
     ),
     "org_ai_impact_title": "Impacto de IA na Organização",
     "org_ai_impact_body": (
