@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from iris.ingestion import window_cache
 from iris.ingestion.github_reader import _finished_before_window
+from iris.models.pull_request import PullRequestFetch
 
 
 def setup_function():
@@ -40,7 +41,7 @@ def test_disabled_by_default_always_loads():
 
     def load():
         calls["n"] += 1
-        return [_pr(1)]
+        return PullRequestFetch(prs=[_pr(1)])
 
     window_cache.pull_requests("r", 30, load, _keep)
     window_cache.pull_requests("r", 30, load, _keep)
@@ -53,18 +54,18 @@ def test_widest_first_then_slices_in_memory():
 
     def load():
         calls["n"] += 1
-        return full
+        return PullRequestFetch(prs=full)
 
     window_cache.enable()
 
     # Widest window: cache miss → load, keeps everything within 90d.
     wide = window_cache.pull_requests("r", 90, load, _keep)
-    assert len(wide) == 4
+    assert len(wide.prs) == 4
     assert calls["n"] == 1
 
     # Narrower window: cache hit → slice in memory, no extra load.
     narrow = window_cache.pull_requests("r", 7, load, _keep)
-    assert len(narrow) == 1  # only the PR from 3 days ago
+    assert len(narrow.prs) == 1  # only the PR from 3 days ago
     assert calls["n"] == 1
 
 
@@ -73,7 +74,7 @@ def test_request_wider_than_cache_reloads():
 
     def load():
         calls["n"] += 1
-        return [_pr(5)]
+        return PullRequestFetch(prs=[_pr(5)])
 
     window_cache.enable()
     window_cache.pull_requests("r", 30, load, _keep)
@@ -86,7 +87,7 @@ def test_cache_is_per_repo():
 
     def load():
         calls["n"] += 1
-        return [_pr(2)]
+        return PullRequestFetch(prs=[_pr(2)])
 
     window_cache.enable()
     window_cache.pull_requests("repo-a", 90, load, _keep)
@@ -99,13 +100,26 @@ def test_reset_clears_and_disables():
 
     def load():
         calls["n"] += 1
-        return [_pr(1)]
+        return PullRequestFetch(prs=[_pr(1)])
 
     window_cache.enable()
     window_cache.pull_requests("r", 90, load, _keep)
     window_cache.reset()
     window_cache.pull_requests("r", 90, load, _keep)  # disabled again → load
     assert calls["n"] == 2
+
+
+def test_a_narrower_window_keeps_the_wide_fetch_degradation():
+    def load():
+        return PullRequestFetch(prs=[_pr(80), _pr(3)], degraded=("enrichment",))
+
+    window_cache.enable()
+    window_cache.pull_requests("r", 90, load, _keep)
+
+    # Served from the cache: the slice comes from the same incomplete fetch.
+    narrow = window_cache.pull_requests("r", 7, load, _keep)
+    assert len(narrow.prs) == 1
+    assert narrow.degraded == ("enrichment",)
 
 
 # --- the overlap predicate (single source of truth for the filter) ---------

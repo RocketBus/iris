@@ -11,7 +11,7 @@ from iris.analysis.org_intelligence import (
 )
 from iris.i18n import get_strings
 from iris.ingestion.git_reader import read_commits
-from iris.ingestion.github_reader import read_pull_requests
+from iris.ingestion.github_reader import read_pull_requests_with_fallback
 from iris.metrics.aggregator import aggregate
 from iris.models.context import AnalysisContext
 from iris.models.org import OrgResult, RepoResult
@@ -80,11 +80,9 @@ def analyze_single_repo(
     if not commits:
         return None, "", ""
 
-    # Step 2: Fetch PRs (graceful fallback)
-    try:
-        prs = read_pull_requests(repo_path, days=days)
-    except Exception:
-        prs = []
+    # Step 2: Fetch PRs (graceful fallback, flagged when it falls back)
+    pr_fetch = read_pull_requests_with_fallback(repo_path, days=days)
+    prs = pr_fetch.prs
 
     # Step 3+4: Aggregate metrics
     metrics = aggregate(commits, churn_days=churn_days, prs=prs or None)

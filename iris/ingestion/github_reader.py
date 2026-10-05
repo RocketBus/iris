@@ -23,7 +23,14 @@ from iris.shell import git_env
 from datetime import datetime, timedelta, timezone
 
 from iris.ingestion import window_cache
-from iris.models.pull_request import CommitRef, PRReview, PRState, PullRequest
+from iris.models.pull_request import (
+    DEGRADED_FETCH,
+    CommitRef,
+    PRReview,
+    PRState,
+    PullRequest,
+    PullRequestFetch,
+)
 
 
 def detect_github_remote(repo_path: str) -> str | None:
@@ -314,7 +321,7 @@ def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] 
         return None
 
 
-def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
+def read_pull_requests(repo_path: str, days: int) -> PullRequestFetch:
     """Read pull requests from GitHub via gh CLI.
 
     Fetches PRs in all three lifecycle states (merged, closed-without-merge,
@@ -332,8 +339,9 @@ def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
         days: Number of days to look back from now.
 
     Returns:
-        List of PullRequest objects with state populated. Returns an empty
-        list if gh is unavailable or the repo has no GitHub remote.
+        A `PullRequestFetch`: the PRs, with state populated, and the read
+        steps that degraded on the way. The PR list is empty and nothing is
+        degraded when gh is unavailable or the repo has no GitHub remote.
     """
     return window_cache.pull_requests(
         repo_path,
@@ -345,13 +353,26 @@ def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
     )
 
 
-def _read_pull_requests_uncached(repo_path: str, days: int) -> list[PullRequest]:
+def read_pull_requests_with_fallback(repo_path: str, days: int) -> PullRequestFetch:
+    """Read PRs, turning any unexpected error into an empty, flagged fetch.
+
+    This is the graceful fallback both analysis entry points used to inline as
+    ``except Exception: prs = []``. The run still goes on without PRs, but the
+    fetch now comes back marked `DEGRADED_FETCH`, so the report says so.
+    """
+    try:
+        return read_pull_requests(repo_path, days)
+    except Exception:
+        return PullRequestFetch(prs=[], degraded=(DEGRADED_FETCH,))
+
+
+def _read_pull_requests_uncached(repo_path: str, days: int) -> PullRequestFetch:
     if not is_gh_available():
-        return []
+        return PullRequestFetch(prs=[])
 
     nwo = detect_github_remote(repo_path)
     if not nwo:
-        return []
+        return PullRequestFetch(prs=[])
 
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -368,7 +389,9 @@ def _read_pull_requests_uncached(repo_path: str, days: int) -> list[PullRequest]
     closed_raw = _fetch_prs(nwo, fetch_limit, "closed")
     open_raw = _fetch_prs(nwo, fetch_limit, "open")
 
-    return _parse_pull_requests(merged_raw + closed_raw + open_raw, since)
+    return PullRequestFetch(
+        prs=_parse_pull_requests(merged_raw + closed_raw + open_raw, since),
+    )
 
 
 def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:

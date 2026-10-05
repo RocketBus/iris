@@ -13,7 +13,7 @@ from iris.i18n import get_strings, SUPPORTED_LANGS
 from iris.platform.telemetry import span, record_metric, record_counter, record_duration, flush
 from iris.ingestion import window_cache
 from iris.ingestion.git_reader import read_commits
-from iris.ingestion.github_reader import read_pull_requests
+from iris.ingestion.github_reader import read_pull_requests_with_fallback
 from iris.metrics.aggregator import aggregate
 from iris.models.context import AnalysisContext
 from iris.reports.narrative import generate_narrative
@@ -496,10 +496,8 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     # Step 2: Fetch pull requests (optional, graceful fallback)
     print(s["cli_reading_prs"], end=" ", flush=True)
     with span("ingestion.pull_requests", {"repo": repo_name}):
-        try:
-            prs = read_pull_requests(repo, days=args.days)
-        except Exception:
-            prs = []
+        pr_fetch = read_pull_requests_with_fallback(repo, days=args.days)
+    prs = pr_fetch.prs
     if prs:
         print(s["cli_prs_found"].format(count=len(prs)))
     else:
