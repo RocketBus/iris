@@ -316,9 +316,11 @@ def aggregate(
                             "median_review_rounds": g.median_review_rounds,
                         })
 
-    # Flow Efficiency — active vs wait decomposition of merged PR lifecycle
+    # Flow Efficiency — active vs wait decomposition of merged PR lifecycle.
+    # Its phases anchor on the first review: with the reviews read failed,
+    # every PR would count as never reviewed, so the block is left out.
     flow_efficiency_kwargs: dict = {}
-    if prs:
+    if prs and not reviews_degraded:
         flow_efficiency_result = analyze_flow_efficiency(
             prs,
             commit_origin_map=origin_map,
@@ -333,10 +335,7 @@ def aggregate(
             flow_efficiency_kwargs["flow_pr_count"] = (
                 flow_efficiency_result.pr_count
             )
-            if (
-                not reviews_degraded
-                and flow_efficiency_result.median_time_to_first_review_hours is not None
-            ):
+            if flow_efficiency_result.median_time_to_first_review_hours is not None:
                 flow_efficiency_kwargs["median_time_to_first_review_hours"] = (
                     flow_efficiency_result.median_time_to_first_review_hours
                 )
@@ -388,20 +387,23 @@ def aggregate(
             open_pr_aging_kwargs["p90_open_pr_age_days"] = (
                 aging_result.p90_open_pr_age_days
             )
-            open_pr_aging_kwargs["stale_open_pr_pct"] = (
-                aging_result.stale_open_pr_pct
-            )
-            open_pr_aging_kwargs["very_stale_open_pr_pct"] = (
-                aging_result.very_stale_open_pr_pct
-            )
-            open_pr_aging_kwargs["abandonment_risk_pct"] = (
-                aging_result.abandonment_risk_pct
-            )
             if aging_result.median_open_pr_age_by_intent:
                 open_pr_aging_kwargs["median_open_pr_age_by_intent"] = (
                     aging_result.median_open_pr_age_by_intent
                 )
-            if aging_result.stale_open_pr_pct_by_origin:
+            # Staleness is measured from the last review or commit; without
+            # the reviews it would read older than it is.
+            if not reviews_degraded:
+                open_pr_aging_kwargs["stale_open_pr_pct"] = (
+                    aging_result.stale_open_pr_pct
+                )
+                open_pr_aging_kwargs["very_stale_open_pr_pct"] = (
+                    aging_result.very_stale_open_pr_pct
+                )
+                open_pr_aging_kwargs["abandonment_risk_pct"] = (
+                    aging_result.abandonment_risk_pct
+                )
+            if not reviews_degraded and aging_result.stale_open_pr_pct_by_origin:
                 open_pr_aging_kwargs["stale_open_pr_pct_by_origin"] = (
                     aging_result.stale_open_pr_pct_by_origin
                 )

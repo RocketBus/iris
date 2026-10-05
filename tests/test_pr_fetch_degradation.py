@@ -469,7 +469,7 @@ from dataclasses import replace
 
 from iris.models.context import AnalysisContext
 from iris.models.metrics import ReportMetrics
-from iris.models.pull_request import PRReview
+from iris.models.pull_request import CommitRef, PRReview
 from iris.reports.writer import write_report_md
 
 _REVIEW_KEYS = (
@@ -482,6 +482,28 @@ _REVIEW_KEYS = (
     "human_review_coverage_by_origin_of_pr",
 )
 
+# Flow phases anchor on the first review, and staleness on the last activity:
+# with no reviews read, both would be computed from a lie.
+_FLOW_KEYS = (
+    "flow_efficiency_median",
+    "time_in_phase_median_hours",
+    "flow_pr_count",
+    "flow_efficiency_by_intent",
+    "flow_efficiency_by_origin",
+)
+_STALENESS_KEYS = (
+    "stale_open_pr_pct",
+    "very_stale_open_pr_pct",
+    "abandonment_risk_pct",
+    "stale_open_pr_pct_by_origin",
+)
+# Open PR age depends only on the creation time, so it survives.
+_AGE_KEYS = (
+    "open_pr_count",
+    "median_open_pr_age_days",
+    "p90_open_pr_age_days",
+)
+
 
 def _reviewed_prs() -> list[PullRequest]:
     reviews = [
@@ -490,18 +512,41 @@ def _reviewed_prs() -> list[PullRequest]:
         PRReview(author="reviewer", state="APPROVED",
                  submitted_at=_NOW + timedelta(minutes=45)),
     ]
-    return [replace(pr, reviews=reviews) for pr in _merged_prs()]
+    return [
+        replace(
+            pr, reviews=reviews,
+            commit_refs=[CommitRef(hash=f"c{pr.number}",
+                                   committed_at=_NOW - timedelta(hours=1))],
+        )
+        for pr in _merged_prs()
+    ]
+
+
+def _open_prs() -> list[PullRequest]:
+    """Five open PRs, old enough to be stale, with a commit each."""
+    created = _NOW - timedelta(days=40)
+    return [
+        PullRequest(number=100 + n, title=f"open {n}", author="dev",
+                    created_at=created, additions=1, deletions=0,
+                    changed_files=1, state="open",
+                    commit_refs=[CommitRef(hash=f"c{n}", committed_at=created)])
+        for n in range(1, 6)
+    ]
 
 
 def test_degraded_reviews_omit_review_metrics():
     payload = aggregate(
-        _stamped_commits(), churn_days=14, prs=_reviewed_prs(),
+        _stamped_commits(), churn_days=14, prs=_reviewed_prs() + _open_prs(),
         pr_fetch_degraded=("reviews",),
     ).to_dict()
 
     assert payload["pr_merged_count"] == 6
-    for key in _REVIEW_KEYS:
+    assert payload["open_pr_count"] == 5
+    for key in _REVIEW_KEYS + _FLOW_KEYS + _STALENESS_KEYS:
         assert key not in payload, key
+    for key in _AGE_KEYS:
+        assert key in payload, key
+    assert "median_open_pr_age_by_intent" in payload
     for group in payload.get("acceptance_by_origin", {}).values():
         assert "single_pass_rate" not in group
         assert "median_review_rounds" not in group
@@ -512,11 +557,23 @@ def test_degraded_reviews_omit_review_metrics():
 
 def test_clean_run_keeps_review_metrics():
     payload = aggregate(
-        _stamped_commits(), churn_days=14, prs=_reviewed_prs(),
+        _stamped_commits(), churn_days=14, prs=_reviewed_prs() + _open_prs(),
     ).to_dict()
 
     assert payload["pr_single_pass_rate"] == 0.0
     assert payload["pr_review_rounds_median"] == 1.0
+    # The by-intent / by-origin splits need 10 merged PRs and acceptance by
+    # tool needs an AI-attributed commit, which this fixture does not have;
+    # their omission is covered by the degraded twin only trivially.
+    segmented = {
+        "human_review_coverage_by_intent",
+        "human_review_coverage_by_origin_of_pr",
+        "flow_efficiency_by_intent",
+        "flow_efficiency_by_origin",
+    }
+    for key in _REVIEW_KEYS + _FLOW_KEYS + _STALENESS_KEYS + _AGE_KEYS:
+        if key not in segmented:
+            assert key in payload, key
     for group in payload.get("acceptance_by_origin", {}).values():
         assert "single_pass_rate" in group
         assert "median_review_rounds" in group
