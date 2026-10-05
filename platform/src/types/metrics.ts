@@ -5,11 +5,7 @@
 
 export type CommitOrigin = "HUMAN" | "AI_ASSISTED" | "BOT";
 export type ChangeIntent =
-  | "FEATURE"
-  | "FIX"
-  | "REFACTOR"
-  | "CONFIG"
-  | "UNKNOWN";
+  "FEATURE" | "FIX" | "REFACTOR" | "CONFIG" | "UNKNOWN";
 
 export interface OriginMetrics {
   churn_events: number;

@@ -35,11 +35,9 @@ function extractInsights(payload: Record<string, unknown> | null) {
 
   return {
     intentDistribution: payload.commit_intent_distribution as
-      | Record<string, number>
-      | undefined,
+      Record<string, number> | undefined,
     originDistribution: payload.commit_origin_distribution as
-      | Record<string, number>
-      | undefined,
+      Record<string, number> | undefined,
     stabilizationByOrigin: payload.stabilization_by_origin as
       | Record<string, { stabilization_ratio: number; files_touched: number }>
       | undefined,
@@ -83,34 +81,25 @@ function extractInsights(payload: Record<string, unknown> | null) {
       | undefined,
     flowEfficiencyMedian: payload.flow_efficiency_median as number | undefined,
     flowEfficiencyByIntent: payload.flow_efficiency_by_intent as
-      | Partial<Record<string, number>>
-      | undefined,
+      Partial<Record<string, number>> | undefined,
     timeInPhaseMedianHours: payload.time_in_phase_median_hours as
-      | Partial<Record<string, number>>
-      | undefined,
+      Partial<Record<string, number>> | undefined,
     medianTimeToFirstReviewHours: payload.median_time_to_first_review_hours as
-      | number
-      | undefined,
+      number | undefined,
     humanReviewCoveragePct: payload.human_review_coverage_pct as
-      | number
-      | undefined,
+      number | undefined,
     humanApprovalCoveragePct: payload.human_approval_coverage_pct as
-      | number
-      | undefined,
+      number | undefined,
     humanReviewCoverageByIntent: payload.human_review_coverage_by_intent as
-      | Partial<Record<string, number>>
-      | undefined,
+      Partial<Record<string, number>> | undefined,
     humanReviewCoverageByOriginOfPr:
       payload.human_review_coverage_by_origin_of_pr as
-        | Partial<Record<string, number>>
-        | undefined,
+        Partial<Record<string, number>> | undefined,
     mergeStrategy: payload.merge_strategy as string | undefined,
     mergeStrategyDominantShare: payload.merge_strategy_dominant_share as
-      | number
-      | undefined,
+      number | undefined,
     commitMetricsReliable: payload.commit_metrics_reliable as
-      | boolean
-      | undefined,
+      boolean | undefined,
   };
 }
 
