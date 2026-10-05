@@ -7,6 +7,7 @@ import { Search } from "lucide-react";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
+import { anyPrDataIncomplete } from "@/lib/pr-enrichment";
 import { cn } from "@/lib/utils";
 import type { RepoSummary } from "@/types/temporal";
 import { healthIndicator } from "@/types/temporal";
@@ -220,8 +221,8 @@ function MergeStrategyCell({
 export function CompareView({ repos }: CompareViewProps) {
   const { t } = useTranslation();
   // Amber dot next to a repo whose latest run read PR data only partially.
-  // The text is also in the DOM (sr-only), so it doesn't hinge on colour or on
-  // the `title` tooltip.
+  // The text is also in the DOM (sr-only), and a legend under the table says
+  // what the dot means, so it doesn't hinge on colour or on a hover tooltip.
   const prDataTooltip = (repo: RepoSummary) =>
     t("repos.detail.prData.incompleteTooltip", {
       steps: repo.pr_degraded_steps.join(", "),
@@ -419,10 +420,7 @@ export function CompareView({ repos }: CompareViewProps) {
                     <td className="py-2 pr-3">
                       <span className="font-mono text-sm">{repo.name}</span>
                       {repo.pr_degraded_steps.length > 0 && (
-                        <span
-                          className="ml-2 inline-flex items-center align-middle"
-                          title={prDataTooltip(repo)}
-                        >
+                        <span className="ml-2 inline-flex items-center align-middle">
                           <span
                             aria-hidden="true"
                             className="h-2 w-2 rounded-full bg-amber-500"
@@ -483,6 +481,15 @@ export function CompareView({ repos }: CompareViewProps) {
               })}
             </tbody>
           </table>
+          {anyPrDataIncomplete(sorted) && (
+            <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+              <span
+                aria-hidden="true"
+                className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-500"
+              />
+              {t("repos.detail.prData.incomplete")}
+            </p>
+          )}
         </div>
 
         {/* Mobile: sort control + card stack */}

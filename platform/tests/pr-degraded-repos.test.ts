@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { degradedReposFromPayloads } from "@/lib/pr-enrichment";
+import {
+  anyPrDataIncomplete,
+  degradedReposFromPayloads,
+} from "@/lib/pr-enrichment";
 import { translations } from "@/lib/translations";
 
 describe("degradedReposFromPayloads", () => {
@@ -39,5 +42,18 @@ describe("dashboard PR data note strings", () => {
 
     expect(text).toContain("{count}");
     expect(text).toContain("{repos}");
+  });
+});
+
+describe("anyPrDataIncomplete", () => {
+  it("is true only when at least one row is marked", () => {
+    expect(anyPrDataIncomplete([])).toBe(false);
+    expect(anyPrDataIncomplete([{ pr_degraded_steps: [] }])).toBe(false);
+    expect(
+      anyPrDataIncomplete([
+        { pr_degraded_steps: [] },
+        { pr_degraded_steps: ["reviews"] },
+      ]),
+    ).toBe(true);
   });
 });

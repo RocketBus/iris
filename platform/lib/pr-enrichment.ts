@@ -49,3 +49,10 @@ export function degradedReposFromPayloads(
   }
   return degraded;
 }
+
+/** Whether any row of a table is marked as having a partial PR read. */
+export function anyPrDataIncomplete(
+  rows: ReadonlyArray<{ pr_degraded_steps: readonly string[] }>,
+): boolean {
+  return rows.some((row) => row.pr_degraded_steps.length > 0);
+}
