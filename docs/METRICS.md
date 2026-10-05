@@ -384,8 +384,9 @@ pass failed), `fetch` (the whole read raised). Sorted, without repeats. Unlike
 the fields above it does not require PR data: a read that lost every PR still
 reports why. Absent when every step succeeded, and when PRs are absent by
 design — no `gh`, no GitHub remote — because Iris works without PRs. When
-present, this run's PR-derived fields may be missing or understated (flow,
-review coverage, `commits_in_prs`), and `merge_strategy` is `unknown` if
+present, this run's PR-derived fields may be missing or skewed — flow and
+`commits_in_prs` go missing, and with `reviews` failed review coverage reads
+0% and the single-pass rate 100% — and `merge_strategy` is `unknown` if
 `enrichment` failed (§28). It is the first field to read when two runs on the
 same commit disagree.
 
@@ -922,7 +923,7 @@ Platform: indexed columns `merge_strategy` + `commit_metrics_reliable` on
 carries `merge_strategy_dominant_share` for the repo-detail badge.
 
 **Degraded enrichment.** When the PR read's `enrichment` step failed
-(`pr_enrichment_degraded` contains `enrichment`, §15), the repo is `unknown`
+(`pr_enrichment_degraded` contains `enrichment`, from any PR state, §15), the repo is `unknown`
 without classifying: `merge_strategy_dominant_share` is absent and
 `commit_metrics_reliable` is `true`. Without parent counts and commit refs, a
 merge PR falls through to `unknown` while a squash-stamped one still

@@ -36,8 +36,9 @@ EN = {
     "pr_enrichment_degraded_caveat": (
         "PR data is incomplete for this run — failed steps: {steps}. Merge "
         "strategy is reported as unknown when enrichment failed, and flow, "
-        "review and in-PR metrics may be missing or understated. A re-run "
-        "usually recovers them."
+        "review and in-PR metrics may be missing or skewed. A transient "
+        "GitHub error usually clears on the next run; if every run fails, "
+        "check that gh is authenticated (gh auth status)."
     ),
     "system_disclaimer": (
         "Engineering outcomes emerge from system dynamics, domain complexity, "
@@ -339,6 +340,7 @@ EN = {
     "cli_reading_prs": "Fetching pull requests...",
     "cli_prs_found": "{count} merged PRs found.",
     "cli_prs_skipped": "skipped (no GitHub remote or gh CLI).",
+    "cli_prs_failed": "failed ({steps}) — continuing without PR data.",
     "cli_classifying": "Classifying commits...",
     "cli_classified": "{count} commits classified.",
     "cli_non_code_repo": (
@@ -921,8 +923,9 @@ PT_BR = {
         "Os dados de PR estão incompletos nesta execução — passos com falha: "
         "{steps}. A estratégia de merge sai como desconhecida quando o "
         "enriquecimento falha, e métricas de flow, de review e de commits em "
-        "PR podem faltar ou sair subestimadas. Uma nova execução costuma "
-        "recuperá-las."
+        "PR podem faltar ou sair distorcidas. Um erro transitório do GitHub "
+        "costuma sumir na próxima execução; se toda execução falhar, "
+        "verifique se o gh está autenticado (gh auth status)."
     ),
     "system_disclaimer": (
         "Resultados de engenharia emergem de dinâmicas sistêmicas, complexidade do domínio "
@@ -1226,6 +1229,7 @@ PT_BR = {
     "cli_reading_prs": "Buscando pull requests...",
     "cli_prs_found": "{count} PRs merged encontrados.",
     "cli_prs_skipped": "pulado (sem remote GitHub ou gh CLI).",
+    "cli_prs_failed": "falhou ({steps}) — seguindo sem dados de PR.",
     "cli_classifying": "Classificando commits...",
     "cli_classified": "{count} commits classificados.",
     "cli_non_code_repo": (

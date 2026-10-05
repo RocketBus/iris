@@ -432,3 +432,28 @@ def test_org_runner_adoption_split_inherits_the_degradation(tmp_path, monkeypatc
     )
 
     _assert_adoption_split_is_degraded(tmp_path / "out")
+
+
+def test_single_repo_cli_says_the_pr_read_failed_instead_of_skipped(
+    tmp_path, monkeypatch, capsys
+):
+    from iris import cli
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(
+        cli,
+        "read_pull_requests_with_fallback",
+        lambda *a, **k: PullRequestFetch(prs=[], degraded=("basic",)),
+    )
+
+    args = argparse.Namespace(
+        repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+        verbose=False, trend=False, out=str(tmp_path / "out"), no_push=True,
+    )
+    cli._run_single_repo(args)
+
+    out = capsys.readouterr().out
+    assert "failed (basic)" in out
+    assert "skipped (no GitHub remote or gh CLI)" not in out

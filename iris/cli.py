@@ -500,6 +500,8 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     prs = pr_fetch.prs
     if prs:
         print(s["cli_prs_found"].format(count=len(prs)))
+    elif pr_fetch.degraded:
+        print(s["cli_prs_failed"].format(steps=", ".join(pr_fetch.degraded)))
     else:
         print(s["cli_prs_skipped"])
     _tick("pull requests fetched")
