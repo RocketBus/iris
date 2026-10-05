@@ -528,8 +528,8 @@ EN = {
         "delivery: {repos}."
     ),
     "org_pr_read_degraded": (
-        "PR data is incomplete this run for {count} repositories ({repos}): "
-        "their PR counts and PR-derived metrics below may be missing or skewed."
+        "PR data is incomplete this run for {count} repository(ies) ({repos}): "
+        "their PR counts and PR-derived metrics in this report may be missing or skewed."
     ),
     "org_ai_impact_title": "AI Impact Across Organization",
     "org_ai_impact_body": (
@@ -1423,8 +1423,8 @@ PT_BR = {
     ),
     "org_pr_read_degraded": (
         "Os dados de PR estão incompletos nesta execução para {count} "
-        "repositórios ({repos}): as contagens de PR e as métricas derivadas "
-        "de PR abaixo podem faltar ou sair distorcidas."
+        "repositório(s) ({repos}): as contagens de PR e as métricas derivadas "
+        "de PR neste relatório podem faltar ou sair distorcidas."
     ),
     "org_ai_impact_title": "Impacto de IA na Organização",
     "org_ai_impact_body": (

@@ -68,7 +68,7 @@ def test_org_report_names_repos_with_degraded_pr_read(tmp_path: Path) -> None:
     text = _report_text(_org(_DEGRADED, _CLEAN), tmp_path)
     assert _EN_NOTE in text
     note = text.split(_EN_NOTE)[1].split("\n")[0]
-    assert "1 repositories (widgets)" in note
+    assert "1 repository(ies) (widgets)" in note
     assert "gadgets" not in note
 
 
