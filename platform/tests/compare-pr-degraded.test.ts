@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { getOrgReposSummary } from "@/lib/queries/temporal";
 
-type Result = { data: unknown[] | null; error: { message: string } | null };
+type Result = {
+  data: unknown[] | null;
+  error: { message: string; code?: string } | null;
+};
+
+const withPayload = { includePrDegraded: true };
 
 // Minimal chainable stand-in for the supabase query builder: every filter
 // returns the builder, awaiting it yields the canned result.
@@ -51,14 +56,14 @@ describe("getOrgReposSummary — PR data degradation", () => {
       error: null,
     }));
 
-    const [repo] = await getOrgReposSummary(client, "org", 30);
+    const [repo] = await getOrgReposSummary(client, "org", 30, withPayload);
     expect(repo.pr_degraded_steps).toEqual(["reviews"]);
   });
 
   it("leaves absent or garbage values unmarked", async () => {
     for (const extra of [{}, { pr_enrichment_degraded: "reviews" }]) {
       const client = fakeClient(() => ({ data: [row(extra)], error: null }));
-      const [repo] = await getOrgReposSummary(client, "org", 30);
+      const [repo] = await getOrgReposSummary(client, "org", 30, withPayload);
       expect(repo.pr_degraded_steps).toEqual([]);
     }
   });
@@ -77,12 +82,76 @@ describe("getOrgReposSummary — PR data degradation", () => {
       selects,
     );
 
-    const repos = await getOrgReposSummary(client, "org", 30);
+    const repos = await getOrgReposSummary(client, "org", 30, withPayload);
     error.mockRestore();
 
     expect(repos).toHaveLength(1);
     expect(repos[0].runs_count).toBe(1);
     expect(repos[0].pr_degraded_steps).toEqual([]);
     expect(selects).toHaveLength(2);
+  });
+
+  it("does not select the payload key unless asked", async () => {
+    const selects: string[] = [];
+    const client = fakeClient(
+      () => ({
+        data: [row({ pr_enrichment_degraded: ["reviews"] })],
+        error: null,
+      }),
+      selects,
+    );
+
+    const [repo] = await getOrgReposSummary(client, "org", 30);
+
+    expect(selects).toHaveLength(1);
+    expect(selects[0]).not.toContain("payload");
+    expect(repo.pr_degraded_steps).toEqual([]);
+  });
+
+  it("retries without payload on a PostgREST missing-column error", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const selects: string[] = [];
+    const client = fakeClient(
+      (columns) =>
+        columns.includes("payload")
+          ? {
+              data: null,
+              error: {
+                code: "42703",
+                message: "column repo_metric_summaries.foo does not exist",
+              },
+            }
+          : { data: [row()], error: null },
+      selects,
+    );
+
+    const repos = await getOrgReposSummary(client, "org", 30, withPayload);
+    error.mockRestore();
+
+    expect(selects).toHaveLength(2);
+    expect(repos[0].runs_count).toBe(1);
+  });
+
+  it("does not retry, and logs, on an unrelated error such as a timeout", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const selects: string[] = [];
+    const client = fakeClient(
+      () => ({
+        data: null,
+        error: {
+          code: "57014",
+          message: "canceling statement due to statement timeout",
+        },
+      }),
+      selects,
+    );
+
+    const repos = await getOrgReposSummary(client, "org", 30, withPayload);
+    const logged = error.mock.calls.length;
+    error.mockRestore();
+
+    expect(selects).toHaveLength(1);
+    expect(logged).toBeGreaterThan(0);
+    expect(repos[0].runs_count).toBe(0);
   });
 });

@@ -44,7 +44,9 @@ export default async function ComparePage({
     availableWindows,
   );
 
-  const repos = await getOrgReposSummary(supabaseAdmin, org.id, windowDays);
+  const repos = await getOrgReposSummary(supabaseAdmin, org.id, windowDays, {
+    includePrDegraded: true,
+  });
   const { t } = await getServerTranslation();
 
   return (
