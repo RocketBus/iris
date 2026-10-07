@@ -218,11 +218,28 @@ function MergeStrategyCell({
   );
 }
 
+/**
+ * Amber dot next to a repo whose latest run read PR data only partially. The
+ * dot is decorative (hover title for sighted users); the step list is also in
+ * the DOM as screen-reader text, and a legend under the list says what the dot
+ * means, so nothing hinges on colour or on a tooltip.
+ */
+function PrDataMarker({ repo, label }: { repo: RepoSummary; label: string }) {
+  if (repo.pr_degraded_steps.length === 0) return null;
+  return (
+    <span className="ml-2 inline-flex flex-shrink-0 items-center align-middle">
+      <span
+        aria-hidden="true"
+        title={label}
+        className="h-2 w-2 rounded-full bg-amber-500"
+      />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 export function CompareView({ repos }: CompareViewProps) {
   const { t } = useTranslation();
-  // Amber dot next to a repo whose latest run read PR data only partially.
-  // The text is also in the DOM (sr-only), and a legend under the table says
-  // what the dot means, so it doesn't hinge on colour or on a hover tooltip.
   const prDataTooltip = (repo: RepoSummary) =>
     t("repos.detail.prData.incompleteTooltip", {
       steps: formatPrSteps(repo.pr_degraded_steps, t),
@@ -419,15 +436,7 @@ export function CompareView({ repos }: CompareViewProps) {
                     </td>
                     <td className="py-2 pr-3">
                       <span className="font-mono text-sm">{repo.name}</span>
-                      {repo.pr_degraded_steps.length > 0 && (
-                        <span className="ml-2 inline-flex items-center align-middle">
-                          <span
-                            aria-hidden="true"
-                            className="h-2 w-2 rounded-full bg-amber-500"
-                          />
-                          <span className="sr-only">{prDataTooltip(repo)}</span>
-                        </span>
-                      )}
+                      <PrDataMarker repo={repo} label={prDataTooltip(repo)} />
                     </td>
                     <MetricCell
                       value={repo.stabilization_ratio}
@@ -481,15 +490,6 @@ export function CompareView({ repos }: CompareViewProps) {
               })}
             </tbody>
           </table>
-          {sorted.some((repo) => repo.pr_degraded_steps.length > 0) && (
-            <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-500"
-              />
-              {t("repos.detail.prData.incomplete")}
-            </p>
-          )}
         </div>
 
         {/* Mobile: sort control + card stack */}
@@ -546,6 +546,7 @@ export function CompareView({ repos }: CompareViewProps) {
                       <span className="truncate font-mono text-sm">
                         {repo.name}
                       </span>
+                      <PrDataMarker repo={repo} label={prDataTooltip(repo)} />
                     </div>
                     <span
                       className={cn(
@@ -627,6 +628,16 @@ export function CompareView({ repos }: CompareViewProps) {
             })}
           </ul>
         </div>
+
+        {sorted.some((repo) => repo.pr_degraded_steps.length > 0) && (
+          <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-500"
+            />
+            {t("repos.detail.prData.incomplete")}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
