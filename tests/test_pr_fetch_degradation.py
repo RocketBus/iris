@@ -764,3 +764,72 @@ def test_console_no_prs_and_degraded_basic_keeps_the_failure(tmp_path, monkeypat
         prs=[], degraded=("basic", "enrichment")))
 
     assert "failed (basic, enrichment) — continuing without PR data." in out
+
+
+# --- a failed enrichment leaves out the origin funnel -----------------------
+#
+# The funnel's "In PR" stage reads acceptance, which is omitted without the
+# enrichment; it would fall back to "every commit is in a PR" and chain that
+# into every later conversion.
+
+from iris.analysis.origin_funnel import calculate_origin_funnel
+
+
+def _commits_with_ai() -> list[Commit]:
+    # The funnel needs an origin distribution, which only exists when some
+    # commit is AI-assisted or bot-made.
+    ai = Commit(hash="c7", author="dev", date=_NOW + timedelta(hours=7),
+                message="change 7 (#6)",
+                attribution_trailers=["Claude <noreply@anthropic.com>"])
+    return _stamped_commits() + [ai]
+
+
+def test_origin_funnel_is_none_when_enrichment_degraded():
+    metrics = aggregate(
+        _commits_with_ai(), churn_days=14, prs=_reviewed_prs(),
+        pr_fetch_degraded=("enrichment",),
+    )
+
+    assert metrics.commit_origin_distribution
+    assert calculate_origin_funnel(metrics) is None
+
+
+def test_origin_funnel_is_kept_on_a_clean_run():
+    metrics = aggregate(_commits_with_ai(), churn_days=14, prs=_reviewed_prs())
+
+    assert calculate_origin_funnel(metrics) is not None
+
+
+def _funnel_in_cli_metrics(tmp_path, monkeypatch, fetch: PullRequestFetch) -> dict:
+    from iris import cli
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    (repo / "a.py").write_text("x = 99\n", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "commit", "-q", "-m",
+         "feat: ai change\n\nCo-Authored-By: Claude <noreply@anthropic.com>"],
+        cwd=repo, check=True, capture_output=True)
+    monkeypatch.setattr(cli, "read_pull_requests_with_fallback", lambda *a, **k: fetch)
+    args = argparse.Namespace(
+        repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+        verbose=False, trend=False, out=str(tmp_path / "out"), no_push=True,
+    )
+    cli._run_single_repo(args)
+    return _metrics_json(tmp_path / "out")
+
+
+def test_cli_metrics_json_has_no_funnel_when_enrichment_degraded(tmp_path, monkeypatch):
+    payload = _funnel_in_cli_metrics(
+        tmp_path, monkeypatch, PullRequestFetch(prs=[], degraded=("enrichment",)))
+
+    assert "origin_funnel" not in payload
+
+
+def test_cli_metrics_json_keeps_the_funnel_on_a_clean_run(tmp_path, monkeypatch):
+    payload = _funnel_in_cli_metrics(
+        tmp_path, monkeypatch, PullRequestFetch(prs=[], degraded=()))
+
+    assert "origin_funnel" in payload

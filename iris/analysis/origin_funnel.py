@@ -19,6 +19,7 @@ Future work could add closed/rejected PR data to fill this gap.
 from dataclasses import dataclass
 
 from iris.models.metrics import ReportMetrics
+from iris.models.pull_request import DEGRADED_ENRICHMENT
 
 
 @dataclass(frozen=True)
@@ -56,8 +57,13 @@ def calculate_origin_funnel(metrics: ReportMetrics) -> FunnelResult | None:
         metrics: ReportMetrics with origin, acceptance, and durability data.
 
     Returns:
-        FunnelResult with per-origin funnels, or None if no origin data.
+        FunnelResult with per-origin funnels, or None if no origin data, or
+        if the PR enrichment failed: the "In PR" stage reads acceptance,
+        which is omitted then, and every later conversion chains from it.
     """
+    if DEGRADED_ENRICHMENT in (metrics.pr_enrichment_degraded or []):
+        return None
+
     origin_dist = metrics.commit_origin_distribution
     if not origin_dist:
         return None

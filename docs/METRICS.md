@@ -256,7 +256,11 @@ dataclass is always `None`; the field only exists in the emitted JSON.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `origin_funnel` | `Record<origin, { stages[], overall_conversion }>` | `analysis/origin_funnel.py` (via `reports/writer.py`) | no `commit_origin_distribution` |
+| `origin_funnel` | `Record<origin, { stages[], overall_conversion }>` | `analysis/origin_funnel.py` (via `reports/writer.py`) | no `commit_origin_distribution`, or `enrichment` degraded |
+
+The whole funnel is omitted when `enrichment` is in `pr_enrichment_degraded`
+(§15): its `In PR` stage reads `acceptance_by_origin`, which is omitted then,
+and every later conversion chains from that stage.
 
 Stages: `Committed` → `In PR` → `Stabilized` → `Lines Surviving` (the
 last stage only when durability data is available). Each stage carries
@@ -363,8 +367,8 @@ All fields require GitHub PR data.
 | `pr_cycle_time_buckets` | `{same_day, one_day, two_to_three_days, four_to_seven_days, seven_plus_days}` ints | same | same |
 | `pr_median_size_files` | int ≥ 0 | same | same |
 | `pr_median_size_lines` | int ≥ 0 | same | same |
-| `pr_review_rounds_median` | float ≥ 0 | same | same, or `reviews` or `enrichment` degraded |
-| `pr_single_pass_rate` | float `0.0–1.0` | same | same, or `reviews` or `enrichment` degraded |
+| `pr_review_rounds_median` | float ≥ 0 | same | same, or `reviews` degraded |
+| `pr_single_pass_rate` | float `0.0–1.0` | same | same, or `reviews` degraded |
 | `pr_enrichment_degraded` | list of `basic\|enrichment\|reviews\|fetch` | `ingestion/github_reader.py` | every read step succeeded, or PRs are absent by design |
 
 `pr_review_rounds_median` — median count of `CHANGES_REQUESTED` reviews
