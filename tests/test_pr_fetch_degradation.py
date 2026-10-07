@@ -1157,3 +1157,140 @@ def test_every_aggregate_call_gets_the_per_state_degradation(tmp_path, monkeypat
     payload = _metrics_json(tmp_path / "out")
     assert payload["pr_enrichment_degraded"] == ["reviews"]
     assert "pr_single_pass_rate" in payload
+
+
+# --- a failed list omits what its state feeds -------------------------------
+#
+# When `gh pr list` fails for a state, that state's PRs are missing while the
+# others are read: the PR list is not empty, so every metric the missing state
+# feeds would read as a real zero (0% acceptance, 0 PRs merged a week, a WIP
+# short of the PRs in flight). Those are left out instead.
+
+# Fed by merged PRs: lifecycle, review, flow, coverage, acceptance, strategy.
+_MERGED_FED_KEYS = (
+    "pr_merged_count",
+    "pr_median_time_to_merge_hours",
+    "pr_mean_time_to_merge_hours",
+    "pr_p90_time_to_merge_hours",
+    "pr_pct_merged_within_24h",
+    "pr_cycle_time_buckets",
+    "pr_median_size_files",
+    "pr_median_size_lines",
+    *_REVIEW_KEYS,
+    *_FLOW_KEYS,
+    "acceptance_by_origin",
+    "acceptance_by_tool",
+    "merge_strategy",
+    "merge_strategy_dominant_share",
+    "commit_metrics_reliable",
+)
+_OPEN_FED_KEYS = (*_AGE_KEYS, "median_open_pr_age_by_intent", *_STALENESS_KEYS)
+
+
+def _closed_prs() -> list[PullRequest]:
+    return [
+        PullRequest(number=200 + n, title=f"closed {n}", author="dev",
+                    created_at=_NOW, additions=1, deletions=0, changed_files=1,
+                    closed_at=_NOW + timedelta(hours=n), state="closed",
+                    commit_refs=[CommitRef(hash=f"c{n}", committed_at=_NOW)])
+        for n in range(1, 4)
+    ]
+
+
+def _two_week_commits() -> list[Commit]:
+    # The activity timeline needs at least two ISO weeks of commits.
+    later = Commit(hash="c9", author="dev", date=_NOW + timedelta(days=8),
+                   message="change 9 (#9)")
+    return _stamped_commits() + [later]
+
+
+def _list_payload(prs, degraded, by_state) -> dict:
+    return aggregate(
+        _two_week_commits(), churn_days=14, prs=prs,
+        pr_fetch_degraded=degraded, pr_fetch_degraded_by_state=by_state,
+    ).to_dict()
+
+
+def test_missing_merged_list_omits_what_merged_prs_feed():
+    payload = _list_payload(
+        _closed_prs() + _open_prs(), ("basic",), _per_state(merged=("basic",)))
+
+    for key in _MERGED_FED_KEYS:
+        assert key not in payload, key
+    assert "flow_load" not in payload
+    assert payload["activity_timeline"]
+    for week in payload["activity_timeline"]:
+        assert week["prs_merged"] is None
+        assert week["pr_median_ttm_hours"] is None
+    # The open list was read: its fields stay.
+    for key in _AGE_KEYS:
+        assert key in payload, key
+
+
+def test_missing_open_list_omits_every_open_pr_field():
+    clean = _list_payload(_reviewed_prs() + _closed_prs(), (), None)
+    payload = _list_payload(
+        _reviewed_prs() + _closed_prs(), ("basic",), _per_state(open=("basic",)))
+
+    for key in _OPEN_FED_KEYS:
+        assert key not in payload, key
+    assert "flow_load" not in payload
+    # The merged list was read: its fields stay as on a clean run.
+    assert payload["pr_merged_count"] == 6
+    assert payload["acceptance_by_origin"] == clean["acceptance_by_origin"]
+    assert payload["activity_timeline"] == clean["activity_timeline"]
+
+
+def test_missing_closed_list_omits_only_flow_load():
+    prs = _reviewed_prs() + _closed_prs() + _open_prs()
+    clean = _list_payload(prs, (), None)
+    payload = _list_payload(prs, ("basic",), _per_state(closed=("basic",)))
+
+    assert clean["flow_load"]
+    assert payload.pop("pr_enrichment_degraded") == ["basic"]
+    clean.pop("flow_load")
+    assert payload == clean
+
+
+@pytest.mark.parametrize("by_state", [None, {}])
+def test_missing_list_without_the_per_state_dict_omits_every_state(by_state):
+    payload = _list_payload(
+        _reviewed_prs() + _closed_prs() + _open_prs(), ("basic",), by_state)
+
+    for key in (*_MERGED_FED_KEYS, *_OPEN_FED_KEYS, "flow_load"):
+        assert key not in payload, key
+    for week in payload["activity_timeline"]:
+        assert week["prs_merged"] is None
+
+
+@pytest.mark.parametrize("degraded, by_state", [
+    (("fetch",), {}),
+    (("basic",), _per_state(merged=("basic",), closed=("basic",), open=("basic",))),
+])
+def test_read_that_lost_every_list_leaves_no_pr_zeros(degraded, by_state):
+    payload = _list_payload([], degraded, by_state)
+
+    assert "flow_load" not in payload
+    for week in payload["activity_timeline"]:
+        assert week["prs_merged"] is None
+
+
+@pytest.mark.parametrize("prs", [None, []])
+def test_prs_absent_by_design_keep_flow_load(prs):
+    # No gh or no GitHub remote: nothing failed, so nothing is left out.
+    payload = _list_payload(prs, (), None)
+
+    assert "flow_load" in payload
+
+
+# --- without the per-state dict, the union applies ---------------------------
+
+
+@pytest.mark.parametrize("by_state", [None, {}])
+def test_reviews_without_the_per_state_dict_omit_merged_and_open_metrics(by_state):
+    payload = _payload(("reviews",), by_state)
+
+    for key in (*_REVIEW_KEYS, *_FLOW_KEYS, *_STALENESS_KEYS):
+        assert key not in payload, key
+    for key in _AGE_KEYS:
+        assert key in payload, key
