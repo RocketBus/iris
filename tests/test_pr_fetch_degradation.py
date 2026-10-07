@@ -675,3 +675,27 @@ def test_clean_run_keeps_acceptance_and_staleness():
     for key in _STALENESS_KEYS:
         if key != "stale_open_pr_pct_by_origin":
             assert key in payload, key
+
+
+# --- null GraphQL fields are an incomplete read, not a crash ----------------
+
+
+def test_enrichment_with_null_repository_is_incomplete(monkeypatch):
+    _fake_gh(monkeypatch, graphql=[{"data": {"repository": None}}])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
+
+    assert by_pr == {}
+    assert complete is False
+
+
+def test_enrichment_node_with_null_commits_has_no_commits(monkeypatch):
+    page = _graphql_page([1, 2])
+    page["data"]["repository"]["pullRequests"]["nodes"][0]["commits"] = None
+    _fake_gh(monkeypatch, graphql=[page])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
+
+    assert by_pr[1]["commits"] == []
+    assert len(by_pr[2]["commits"]) == 1
+    assert complete is True

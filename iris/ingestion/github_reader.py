@@ -285,13 +285,12 @@ def _fetch_pr_enrichment_graphql(
         except json.JSONDecodeError:
             return by_pr, False
 
-        page = (
-            data.get("data", {})
-            .get("repository", {})
-            .get("pullRequests")
-            if data.get("data") else None
-        )
-        if not page:
+        # Any non-dict on the way down (null repository, null data) is a
+        # missing page, not a reason to lose the whole PR read.
+        payload = data.get("data") if isinstance(data, dict) else None
+        repository = payload.get("repository") if isinstance(payload, dict) else None
+        page = repository.get("pullRequests") if isinstance(repository, dict) else None
+        if not page or not isinstance(page, dict):
             return by_pr, False
 
         for node in page.get("nodes", []):
@@ -299,7 +298,9 @@ def _fetch_pr_enrichment_graphql(
             if number is None:
                 continue
             commits = []
-            for entry in node.get("commits", {}).get("nodes", []):
+            commits_conn = node.get("commits")
+            entries = commits_conn.get("nodes") if isinstance(commits_conn, dict) else None
+            for entry in entries or []:
                 commit = entry.get("commit") or {}
                 oid = commit.get("oid", "")
                 if not oid:
