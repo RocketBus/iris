@@ -4,7 +4,10 @@ import {
   type DashboardPanelProps,
 } from "../data";
 
-import { degradedReposFromPayloads } from "@/lib/pr-enrichment";
+import {
+  degradedReposFromPayloads,
+  formatRepoNames,
+} from "@/lib/pr-enrichment";
 import { getServerTranslation } from "@/lib/server-translation";
 
 /**
@@ -28,7 +31,10 @@ export async function PRDataNotice({ orgId, windowDays }: DashboardPanelProps) {
     >
       {t("dashboard.prDataIncomplete", {
         count: degraded.length,
-        repos: degraded.map((r) => r.name).join(", "),
+        repos: formatRepoNames(
+          degraded.map((r) => r.name),
+          t,
+        ),
       })}
     </p>
   );

@@ -7,7 +7,7 @@ import { Search } from "lucide-react";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
-import { anyPrDataIncomplete } from "@/lib/pr-enrichment";
+import { formatPrSteps } from "@/lib/pr-enrichment";
 import { cn } from "@/lib/utils";
 import type { RepoSummary } from "@/types/temporal";
 import { healthIndicator } from "@/types/temporal";
@@ -225,7 +225,7 @@ export function CompareView({ repos }: CompareViewProps) {
   // what the dot means, so it doesn't hinge on colour or on a hover tooltip.
   const prDataTooltip = (repo: RepoSummary) =>
     t("repos.detail.prData.incompleteTooltip", {
-      steps: repo.pr_degraded_steps.join(", "),
+      steps: formatPrSteps(repo.pr_degraded_steps, t),
     });
   const [sort, setSort] = useState<SortState>({
     key: "stabilization_ratio",
@@ -481,7 +481,7 @@ export function CompareView({ repos }: CompareViewProps) {
               })}
             </tbody>
           </table>
-          {anyPrDataIncomplete(sorted) && (
+          {sorted.some((repo) => repo.pr_degraded_steps.length > 0) && (
             <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
               <span
                 aria-hidden="true"

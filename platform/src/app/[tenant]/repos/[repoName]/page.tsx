@@ -13,7 +13,7 @@ import { MetricCard } from "@/components/charts/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { WindowSelector } from "@/components/WindowSelector";
 import { authOptions } from "@/lib/auth";
-import { prDegradedSteps } from "@/lib/pr-enrichment";
+import { formatPrSteps, prDegradedSteps } from "@/lib/pr-enrichment";
 import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
 import { computeRepoDORA } from "@/lib/queries/dora";
 import { computeInvestmentHotspots } from "@/lib/queries/invest-here";
@@ -254,14 +254,14 @@ export default async function RepoDetailPage({
                   {insights.mergeStrategy}
                 </Badge>
               ))}
-            {/* In the header, not in the flow or merge panels: both are absent
-                exactly when the read degraded. */}
+            {/* In the header, not in the flow or merge panels: those can
+                disappear when the read degrades, which would hide the cause. */}
             {prDegraded.length > 0 && (
               <Badge
                 variant="outline"
                 className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
                 title={t("repos.detail.prData.incompleteTooltip", {
-                  steps: prDegraded.join(", "),
+                  steps: formatPrSteps(prDegraded, t),
                 })}
               >
                 {t("repos.detail.prData.incomplete")}
