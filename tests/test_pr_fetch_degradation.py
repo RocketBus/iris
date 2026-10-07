@@ -189,6 +189,64 @@ def test_enrichment_does_not_retry_a_deterministic_error(monkeypatch, stderr):
     assert sleeps == []
 
 
+# A repo whose name looks like a transient error must not make a
+# deterministic error look transient, and must not hide a real one.
+_TIMEOUT_REPO = "acme/timeout-svc"
+
+
+@pytest.mark.parametrize("stderr", [
+    "GraphQL: Could not resolve to a Repository with the name 'acme/timeout-svc'. (repository)",
+    "HTTP 404: Not Found (https://api.github.com/repos/acme/timeout-svc/pulls)",
+    "no pull requests match your search in timeout-svc",
+    "GraphQL: Field 'oid' is not defined on any part thereof (query)",
+])
+def test_enrichment_does_not_read_the_repo_name_as_a_transient_error(monkeypatch, stderr):
+    sleeps = _fake_gh(monkeypatch, graphql=[
+        subprocess.CalledProcessError(1, ["gh"], stderr=stderr),
+    ])
+
+    _by_pr, complete = github_reader._fetch_pr_enrichment_graphql(_TIMEOUT_REPO, "merged", 500)
+
+    assert complete is False
+    assert sleeps == []
+
+
+@pytest.mark.parametrize("nwo, stderr", [
+    (_TIMEOUT_REPO, "HTTP 504: Gateway Timeout (https://api.github.com/graphql)"),
+    (_TIMEOUT_REPO, "Post \"https://api.github.com/graphql\": unexpected EOF"),
+    ("acme/out", "dial tcp: i/o timeout"),
+    ("acme/out", "read: connection reset by peer"),
+    ("acme/widgets", "GraphQL: Something went wrong while executing your query. "
+                     "This may be the result of a timeout, or it could be a GitHub bug."),
+])
+def test_enrichment_still_retries_a_transient_error(monkeypatch, nwo, stderr):
+    sleeps = _fake_gh(monkeypatch, graphql=[
+        subprocess.CalledProcessError(1, ["gh"], stderr=stderr), _graphql_page([1]),
+    ])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql(nwo, "merged", 500)
+
+    assert sorted(by_pr) == [1]
+    assert complete is True
+    assert sleeps == [github_reader._RETRY_DELAY_S]
+
+
+def test_reviews_pass_does_not_read_the_repo_name_as_a_transient_error(monkeypatch):
+    sleeps = _fake_gh(
+        monkeypatch,
+        basic=[{"number": 1}],
+        graphql=[_graphql_page([1])],
+        reviews=(subprocess.CalledProcessError(
+            1, ["gh"], stderr="GraphQL: Could not resolve to a Repository with "
+                              "the name 'acme/timeout-svc'. (repository)"),),
+    )
+
+    _prs, degraded = github_reader._fetch_prs(_TIMEOUT_REPO, 1000, "merged")
+
+    assert degraded == {"reviews"}
+    assert sleeps == []
+
+
 def test_reviews_pass_retries_a_transient_failure_and_recovers(monkeypatch):
     review = {"author": {"login": "reviewer"}, "state": "APPROVED",
               "submittedAt": "2026-09-01T00:00:00Z"}
