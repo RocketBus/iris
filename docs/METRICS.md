@@ -390,8 +390,10 @@ without persisting individual PR durations.
 `pr_enrichment_degraded` — the steps of the GitHub PR read that failed this
 run and fell back to partial data: `basic` (`gh pr list` for one state failed,
 so that state's PRs are missing), `enrichment` (the GraphQL pass for commit
-refs and merge-commit parents failed, after one retry), `reviews` (the reviews
-pass failed), `fetch` (the whole read raised). Sorted, without repeats. Unlike
+refs and merge-commit parents failed), `reviews` (the reviews pass failed),
+`fetch` (the whole read raised). The enrichment and reviews passes get one
+retry when gh reports a transient error (HTTP 5xx, a timeout, a dropped
+connection); a 4xx or GraphQL error is not retried. Sorted, without repeats. Unlike
 the fields above it does not require PR data: a read that lost every PR still
 reports why. Absent when every step succeeded, and when PRs are absent by
 design — no `gh`, no GitHub remote — because Iris works without PRs. When

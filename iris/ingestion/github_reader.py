@@ -124,7 +124,8 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> tuple[list[dict], set[str
     3. Reviews via `gh pr list --json number,reviews` in one shot, also
        capped at `_BATCH_SIZE`.
 
-    Both secondary passes are best-effort — if either fails the PRs come
+    Both secondary passes are best-effort, with one retry on a transient
+    failure (`_run_gh_with_one_retry`) — if either still fails the PRs come
     back with the respective field empty, but the rest of the metadata
     is still usable.
 
@@ -158,7 +159,9 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> tuple[list[dict], set[str
         if merge_commit:
             pr["mergeCommit"] = merge_commit
 
-    reviews_prs = _gh_pr_list(nwo, "number,reviews", min(limit, _BATCH_SIZE), gh_state)
+    reviews_prs = _gh_pr_list(
+        nwo, "number,reviews", min(limit, _BATCH_SIZE), gh_state, retry=True,
+    )
     if reviews_prs is None:
         degraded.add(DEGRADED_REVIEWS)
     elif reviews_prs:
@@ -204,14 +207,27 @@ _GH_STATE_TO_GRAPHQL = {
 }
 
 
-# One retry for the enrichment query, after this pause. GitHub answers that
-# query with intermittent 504s (see `_BATCH_SIZE`); a single retry makes a
-# degraded run rarer without hiding the ones that still fail.
-_ENRICHMENT_RETRY_DELAY_S = 2.0
+# One retry for the enrichment query and the reviews pass, after this pause.
+# GitHub answers both with intermittent 504s (see `_BATCH_SIZE`); a single
+# retry makes a degraded run rarer without hiding the ones that still fail.
+_RETRY_DELAY_S = 2.0
+
+# gh writes why it failed to stderr. A 5xx or a slow or dropped connection can
+# pass on a second try; anything else — a 4xx, a GraphQL error — fails the same
+# way again, so retrying it would only add the pause to every run.
+_TRANSIENT_GH_ERROR = re.compile(
+    r"HTTP 5\d\d|timeout|timed out|deadline exceeded|connection reset"
+    r"|connection refused|EOF",
+    re.IGNORECASE,
+)
 
 
 def _run_gh_with_one_retry(args: list[str]) -> subprocess.CompletedProcess | None:
-    """Run a gh command; on failure wait once and retry. None if both fail."""
+    """Run a gh command; if it fails transiently, wait once and retry.
+
+    None when the command fails twice, or fails once with an error that a
+    retry would not fix.
+    """
     for attempt in (1, 2):
         try:
             return subprocess.run(
@@ -220,9 +236,10 @@ def _run_gh_with_one_retry(args: list[str]) -> subprocess.CompletedProcess | Non
             )
         except FileNotFoundError:
             return None
-        except subprocess.CalledProcessError:
-            if attempt == 1:
-                time.sleep(_ENRICHMENT_RETRY_DELAY_S)
+        except subprocess.CalledProcessError as error:
+            if attempt == 2 or not _TRANSIENT_GH_ERROR.search(error.stderr or ""):
+                return None
+            time.sleep(_RETRY_DELAY_S)
     return None
 
 
@@ -342,26 +359,33 @@ def _fetch_pr_enrichment_graphql(
     return by_pr, True
 
 
-def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] | None:
-    """Run gh pr list and return parsed JSON, or None on failure."""
-    try:
-        result = subprocess.run(
-            [
-                "gh", "pr", "list",
-                "--repo", nwo,
-                "--state", gh_state,
-                "--json", fields,
-                "--limit", str(limit),
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            env=git_env(),
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
+def _gh_pr_list(
+    nwo: str, fields: str, limit: int, gh_state: str, *, retry: bool = False,
+) -> list[dict] | None:
+    """Run gh pr list and return parsed JSON, or None on failure.
 
-    if not result.stdout.strip():
+    With ``retry``, a transient failure gets one more try
+    (`_run_gh_with_one_retry`).
+    """
+    args = [
+        "gh", "pr", "list",
+        "--repo", nwo,
+        "--state", gh_state,
+        "--json", fields,
+        "--limit", str(limit),
+    ]
+    if retry:
+        result = _run_gh_with_one_retry(args)
+    else:
+        try:
+            result = subprocess.run(
+                args, capture_output=True, text=True, check=True,
+                env=git_env(),
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            result = None
+
+    if result is None or not result.stdout.strip():
         return None
 
     try:

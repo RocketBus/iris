@@ -71,6 +71,8 @@ import json
 import subprocess
 from types import SimpleNamespace
 
+import pytest
+
 
 def _ok(payload) -> SimpleNamespace:
     return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
@@ -99,10 +101,12 @@ def _fake_gh(monkeypatch, *, full=None, basic=None, graphql=(), reviews=None):
     """Route each gh call to a scripted answer.
 
     `full`, `basic` and `reviews` are a payload, or an exception to raise.
+    `reviews` can also be a tuple of answers for successive reviews calls.
     `graphql` is the sequence of answers for successive GraphQL calls. Returns
     the list of pauses the retry slept, so a test can assert on them.
     """
     graphql_answers = list(graphql)
+    reviews_answers = list(reviews) if isinstance(reviews, tuple) else None
     sleeps: list[float] = []
 
     def answer(spec, cmd):
@@ -117,6 +121,8 @@ def _fake_gh(monkeypatch, *, full=None, basic=None, graphql=(), reviews=None):
             return answer(graphql_answers.pop(0), cmd)
         fields = cmd[cmd.index("--json") + 1]
         if fields == "number,reviews":
+            if reviews_answers is not None:
+                return answer(reviews_answers.pop(0), cmd)
             return answer(reviews, cmd)
         if "commits" in fields:
             return answer(full, cmd)
@@ -129,6 +135,14 @@ def _fake_gh(monkeypatch, *, full=None, basic=None, graphql=(), reviews=None):
 
 def _failure() -> subprocess.CalledProcessError:
     return subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 504")
+
+
+# Errors that fail the same way on a second try: retrying them only waits.
+_DETERMINISTIC_STDERR = (
+    "HTTP 401: Bad credentials (https://api.github.com/graphql)",
+    "gh: Not Found (HTTP 404)",
+    "GraphQL: Could not resolve to a Repository with the name 'acme/widgets'. (repository)",
+)
 
 
 def test_enrichment_completes_on_a_single_page(monkeypatch):
@@ -148,7 +162,7 @@ def test_enrichment_retries_once_and_recovers(monkeypatch):
 
     assert sorted(by_pr) == [1]
     assert complete is True
-    assert sleeps == [github_reader._ENRICHMENT_RETRY_DELAY_S]
+    assert sleeps == [github_reader._RETRY_DELAY_S]
 
 
 def test_enrichment_that_fails_twice_is_incomplete(monkeypatch):
@@ -158,7 +172,77 @@ def test_enrichment_that_fails_twice_is_incomplete(monkeypatch):
 
     assert by_pr == {}
     assert complete is False
-    assert sleeps == [github_reader._ENRICHMENT_RETRY_DELAY_S]
+    assert sleeps == [github_reader._RETRY_DELAY_S]
+
+
+@pytest.mark.parametrize("stderr", _DETERMINISTIC_STDERR)
+def test_enrichment_does_not_retry_a_deterministic_error(monkeypatch, stderr):
+    # One scripted answer: a second call would find the script empty and raise.
+    sleeps = _fake_gh(monkeypatch, graphql=[
+        subprocess.CalledProcessError(1, ["gh"], stderr=stderr),
+    ])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
+
+    assert by_pr == {}
+    assert complete is False
+    assert sleeps == []
+
+
+def test_reviews_pass_retries_a_transient_failure_and_recovers(monkeypatch):
+    review = {"author": {"login": "reviewer"}, "state": "APPROVED",
+              "submittedAt": "2026-09-01T00:00:00Z"}
+    sleeps = _fake_gh(
+        monkeypatch,
+        basic=[{"number": 1}],
+        graphql=[_graphql_page([1])],
+        reviews=(_failure(), [{"number": 1, "reviews": [review]}]),
+    )
+
+    prs, degraded = github_reader._fetch_prs("acme/widgets", 1000, "merged")
+
+    assert prs[0]["reviews"] == [review]
+    assert degraded == set()
+    assert sleeps == [github_reader._RETRY_DELAY_S]
+
+
+def test_reviews_pass_that_fails_twice_is_reported(monkeypatch):
+    sleeps = _fake_gh(
+        monkeypatch,
+        basic=[{"number": 1}],
+        graphql=[_graphql_page([1])],
+        reviews=(_failure(), _failure()),
+    )
+
+    _prs, degraded = github_reader._fetch_prs("acme/widgets", 1000, "merged")
+
+    assert degraded == {"reviews"}
+    assert sleeps == [github_reader._RETRY_DELAY_S]
+
+
+@pytest.mark.parametrize("stderr", _DETERMINISTIC_STDERR)
+def test_reviews_pass_does_not_retry_a_deterministic_error(monkeypatch, stderr):
+    sleeps = _fake_gh(
+        monkeypatch,
+        basic=[{"number": 1}],
+        graphql=[_graphql_page([1])],
+        reviews=(subprocess.CalledProcessError(1, ["gh"], stderr=stderr),),
+    )
+
+    _prs, degraded = github_reader._fetch_prs("acme/widgets", 1000, "merged")
+
+    assert degraded == {"reviews"}
+    assert sleeps == []
+
+
+def test_basic_list_is_not_retried(monkeypatch):
+    sleeps = _fake_gh(monkeypatch, basic=_failure())
+
+    prs, degraded = github_reader._fetch_prs("acme/widgets", 1000, "merged")
+
+    assert prs == []
+    assert degraded == {"basic"}
+    assert sleeps == []
 
 
 def test_enrichment_failing_on_a_later_page_keeps_what_it_has_but_is_incomplete(monkeypatch):
