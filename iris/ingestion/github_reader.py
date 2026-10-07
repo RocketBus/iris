@@ -274,7 +274,7 @@ def _fetch_pr_enrichment_graphql(
             "-f", f"states[]={graphql_state}",
         ]
         if end_cursor:
-            args.extend(["-F", f"cursor={end_cursor}"])
+            args.extend(["-f", f"cursor={end_cursor}"])
 
         result = _run_gh_with_one_retry(args)
         if result is None:
