@@ -11,6 +11,8 @@ Runnable as: `python -m pytest tests/test_pr_fetch_degradation.py -v`
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from iris.ingestion import github_reader, window_cache
@@ -794,6 +796,27 @@ def test_origin_funnel_is_none_when_enrichment_degraded():
     assert calculate_origin_funnel(metrics) is None
 
 
+@pytest.mark.parametrize("degraded", [("basic",), ("fetch",)])
+def test_origin_funnel_is_none_when_the_read_lost_the_prs(degraded):
+    # Every state's list failed (`basic`) or the whole read did (`fetch`):
+    # there are no PRs, so acceptance is absent and "In PR" would fall back
+    # to every commit being in a PR.
+    metrics = aggregate(
+        _commits_with_ai(), churn_days=14, prs=[], pr_fetch_degraded=degraded,
+    )
+
+    assert metrics.commit_origin_distribution
+    assert metrics.acceptance_by_origin is None
+    assert calculate_origin_funnel(metrics) is None
+
+
+def test_origin_funnel_keeps_the_default_when_prs_are_absent_by_design():
+    # No gh or no GitHub remote: nothing failed, the field is absent.
+    metrics = aggregate(_commits_with_ai(), churn_days=14, prs=[])
+
+    assert calculate_origin_funnel(metrics) is not None
+
+
 def test_origin_funnel_is_kept_on_a_clean_run():
     metrics = aggregate(_commits_with_ai(), churn_days=14, prs=_reviewed_prs())
 
@@ -824,6 +847,16 @@ def _funnel_in_cli_metrics(tmp_path, monkeypatch, fetch: PullRequestFetch) -> di
 def test_cli_metrics_json_has_no_funnel_when_enrichment_degraded(tmp_path, monkeypatch):
     payload = _funnel_in_cli_metrics(
         tmp_path, monkeypatch, PullRequestFetch(prs=[], degraded=("enrichment",)))
+
+    assert "origin_funnel" not in payload
+
+
+@pytest.mark.parametrize("degraded", [("basic",), ("fetch",)])
+def test_cli_metrics_json_has_no_funnel_when_the_read_lost_the_prs(
+    tmp_path, monkeypatch, degraded
+):
+    payload = _funnel_in_cli_metrics(
+        tmp_path, monkeypatch, PullRequestFetch(prs=[], degraded=degraded))
 
     assert "origin_funnel" not in payload
 

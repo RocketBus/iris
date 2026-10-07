@@ -19,7 +19,6 @@ Future work could add closed/rejected PR data to fill this gap.
 from dataclasses import dataclass
 
 from iris.models.metrics import ReportMetrics
-from iris.models.pull_request import DEGRADED_ENRICHMENT
 
 
 @dataclass(frozen=True)
@@ -58,10 +57,14 @@ def calculate_origin_funnel(metrics: ReportMetrics) -> FunnelResult | None:
 
     Returns:
         FunnelResult with per-origin funnels, or None if no origin data, or
-        if the PR enrichment failed: the "In PR" stage reads acceptance,
-        which is omitted then, and every later conversion chains from it.
+        if the PR read was degraded and acceptance is absent: the "In PR"
+        stage reads acceptance, and every later conversion chains from it.
     """
-    if DEGRADED_ENRICHMENT in (metrics.pr_enrichment_degraded or []):
+    # A failed enrichment omits acceptance, and a failed list or read leaves
+    # no PRs to match commits to; either way "In PR" would fall back to
+    # "every commit is in a PR". That default is kept only for PRs absent by
+    # design (no gh, no GitHub remote), where nothing is marked degraded.
+    if metrics.pr_enrichment_degraded and not metrics.acceptance_by_origin:
         return None
 
     origin_dist = metrics.commit_origin_distribution

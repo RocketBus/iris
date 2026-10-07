@@ -256,11 +256,15 @@ dataclass is always `None`; the field only exists in the emitted JSON.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `origin_funnel` | `Record<origin, { stages[], overall_conversion }>` | `analysis/origin_funnel.py` (via `reports/writer.py`) | no `commit_origin_distribution`, or `enrichment` degraded |
+| `origin_funnel` | `Record<origin, { stages[], overall_conversion }>` | `analysis/origin_funnel.py` (via `reports/writer.py`) | no `commit_origin_distribution`, or `pr_enrichment_degraded` present and `acceptance_by_origin` absent |
 
-The whole funnel is omitted when `enrichment` is in `pr_enrichment_degraded`
-(§15): its `In PR` stage reads `acceptance_by_origin`, which is omitted then,
-and every later conversion chains from that stage.
+The whole funnel is omitted when `pr_enrichment_degraded` (§15) is present and
+`acceptance_by_origin` is absent: its `In PR` stage reads acceptance, and every
+later conversion chains from that stage. That covers a failed `enrichment`,
+which omits acceptance (§9), and a read that lost the PRs — `basic` failed for
+every state, or `fetch` — which leaves no PRs to match commits to. Only when
+PRs are absent by design (no `gh`, no GitHub remote; nothing degraded) does
+`In PR` fall back to counting every commit as in a PR.
 
 Stages: `Committed` → `In PR` → `Stabilized` → `Lines Surviving` (the
 last stage only when durability data is available). Each stage carries
