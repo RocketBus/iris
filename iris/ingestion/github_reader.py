@@ -297,7 +297,10 @@ def _fetch_pr_enrichment_graphql(
         if not page or not isinstance(page, dict):
             return by_pr, False
 
-        for node in page.get("nodes", []):
+        # A null list, PR node or commit entry is skipped the same way.
+        for node in page.get("nodes") or []:
+            if not isinstance(node, dict):
+                continue
             number = node.get("number")
             if number is None:
                 continue
@@ -305,6 +308,8 @@ def _fetch_pr_enrichment_graphql(
             commits_conn = node.get("commits")
             entries = commits_conn.get("nodes") if isinstance(commits_conn, dict) else None
             for entry in entries or []:
+                if not isinstance(entry, dict):
+                    continue
                 commit = entry.get("commit") or {}
                 oid = commit.get("oid", "")
                 if not oid:

@@ -703,6 +703,39 @@ def test_enrichment_node_with_null_commits_has_no_commits(monkeypatch):
     assert complete is True
 
 
+def test_enrichment_page_with_null_nodes_has_no_prs(monkeypatch):
+    page = _graphql_page([])
+    page["data"]["repository"]["pullRequests"]["nodes"] = None
+    _fake_gh(monkeypatch, graphql=[page])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
+
+    assert by_pr == {}
+    assert complete is True
+
+
+def test_enrichment_skips_a_null_node(monkeypatch):
+    page = _graphql_page([1, 2])
+    page["data"]["repository"]["pullRequests"]["nodes"].insert(1, None)
+    _fake_gh(monkeypatch, graphql=[page])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
+
+    assert sorted(by_pr) == [1, 2]
+    assert complete is True
+
+
+def test_enrichment_skips_a_null_commit_entry(monkeypatch):
+    page = _graphql_page([1])
+    page["data"]["repository"]["pullRequests"]["nodes"][0]["commits"]["nodes"].insert(0, None)
+    _fake_gh(monkeypatch, graphql=[page])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
+
+    assert [c["oid"] for c in by_pr[1]["commits"]] == ["commit1"]
+    assert complete is True
+
+
 # --- string variables are sent as raw fields --------------------------------
 
 
