@@ -68,3 +68,11 @@ def test_caveat_is_translated(tmp_path):
 
 def test_clean_run_has_no_caveat(tmp_path):
     assert _CAVEAT_EN not in _report_text(tmp_path, None)
+
+
+def test_caveat_lists_open_pr_metrics_among_what_may_be_missing(tmp_path):
+    # A failed open list, or a failed enrichment or reviews pass for open
+    # PRs, omits open-PR fields too, so the caveat names them.
+    assert "flow, review, in-PR and open-PR metrics" in _report_text(tmp_path, ["basic"])
+    assert "de commits em PR e de PRs abertos" in _report_text(
+        tmp_path, ["basic"], lang="pt-br")
