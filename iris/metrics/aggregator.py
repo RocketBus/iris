@@ -47,6 +47,22 @@ from iris.models.pull_request import DEGRADED_ENRICHMENT, DEGRADED_REVIEWS, Pull
 logger = logging.getLogger(__name__)
 
 
+def _acceptance_groups(groups, reviews_degraded: bool) -> dict:
+    """Acceptance metrics per group; review-derived keys only when reviews were read."""
+    result = {}
+    for g in groups:
+        entry = {
+            "total_commits": g.total_commits,
+            "commits_in_prs": g.commits_in_prs,
+            "pr_rate": g.pr_rate,
+        }
+        if not reviews_degraded:
+            entry["single_pass_rate"] = g.single_pass_rate
+            entry["median_review_rounds"] = g.median_review_rounds
+        result[g.group] = entry
+    return result
+
+
 def aggregate(
     commits: list[Commit],
     churn_days: int,
@@ -290,35 +306,13 @@ def aggregate(
         acceptance_result = calculate_acceptance_rate(commits, prs)
         if acceptance_result:
             if acceptance_result.by_origin:
-                acceptance_kwargs["acceptance_by_origin"] = {
-                    g.group: {
-                        "total_commits": g.total_commits,
-                        "commits_in_prs": g.commits_in_prs,
-                        "pr_rate": g.pr_rate,
-                    }
-                    for g in acceptance_result.by_origin
-                }
-                if not reviews_degraded:
-                    for g in acceptance_result.by_origin:
-                        acceptance_kwargs["acceptance_by_origin"][g.group].update({
-                            "single_pass_rate": g.single_pass_rate,
-                            "median_review_rounds": g.median_review_rounds,
-                        })
+                acceptance_kwargs["acceptance_by_origin"] = _acceptance_groups(
+                    acceptance_result.by_origin, reviews_degraded
+                )
             if acceptance_result.by_tool:
-                acceptance_kwargs["acceptance_by_tool"] = {
-                    g.group: {
-                        "total_commits": g.total_commits,
-                        "commits_in_prs": g.commits_in_prs,
-                        "pr_rate": g.pr_rate,
-                    }
-                    for g in acceptance_result.by_tool
-                }
-                if not reviews_degraded:
-                    for g in acceptance_result.by_tool:
-                        acceptance_kwargs["acceptance_by_tool"][g.group].update({
-                            "single_pass_rate": g.single_pass_rate,
-                            "median_review_rounds": g.median_review_rounds,
-                        })
+                acceptance_kwargs["acceptance_by_tool"] = _acceptance_groups(
+                    acceptance_result.by_tool, reviews_degraded
+                )
 
     # Flow Efficiency — active vs wait decomposition of merged PR lifecycle.
     # Its phases anchor on the first review: with the reviews read failed,
