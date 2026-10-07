@@ -266,11 +266,15 @@ def _fetch_pr_enrichment_graphql(
     end_cursor: str | None = None
 
     while len(by_pr) < max_prs:
+        # Every variable is a string, so each goes as a raw field (`-f`):
+        # `-F` lets gh coerce the value, sending a repo named 2048 as a
+        # number (or `true`/`null` as a boolean/null) that `String!` rejects,
+        # and reading a file for a value starting with "@".
         args = [
             "gh", "api", "graphql",
             "-f", "query=" + _COMMITS_GRAPHQL_QUERY,
-            "-F", f"owner={owner}",
-            "-F", f"name={name}",
+            "-f", f"owner={owner}",
+            "-f", f"name={name}",
             "-f", f"states[]={graphql_state}",
         ]
         if end_cursor:

@@ -703,7 +703,7 @@ def test_enrichment_node_with_null_commits_has_no_commits(monkeypatch):
     assert complete is True
 
 
-# --- the cursor is sent as a raw field --------------------------------------
+# --- string variables are sent as raw fields --------------------------------
 
 
 def test_cursor_is_passed_as_a_raw_field(monkeypatch):
@@ -724,6 +724,31 @@ def test_cursor_is_passed_as_a_raw_field(monkeypatch):
     # `-F` would read a file named page2 for a value starting with "@".
     assert "cursor=@page2" in seen[1]
     assert seen[1][seen[1].index("cursor=@page2") - 1] == "-f"
+
+
+@pytest.mark.parametrize("name", ["2048", "true", "null"])
+def test_string_variables_are_passed_as_raw_fields(monkeypatch, name):
+    # `-F` lets gh coerce a value: a repo named 2048 would be sent as the
+    # number 2048 (and `true`/`null` as a boolean/null), which the
+    # `String!` variable rejects on every page.
+    seen: list[list[str]] = []
+    answers = [
+        _graphql_page([1], has_next=True, cursor="page2"),
+        _graphql_page([2]),
+    ]
+
+    def fake_run(cmd, **kwargs):
+        seen.append(cmd)
+        return _ok(answers.pop(0))
+
+    monkeypatch.setattr(github_reader.subprocess, "run", fake_run)
+
+    github_reader._fetch_pr_enrichment_graphql(f"1234/{name}", "merged", 500)
+
+    second = seen[1]
+    for field in ("owner=1234", f"name={name}", "states[]=MERGED", "cursor=page2"):
+        assert field in second, field
+        assert second[second.index(field) - 1] == "-f", field
 
 
 # --- the console says what the PR read missed -------------------------------
