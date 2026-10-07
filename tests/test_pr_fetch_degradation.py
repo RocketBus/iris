@@ -722,3 +722,45 @@ def test_cursor_is_passed_as_a_raw_field(monkeypatch):
     # `-F` would read a file named page2 for a value starting with "@".
     assert "cursor=@page2" in seen[1]
     assert seen[1][seen[1].index("cursor=@page2") - 1] == "-f"
+
+
+# --- the console says what the PR read missed -------------------------------
+
+
+def _console_for(tmp_path, monkeypatch, capsys, fetch: PullRequestFetch) -> str:
+    from iris import cli
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(
+        cli, "read_pull_requests_with_fallback", lambda *a, **k: fetch,
+    )
+    args = argparse.Namespace(
+        repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+        verbose=False, trend=False, out=str(tmp_path / "out"), no_push=True,
+    )
+    cli._run_single_repo(args)
+    return capsys.readouterr().out
+
+
+def test_console_found_prs_with_a_degraded_read_warns(tmp_path, monkeypatch, capsys):
+    out = _console_for(tmp_path, monkeypatch, capsys, PullRequestFetch(
+        prs=_merged_prs(), degraded=("reviews",)))
+
+    assert "6 merged PRs found — PR read incomplete (reviews)." in out
+
+
+def test_console_no_prs_and_only_a_secondary_step_degraded(tmp_path, monkeypatch, capsys):
+    out = _console_for(tmp_path, monkeypatch, capsys, PullRequestFetch(
+        prs=[], degraded=("enrichment",)))
+
+    assert "no PRs in the window — PR read incomplete (enrichment)." in out
+    assert "continuing without PR data" not in out
+
+
+def test_console_no_prs_and_degraded_basic_keeps_the_failure(tmp_path, monkeypatch, capsys):
+    out = _console_for(tmp_path, monkeypatch, capsys, PullRequestFetch(
+        prs=[], degraded=("basic", "enrichment")))
+
+    assert "failed (basic, enrichment) — continuing without PR data." in out

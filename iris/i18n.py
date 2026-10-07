@@ -341,6 +341,8 @@ EN = {
     "cli_prs_found": "{count} merged PRs found.",
     "cli_prs_skipped": "skipped (no GitHub remote or gh CLI).",
     "cli_prs_failed": "failed ({steps}) — continuing without PR data.",
+    "cli_prs_found_degraded": "{count} merged PRs found — PR read incomplete ({steps}).",
+    "cli_prs_none_degraded": "no PRs in the window — PR read incomplete ({steps}).",
     "cli_classifying": "Classifying commits...",
     "cli_classified": "{count} commits classified.",
     "cli_non_code_repo": (
@@ -1234,6 +1236,8 @@ PT_BR = {
     "cli_prs_found": "{count} PRs merged encontrados.",
     "cli_prs_skipped": "pulado (sem remote GitHub ou gh CLI).",
     "cli_prs_failed": "falhou ({steps}) — seguindo sem dados de PR.",
+    "cli_prs_found_degraded": "{count} PRs merged encontrados — leitura de PR incompleta ({steps}).",
+    "cli_prs_none_degraded": "nenhum PR na janela — leitura de PR incompleta ({steps}).",
     "cli_classifying": "Classificando commits...",
     "cli_classified": "{count} commits classificados.",
     "cli_non_code_repo": (
