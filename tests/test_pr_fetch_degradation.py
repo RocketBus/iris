@@ -808,7 +808,26 @@ def test_console_found_prs_with_a_degraded_read_warns(tmp_path, monkeypatch, cap
     out = _console_for(tmp_path, monkeypatch, capsys, PullRequestFetch(
         prs=_merged_prs(), degraded=("reviews",)))
 
-    assert "6 merged PRs found — PR read incomplete (reviews)." in out
+    assert "6 PRs found — PR read incomplete (reviews)." in out
+
+
+def test_console_count_covers_every_pr_state(tmp_path, monkeypatch, capsys):
+    out = _console_for(tmp_path, monkeypatch, capsys, PullRequestFetch(
+        prs=_merged_prs() + _open_prs(), degraded=()))
+
+    assert "11 PRs found." in out
+    assert "merged PRs found" not in out
+
+
+def test_console_count_does_not_say_merged_in_portuguese():
+    from iris.i18n import get_strings
+
+    pt = get_strings("pt-br")
+
+    assert pt["cli_prs_found"].format(count=11) == "11 PRs encontrados."
+    assert pt["cli_prs_found_degraded"].format(count=11, steps="reviews") == (
+        "11 PRs encontrados — leitura de PR incompleta (reviews)."
+    )
 
 
 def test_console_no_prs_and_only_a_secondary_step_degraded(tmp_path, monkeypatch, capsys):
