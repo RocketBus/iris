@@ -79,6 +79,10 @@ def aggregate(
     # With the reviews pass failed every PR has no reviews: review-derived
     # fields would read as fabricated facts, so they are left out.
     reviews_degraded = DEGRADED_REVIEWS in pr_fetch_degraded
+    # Acceptance and open-PR staleness read the commit pushes (commit_refs)
+    # that come from the enrichment pass; without them acceptance would read
+    # 0 commits in PRs and staleness would be inflated.
+    enrichment_degraded = DEGRADED_ENRICHMENT in pr_fetch_degraded
 
     churn_result = calculate_churn(commits, churn_days)
     stab_result = calculate_stabilization(commits, churn_days)
@@ -282,7 +286,7 @@ def aggregate(
 
     # Acceptance rate (requires PR data with commit hashes)
     acceptance_kwargs: dict = {}
-    if prs:
+    if prs and not enrichment_degraded:
         acceptance_result = calculate_acceptance_rate(commits, prs)
         if acceptance_result:
             if acceptance_result.by_origin:
@@ -392,8 +396,8 @@ def aggregate(
                     aging_result.median_open_pr_age_by_intent
                 )
             # Staleness is measured from the last review or commit; without
-            # the reviews it would read older than it is.
-            if not reviews_degraded:
+            # the reviews or the commit pushes it would read older than it is.
+            if not reviews_degraded and not enrichment_degraded:
                 open_pr_aging_kwargs["stale_open_pr_pct"] = (
                     aging_result.stale_open_pr_pct
                 )
@@ -403,7 +407,11 @@ def aggregate(
                 open_pr_aging_kwargs["abandonment_risk_pct"] = (
                     aging_result.abandonment_risk_pct
                 )
-            if not reviews_degraded and aging_result.stale_open_pr_pct_by_origin:
+            if (
+                not reviews_degraded
+                and not enrichment_degraded
+                and aging_result.stale_open_pr_pct_by_origin
+            ):
                 open_pr_aging_kwargs["stale_open_pr_pct_by_origin"] = (
                     aging_result.stale_open_pr_pct_by_origin
                 )
@@ -417,7 +425,7 @@ def aggregate(
         merge_strategy_result = detect_merge_strategy(
             prs,
             commits,
-            enrichment_degraded=DEGRADED_ENRICHMENT in pr_fetch_degraded,
+            enrichment_degraded=enrichment_degraded,
         )
         merge_strategy_kwargs["merge_strategy"] = merge_strategy_result.merge_strategy
         merge_strategy_kwargs["commit_metrics_reliable"] = (

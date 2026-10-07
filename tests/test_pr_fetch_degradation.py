@@ -643,3 +643,35 @@ def test_trend_skips_single_pass_when_missing():
     names = [d.metric for d in trend.deltas]
     assert "pr_time_to_merge" in names
     assert "pr_single_pass" not in names
+
+
+# --- a failed enrichment omits what depends on commit_refs ------------------
+#
+# Acceptance matches commits to PRs through commit_refs, and open-PR
+# staleness reads the last commit push from them. Without the enrichment the
+# first reads 0 commits in PRs and the second counts too many PRs as stalled.
+
+
+def test_degraded_enrichment_omits_acceptance_and_staleness():
+    payload = aggregate(
+        _stamped_commits(), churn_days=14, prs=_reviewed_prs() + _open_prs(),
+        pr_fetch_degraded=("enrichment",),
+    ).to_dict()
+
+    assert "acceptance_by_origin" not in payload
+    assert "acceptance_by_tool" not in payload
+    for key in _STALENESS_KEYS:
+        assert key not in payload, key
+    for key in _AGE_KEYS:
+        assert key in payload, key
+
+
+def test_clean_run_keeps_acceptance_and_staleness():
+    payload = aggregate(
+        _stamped_commits(), churn_days=14, prs=_reviewed_prs() + _open_prs(),
+    ).to_dict()
+
+    assert payload["acceptance_by_origin"]
+    for key in _STALENESS_KEYS:
+        if key != "stale_open_pr_pct_by_origin":
+            assert key in payload, key
