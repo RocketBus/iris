@@ -69,6 +69,7 @@ def aggregate(
     prs: list[PullRequest] | None = None,
     external_data: ExternalDORAData | None = None,
     pr_fetch_degraded: tuple[str, ...] = (),
+    pr_fetch_degraded_by_state: dict[str, tuple[str, ...]] | None = None,
 ) -> ReportMetrics:
     """Run all analyses on commits and return the combined ReportMetrics.
 
@@ -87,18 +88,34 @@ def aggregate(
             merge strategy is not classified; when it includes ``reviews``
             every review-derived field is omitted rather than reported as
             the 0% / 100% an empty review list would give.
+        pr_fetch_degraded_by_state: The same steps per PR state
+            (`PullRequestFetch.degraded_by_state`). Each omission then
+            follows the state that feeds the field: merged PRs for review,
+            flow, acceptance and merge strategy, open PRs for staleness;
+            closed PRs feed only counts, so they omit nothing. Without it
+            (None or empty) every state takes ``pr_fetch_degraded``.
 
     Returns:
         ReportMetrics with all fields populated. PR fields are None
         when prs is None or empty.
     """
-    # With the reviews pass failed every PR has no reviews: review-derived
-    # fields would read as fabricated facts, so they are left out.
-    reviews_degraded = DEGRADED_REVIEWS in pr_fetch_degraded
-    # Acceptance and open-PR staleness read the commit pushes (commit_refs)
-    # that come from the enrichment pass; without them acceptance would read
-    # 0 commits in PRs and staleness would be inflated.
-    enrichment_degraded = DEGRADED_ENRICHMENT in pr_fetch_degraded
+    if pr_fetch_degraded_by_state:
+        merged_degraded = pr_fetch_degraded_by_state.get("merged", ())
+        open_degraded = pr_fetch_degraded_by_state.get("open", ())
+    else:
+        merged_degraded = open_degraded = pr_fetch_degraded
+    # With the reviews pass failed every merged PR has no reviews:
+    # review-derived fields would read as fabricated facts, so they are left out.
+    reviews_degraded = DEGRADED_REVIEWS in merged_degraded
+    # Acceptance and merge strategy read the commit pushes (commit_refs) that
+    # come from the enrichment pass; without them acceptance would read
+    # 0 commits in PRs.
+    enrichment_degraded = DEGRADED_ENRICHMENT in merged_degraded
+    # Open-PR staleness is measured from the last review or commit push;
+    # without either it would read older than it is.
+    staleness_degraded = (
+        DEGRADED_REVIEWS in open_degraded or DEGRADED_ENRICHMENT in open_degraded
+    )
 
     churn_result = calculate_churn(commits, churn_days)
     stab_result = calculate_stabilization(commits, churn_days)
@@ -389,9 +406,7 @@ def aggregate(
                 open_pr_aging_kwargs["median_open_pr_age_by_intent"] = (
                     aging_result.median_open_pr_age_by_intent
                 )
-            # Staleness is measured from the last review or commit; without
-            # the reviews or the commit pushes it would read older than it is.
-            if not reviews_degraded and not enrichment_degraded:
+            if not staleness_degraded:
                 open_pr_aging_kwargs["stale_open_pr_pct"] = (
                     aging_result.stale_open_pr_pct
                 )
@@ -401,11 +416,7 @@ def aggregate(
                 open_pr_aging_kwargs["abandonment_risk_pct"] = (
                     aging_result.abandonment_risk_pct
                 )
-            if (
-                not reviews_degraded
-                and not enrichment_degraded
-                and aging_result.stale_open_pr_pct_by_origin
-            ):
+            if not staleness_degraded and aging_result.stale_open_pr_pct_by_origin:
                 open_pr_aging_kwargs["stale_open_pr_pct_by_origin"] = (
                     aging_result.stale_open_pr_pct_by_origin
                 )

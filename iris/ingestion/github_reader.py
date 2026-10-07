@@ -465,6 +465,11 @@ def _read_pull_requests_uncached(repo_path: str, days: int) -> PullRequestFetch:
     return PullRequestFetch(
         prs=_parse_pull_requests(merged_raw + closed_raw + open_raw, since),
         degraded=tuple(sorted(merged_degraded | closed_degraded | open_degraded)),
+        degraded_by_state={
+            "merged": tuple(sorted(merged_degraded)),
+            "closed": tuple(sorted(closed_degraded)),
+            "open": tuple(sorted(open_degraded)),
+        },
     )
 
 

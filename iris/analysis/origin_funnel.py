@@ -60,10 +60,13 @@ def calculate_origin_funnel(metrics: ReportMetrics) -> FunnelResult | None:
         if the PR read was degraded and acceptance is absent: the "In PR"
         stage reads acceptance, and every later conversion chains from it.
     """
-    # A failed enrichment omits acceptance, and a failed list or read leaves
-    # no PRs to match commits to; either way "In PR" would fall back to
-    # "every commit is in a PR". That default is kept only for PRs absent by
-    # design (no gh, no GitHub remote), where nothing is marked degraded.
+    # `pr_enrichment_degraded` is the union over PR states, so it alone cannot
+    # say whether the PRs acceptance reads were lost; acceptance itself can.
+    # The aggregator omits it when the merged PRs lost their enrichment, and a
+    # failed list or read leaves no PRs to match commits to: either way "In
+    # PR" would fall back to "every commit is in a PR". That default is kept
+    # only for PRs absent by design (no gh, no GitHub remote), where nothing
+    # is marked degraded.
     if metrics.pr_enrichment_degraded and not metrics.acceptance_by_origin:
         return None
 

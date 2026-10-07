@@ -343,6 +343,13 @@ def test_degraded_steps_from_every_state_are_merged_and_sorted(monkeypatch):
     fetch = github_reader.read_pull_requests("/any/repo", days=30)
 
     assert fetch.degraded == ("enrichment", "reviews")
+    # Each state keeps its own steps, so a metric can be gated on the state
+    # that feeds it.
+    assert fetch.degraded_by_state == {
+        "merged": ("enrichment", "reviews"),
+        "closed": (),
+        "open": ("enrichment",),
+    }
 
 
 # --- the signal in the metrics ---------------------------------------------
@@ -1042,3 +1049,111 @@ def test_cli_metrics_json_keeps_the_funnel_on_a_clean_run(tmp_path, monkeypatch)
         tmp_path, monkeypatch, PullRequestFetch(prs=[], degraded=()))
 
     assert "origin_funnel" in payload
+
+
+# --- the gate follows the PR state that feeds each metric -------------------
+#
+# A step can fail for one PR state only. Review, flow, acceptance and merge
+# strategy read merged PRs; staleness reads open PRs; closed PRs feed only the
+# basic list. A failure in one state leaves the metrics of the others alone,
+# while `pr_enrichment_degraded` still lists the union.
+
+
+def _per_state(**steps) -> dict[str, tuple[str, ...]]:
+    return {"merged": (), "closed": (), "open": (), **steps}
+
+
+def _payload(degraded, by_state=None) -> dict:
+    return aggregate(
+        _stamped_commits(), churn_days=14, prs=_reviewed_prs() + _open_prs(),
+        pr_fetch_degraded=degraded, pr_fetch_degraded_by_state=by_state,
+    ).to_dict()
+
+
+def test_reviews_degraded_only_for_open_prs_omits_only_staleness():
+    clean = _payload(())
+    payload = _payload(("reviews",), _per_state(open=("reviews",)))
+
+    assert payload.pop("pr_enrichment_degraded") == ["reviews"]
+    assert payload["pr_single_pass_rate"] == clean["pr_single_pass_rate"]
+    assert payload["flow_efficiency_median"] == clean["flow_efficiency_median"]
+    for key in _STALENESS_KEYS:
+        assert key not in payload, key
+        clean.pop(key, None)
+    assert payload == clean
+
+
+def test_enrichment_degraded_only_for_closed_prs_omits_nothing():
+    clean = _payload(())
+    payload = _payload(("enrichment",), _per_state(closed=("enrichment",)))
+
+    assert payload.pop("pr_enrichment_degraded") == ["enrichment"]
+    assert payload["merge_strategy"] != "unknown"
+    assert payload["flow_efficiency_median"] == clean["flow_efficiency_median"]
+    assert payload["acceptance_by_origin"] == clean["acceptance_by_origin"]
+    assert payload == clean
+
+
+def test_enrichment_degraded_only_for_merged_prs_keeps_staleness():
+    payload = _payload(("enrichment",), _per_state(merged=("enrichment",)))
+
+    assert payload["merge_strategy"] == "unknown"
+    assert "acceptance_by_origin" not in payload
+    for key in _STALENESS_KEYS:
+        if key != "stale_open_pr_pct_by_origin":
+            assert key in payload, key
+
+
+def test_origin_funnel_follows_the_merged_enrichment():
+    def funnel(by_state):
+        return calculate_origin_funnel(aggregate(
+            _commits_with_ai(), churn_days=14, prs=_reviewed_prs(),
+            pr_fetch_degraded=("enrichment",), pr_fetch_degraded_by_state=by_state,
+        ))
+
+    assert funnel(_per_state(open=("enrichment",))) is not None
+    assert funnel(_per_state(merged=("enrichment",))) is None
+
+
+@pytest.mark.parametrize("entry", ["cli", "org_runner"])
+def test_every_aggregate_call_gets_the_per_state_degradation(tmp_path, monkeypatch, entry):
+    from iris import cli, org_runner
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    fetch = PullRequestFetch(
+        prs=_reviewed_prs(), degraded=("reviews",),
+        degraded_by_state=_per_state(open=("reviews",)),
+    )
+    module = cli if entry == "cli" else org_runner
+    monkeypatch.setattr(module, "read_pull_requests_with_fallback", lambda *a, **k: fetch)
+    _adoption_after_first_commit(monkeypatch)
+    calls: list[dict] = []
+    real_aggregate = module.aggregate
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs)
+        return real_aggregate(*args, **kwargs)
+
+    monkeypatch.setattr(module, "aggregate", spy)
+
+    if entry == "cli":
+        cli._run_single_repo(argparse.Namespace(
+            repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+            verbose=False, trend=True, out=str(tmp_path / "out"), no_push=True,
+        ))
+    else:
+        org_runner.analyze_single_repo(
+            str(repo), days=30, churn_days=14, out_dir=str(tmp_path / "out"),
+            trend_enabled=True,
+        )
+
+    # Main run, trend window, pre- and post-adoption.
+    assert len(calls) == 4
+    for kwargs in calls:
+        assert kwargs["pr_fetch_degraded"] == ("reviews",)
+        assert kwargs["pr_fetch_degraded_by_state"] == fetch.degraded_by_state
+    payload = _metrics_json(tmp_path / "out")
+    assert payload["pr_enrichment_degraded"] == ["reviews"]
+    assert "pr_single_pass_rate" in payload

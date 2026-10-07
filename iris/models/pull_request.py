@@ -93,7 +93,13 @@ class PullRequestFetch:
     sorted and without repeats. It is empty when every step succeeded, and
     also when PRs are absent *by design* (no ``gh`` on the machine, no GitHub
     remote): Iris works without PRs, and that is not a degradation.
+
+    ``degraded_by_state`` maps each gh state read (``merged``, ``closed``,
+    ``open``) to the steps that failed for it; ``degraded`` is their union.
+    Empty when the read never got to the states — absent by design, or the
+    whole read raised (``fetch``).
     """
 
     prs: list[PullRequest]
     degraded: tuple[str, ...] = ()
+    degraded_by_state: dict[str, tuple[str, ...]] = field(default_factory=dict)

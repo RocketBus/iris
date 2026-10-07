@@ -241,9 +241,9 @@ its PR (if any) and aggregated by origin and AI tool.
 
 `AcceptanceMetrics`: `total_commits`, `commits_in_prs`,
 `pr_rate` (commits in PRs / total), `single_pass_rate` (PRs merged with
-zero `CHANGES_REQUESTED` / PRs), `median_review_rounds`. The last two are omitted when `reviews` is in
-`pr_enrichment_degraded` (§15). Both maps are omitted entirely when `enrichment`
-is in `pr_enrichment_degraded`: commits are matched to PRs through the commit
+zero `CHANGES_REQUESTED` / PRs), `median_review_rounds`. The last two are omitted when `reviews` failed
+for merged PRs (§15). Both maps are omitted entirely when `enrichment` failed
+for merged PRs: commits are matched to PRs through the commit
 refs that pass reads, so without them every group would read 0 commits in PRs.
 
 ---
@@ -260,11 +260,11 @@ dataclass is always `None`; the field only exists in the emitted JSON.
 
 The whole funnel is omitted when `pr_enrichment_degraded` (§15) is present and
 `acceptance_by_origin` is absent: its `In PR` stage reads acceptance, and every
-later conversion chains from that stage. That covers a failed `enrichment`,
-which omits acceptance (§9), and a read that lost the PRs — `basic` failed for
-every state, or `fetch` — which leaves no PRs to match commits to. Only when
-PRs are absent by design (no `gh`, no GitHub remote; nothing degraded) does
-`In PR` fall back to counting every commit as in a PR.
+later conversion chains from that stage. That covers a failed `enrichment` for
+merged PRs, which omits acceptance (§9), and a read that lost the PRs — `basic`
+failed for every state, or `fetch` — which leaves no PRs to match commits to.
+Only when PRs are absent by design (no `gh`, no GitHub remote; nothing
+degraded) does `In PR` fall back to counting every commit as in a PR.
 
 Stages: `Committed` → `In PR` → `Stabilized` → `Lines Surviving` (the
 last stage only when durability data is available). Each stage carries
@@ -418,6 +418,14 @@ refs. Open PR count and ages (`open_pr_count`, `median_open_pr_age_days`,
 `p90_open_pr_age_days`, `median_open_pr_age_by_intent`) are kept, since age
 depends only on the creation time. It is the first field to read when two runs on the
 same commit disagree.
+
+The read fetches merged, closed and open PRs separately, and a step can fail
+for one state only, so each omission above follows the state that feeds the
+field. The review fields, Flow Efficiency, acceptance (§9) and merge strategy
+(§28) read merged PRs: only a failure for merged PRs omits them. Staleness
+reads open PRs: only a failure for open PRs omits it. Closed PRs feed only
+counts (Flow Load, §24), so a failure there omits nothing.
+`pr_enrichment_degraded` still lists the union over the three states.
 
 ---
 
@@ -952,7 +960,7 @@ Platform: indexed columns `merge_strategy` + `commit_metrics_reliable` on
 carries `merge_strategy_dominant_share` for the repo-detail badge.
 
 **Degraded enrichment.** When the PR read's `enrichment` step failed
-(`pr_enrichment_degraded` contains `enrichment`, from any PR state, §15), the repo is `unknown`
+for merged PRs (`pr_enrichment_degraded` then contains `enrichment`, §15), the repo is `unknown`
 without classifying: `merge_strategy_dominant_share` is absent and
 `commit_metrics_reliable` is `true`. Without parent counts and commit refs, a
 merge PR falls through to `unknown` while a squash-stamped one still
