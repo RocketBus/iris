@@ -241,7 +241,8 @@ its PR (if any) and aggregated by origin and AI tool.
 
 `AcceptanceMetrics`: `total_commits`, `commits_in_prs`,
 `pr_rate` (commits in PRs / total), `single_pass_rate` (PRs merged with
-zero `CHANGES_REQUESTED` / PRs), `median_review_rounds`.
+zero `CHANGES_REQUESTED` / PRs), `median_review_rounds`. The last two are omitted when `reviews` is in
+`pr_enrichment_degraded` (§15).
 
 ---
 
@@ -360,8 +361,8 @@ All fields require GitHub PR data.
 | `pr_cycle_time_buckets` | `{same_day, one_day, two_to_three_days, four_to_seven_days, seven_plus_days}` ints | same | same |
 | `pr_median_size_files` | int ≥ 0 | same | same |
 | `pr_median_size_lines` | int ≥ 0 | same | same |
-| `pr_review_rounds_median` | float ≥ 0 | same | same |
-| `pr_single_pass_rate` | float `0.0–1.0` | same | same |
+| `pr_review_rounds_median` | float ≥ 0 | same | same, or `reviews` degraded |
+| `pr_single_pass_rate` | float `0.0–1.0` | same | same, or `reviews` degraded |
 | `pr_enrichment_degraded` | list of `basic\|enrichment\|reviews\|fetch` | `ingestion/github_reader.py` | every read step succeeded, or PRs are absent by design |
 
 `pr_review_rounds_median` — median count of `CHANGES_REQUESTED` reviews
@@ -385,9 +386,21 @@ the fields above it does not require PR data: a read that lost every PR still
 reports why. Absent when every step succeeded, and when PRs are absent by
 design — no `gh`, no GitHub remote — because Iris works without PRs. When
 present, this run's PR-derived fields may be missing or skewed — flow and
-`commits_in_prs` go missing, and with `reviews` failed review coverage reads
-0% and the single-pass rate 100% — and `merge_strategy` is `unknown` if
-`enrichment` failed (§28). It is the first field to read when two runs on the
+`commits_in_prs` go missing — and `merge_strategy` is `unknown` if
+`enrichment` failed (§28). With `reviews` failed every PR carries no reviews,
+so the fields derived from them are omitted rather than reported as the 0%
+coverage and 100% single-pass an empty review list would give:
+`pr_review_rounds_median`, `pr_single_pass_rate`,
+`median_time_to_first_review_hours`, `human_review_coverage_pct`,
+`human_approval_coverage_pct`, `human_review_coverage_by_intent`,
+`human_review_coverage_by_origin_of_pr`, and the `single_pass_rate` and
+`median_review_rounds` keys of `acceptance_by_origin` / `acceptance_by_tool`.
+The review-anchored flow and staleness fields go too: the whole Flow
+Efficiency block (§25) would put every PR's open-to-merge window into
+"awaiting first review", and staleness is measured from the last review or
+commit. Open PR count and ages (`open_pr_count`, `median_open_pr_age_days`,
+`p90_open_pr_age_days`, `median_open_pr_age_by_intent`) are kept, since age
+depends only on the creation time. It is the first field to read when two runs on the
 same commit disagree.
 
 ---
@@ -626,11 +639,11 @@ say nothing about whether work is flowing or queued in a different shape.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `flow_efficiency_median` | float `0.0–1.0` | `analysis/flow_efficiency.py` | no merged PR survives the filters |
-| `median_time_to_first_review_hours` | float ≥ 0 | same | no merged PR had a review |
+| `flow_efficiency_median` | float `0.0–1.0` | `analysis/flow_efficiency.py` | no merged PR survives the filters, or `reviews` degraded |
+| `median_time_to_first_review_hours` | float ≥ 0 | same | no merged PR had a review, or `reviews` degraded |
 | `time_in_phase_median_hours` | `Record<phase, hours>` | same | same as `flow_efficiency_median` |
-| `flow_efficiency_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment |
-| `flow_efficiency_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment |
+| `flow_efficiency_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment, or `reviews` degraded |
+| `flow_efficiency_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment, or `reviews` degraded |
 
 Phase model (5 timestamps → 4 phases per merged PR):
 
@@ -728,10 +741,10 @@ event at all.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `human_review_coverage_pct` | float `0.0–1.0` | `analysis/human_review_coverage.py` | no merged PR in the window |
+| `human_review_coverage_pct` | float `0.0–1.0` | `analysis/human_review_coverage.py` | no merged PR in the window, or `reviews` degraded |
 | `human_approval_coverage_pct` | float `0.0–1.0` | same | same |
-| `human_review_coverage_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment |
-| `human_review_coverage_by_origin_of_pr` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment |
+| `human_review_coverage_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment, or `reviews` degraded |
+| `human_review_coverage_by_origin_of_pr` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment, or `reviews` degraded |
 
 Definition (per merged PR, intermediate only):
 
@@ -803,11 +816,11 @@ Aging = "do trabalho que ainda não saiu, está represado?".
 | `open_pr_count` | int | `analysis/open_pr_aging.py` | no eligible open PR (all drafts/bots) |
 | `median_open_pr_age_days` | float ≥ 0 | same | same |
 | `p90_open_pr_age_days` | float ≥ 0 | same | same |
-| `stale_open_pr_pct` | float `0.0–1.0` | same | same |
-| `very_stale_open_pr_pct` | float `0.0–1.0` | same | same |
-| `abandonment_risk_pct` | float `0.0–1.0` | same | same |
+| `stale_open_pr_pct` | float `0.0–1.0` | same | same, or `reviews` degraded |
+| `very_stale_open_pr_pct` | float `0.0–1.0` | same | same, or `reviews` degraded |
+| `abandonment_risk_pct` | float `0.0–1.0` | same | same, or `reviews` degraded |
 | `median_open_pr_age_by_intent` | `Record<intent, days>` | same | < `min_sample` (default 5) PRs in segment |
-| `stale_open_pr_pct_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map`, or < `min_sample` PRs in segment |
+| `stale_open_pr_pct_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map`, or < `min_sample` PRs in segment, or `reviews` degraded |
 
 Per-PR signals (intermediate, **never persisted**):
 
