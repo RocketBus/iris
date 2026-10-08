@@ -222,7 +222,9 @@ function MergeStrategyCell({
  * Amber dot next to a repo whose latest run read PR data only partially. The
  * dot is decorative (hover title for sighted users); the step list is also in
  * the DOM as screen-reader text, and a legend under the list says what the dot
- * means, so nothing hinges on colour or on a tooltip.
+ * means, so nothing hinges on colour or on a tooltip. Amber 600 on light and
+ * 500 on dark keep the dot, the only per-row cue, above 3:1 against the card
+ * (WCAG 1.4.11).
  */
 function PrDataMarker({ repo, label }: { repo: RepoSummary; label: string }) {
   if (repo.pr_degraded_steps.length === 0) return null;
@@ -231,7 +233,7 @@ function PrDataMarker({ repo, label }: { repo: RepoSummary; label: string }) {
       <span
         aria-hidden="true"
         title={label}
-        className="h-2 w-2 rounded-full bg-amber-500"
+        className="h-2 w-2 rounded-full bg-amber-600 dark:bg-amber-500"
       />
       <span className="sr-only">{label}</span>
     </span>
@@ -633,7 +635,7 @@ export function CompareView({ repos }: CompareViewProps) {
           <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
             <span
               aria-hidden="true"
-              className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-500"
+              className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-600 dark:bg-amber-500"
             />
             {t("repos.detail.prData.incomplete")}
           </p>

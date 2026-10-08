@@ -38,6 +38,17 @@ describe("PR data badge strings", () => {
     expect(prData.incomplete).toBeTruthy();
     expect(prData.incompleteTooltip).toContain("{steps}");
   });
+
+  // Enrichment failing for open or closed PRs leaves the merge strategy
+  // classified; only merged PRs feed it.
+  it("ties the unclassified merge strategy to merged PRs", () => {
+    expect(
+      translations["en-US"].repos.detail.prData.incompleteTooltip,
+    ).toContain("when enrichment fails for merged PRs");
+    expect(
+      translations["pt-BR"].repos.detail.prData.incompleteTooltip,
+    ).toContain("quando o enriquecimento dos PRs mergeados falha");
+  });
 });
 
 describe("prDegradedSteps duplicates", () => {
