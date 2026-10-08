@@ -2,6 +2,8 @@
  * Types for temporal intelligence — trends, comparisons, change detection.
  */
 
+import type { PrReadStep } from "@/types/metrics";
+
 /** A single point in a time series (one analysis run). */
 export interface TimeSeriesPoint {
   date: string; // ISO date
@@ -34,6 +36,9 @@ export interface RepoSummary {
   // for this repo are approximate.
   merge_strategy: string | null;
   commit_metrics_reliable: boolean | null;
+  // PR-read steps that fell back to partial data in the latest run (empty when
+  // none, or when the view has no payload to read it from).
+  pr_degraded_steps: PrReadStep[];
   // Delta vs previous run
   stabilization_delta: number | null;
   // Health classification

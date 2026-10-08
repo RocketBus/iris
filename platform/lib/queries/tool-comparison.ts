@@ -93,7 +93,8 @@ export function computeToolComparison(
       for (const [tool, m] of Object.entries(p.acceptance_by_tool)) {
         const acc = accs.get(tool) ?? emptyAcc(tool);
         const weight = m.commits_in_prs ?? 0;
-        if (weight > 0) {
+        // Omitted by the engine when the PR reviews read degraded.
+        if (weight > 0 && typeof m.single_pass_rate === "number") {
           acc.singlePassSum += m.single_pass_rate * weight;
           acc.singlePassWeight += weight;
         }

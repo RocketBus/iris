@@ -267,6 +267,9 @@ export const translations = {
       member: "Member",
     },
     dashboard: {
+      prDataMoreRepos: "and {count} more",
+      prDataIncomplete:
+        "PR data is incomplete in the latest run of {count} repository(ies) ({repos}); PR metrics below may be missing or skewed.",
       pulse: {
         totalCommits: "Total Commits",
         prsMerged: "PRs Merged",
@@ -620,8 +623,14 @@ export const translations = {
         },
         prData: {
           incomplete: "PR data incomplete",
+          steps: {
+            basic: "PR list",
+            enrichment: "commit enrichment",
+            reviews: "reviews",
+            fetch: "entire read",
+          },
           incompleteTooltip:
-            "This run's PR read failed at: {steps}. Merge strategy isn't classified when enrichment fails, and flow, review and in-PR metrics may be missing or skewed.",
+            "This run's PR read failed at: {steps}. Merge strategy isn't classified when enrichment fails for merged PRs, and PR lifecycle (counts, time to merge, cycle time), flow, review, in-PR and open-PR metrics may be missing or skewed.",
         },
         dora: {
           title: "DORA",
@@ -1831,6 +1840,9 @@ export const translations = {
       member: "Membro",
     },
     dashboard: {
+      prDataMoreRepos: "e mais {count}",
+      prDataIncomplete:
+        "Os dados de PR estão incompletos na execução mais recente de {count} repositório(s) ({repos}); as métricas de PR abaixo podem faltar ou sair distorcidas.",
       pulse: {
         totalCommits: "Commits totais",
         prsMerged: "PRs mesclados",
@@ -2185,8 +2197,14 @@ export const translations = {
         },
         prData: {
           incomplete: "Dados de PR incompletos",
+          steps: {
+            basic: "listagem de PRs",
+            enrichment: "enriquecimento de commits",
+            reviews: "reviews",
+            fetch: "leitura inteira",
+          },
           incompleteTooltip:
-            "A leitura de PRs desta execução falhou em: {steps}. A estratégia de merge não é classificada quando o enriquecimento falha, e métricas de flow, de review e de commits em PR podem faltar ou sair distorcidas.",
+            "A leitura de PRs desta execução falhou em: {steps}. A estratégia de merge não é classificada quando o enriquecimento dos PRs mergeados falha, e métricas de ciclo de vida de PR (contagens, tempo até o merge, cycle time), de flow, de review, de commits em PR e de PRs abertos podem faltar ou sair distorcidas.",
         },
         dora: {
           title: "DORA",
