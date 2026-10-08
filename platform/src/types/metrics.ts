@@ -5,11 +5,7 @@
 
 export type CommitOrigin = "HUMAN" | "AI_ASSISTED" | "BOT";
 export type ChangeIntent =
-  | "FEATURE"
-  | "FIX"
-  | "REFACTOR"
-  | "CONFIG"
-  | "UNKNOWN";
+  "FEATURE" | "FIX" | "REFACTOR" | "CONFIG" | "UNKNOWN";
 
 export interface OriginMetrics {
   churn_events: number;
@@ -85,8 +81,11 @@ export interface AcceptanceMetrics {
   total_commits: number;
   commits_in_prs: number;
   pr_rate: number;
-  single_pass_rate: number;
-  median_review_rounds: number;
+  // Omitted by the engine when the PR reviews read degraded (see
+  // `pr_enrichment_degraded`): a missing value is not zero. Callers must check
+  // `typeof === "number"` before aggregating.
+  single_pass_rate?: number;
+  median_review_rounds?: number;
 }
 
 export interface FunnelStage {
@@ -169,6 +168,10 @@ export interface VelocityResult {
   durability_correlation: string;
   windows: VelocityWindow[];
 }
+
+// Steps of the engine's GitHub PR read that can fail and fall back to partial
+// data. Mirrors `DEGRADED_*` in `iris/models/pull_request.py`.
+export type PrReadStep = "basic" | "enrichment" | "reviews" | "fetch";
 
 /**
  * The complete metrics payload from the CLI.
@@ -280,6 +283,13 @@ export interface ReportMetrics {
   merge_strategy?: "merge" | "squash" | "rebase" | "mixed" | "unknown";
   merge_strategy_dominant_share?: number; // 0.0–1.0
   commit_metrics_reliable?: boolean;
+
+  // Steps of the engine's GitHub PR read that failed and fell back to partial
+  // data in this run. Absent when every step succeeded, and on payloads from
+  // CLI versions before the field existed. When present, PR-derived fields may
+  // be missing or understated, and `merge_strategy` is "unknown" if
+  // "enrichment" failed. Read it through `prDegradedSteps` (lib/pr-enrichment).
+  pr_enrichment_degraded?: PrReadStep[];
 
   // Repository kind — `NON_CODE` marks a documentation / issue-board repo:
   // no project manifest is tracked, so nothing is built or deployed from it

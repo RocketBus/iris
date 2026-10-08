@@ -18,6 +18,7 @@ import { HyperEngineersPanel } from "./panels/HyperEngineersPanel";
 import { IntentDistributionPanel } from "./panels/IntentDistributionPanel";
 import { OrgPulsePanel } from "./panels/OrgPulsePanel";
 import { OrgTimelinePanel } from "./panels/OrgTimelinePanel";
+import { PRDataNotice } from "./panels/PRDataNotice";
 import { PRHealthPanel } from "./panels/PRHealthPanel";
 import {
   HeroRowSkeleton,
@@ -138,6 +139,12 @@ export default async function OrgDashboardPage({
           so a skeleton here would flash phantom alerts on every load. */}
       <Suspense fallback={null}>
         <ChangeAlertPanel {...panelProps} />
+      </Suspense>
+
+      {/* PR data note: above every panel that aggregates PR metrics (pulse,
+          quality, PR health, cycle time). Nothing renders when none degraded. */}
+      <Suspense fallback={null}>
+        <PRDataNotice {...panelProps} />
       </Suspense>
 
       {/* Org pulse hero cards */}

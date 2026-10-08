@@ -3,8 +3,9 @@
  * Pure functions that take a Supabase client and return typed data.
  */
 
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 
+import { prDegradedSteps } from "@/lib/pr-enrichment";
 import { logQueryError } from "@/lib/queries/log-error";
 import type {
   TimeSeriesPoint,
@@ -15,6 +16,34 @@ import type {
 import { classifyHealth } from "@/types/temporal";
 
 const SPARKLINE_POINTS = 12;
+
+// The columns of `repo_metric_summaries` that SUMMARY_COLUMNS selects, plus the
+// optional payload key. Columns are nullable because the view aggregates over
+// runs that may lack a metric.
+interface SummaryRow {
+  repository_id: string;
+  runs_count: number | null;
+  last_run_at: string | null;
+  stabilization_ratio: number | null;
+  prev_stabilization_ratio: number | null;
+  revert_rate: number | null;
+  churn_events: number | null;
+  commits_total: number | null;
+  ai_detection_coverage_pct: number | null;
+  pr_merged_count: number | null;
+  pr_single_pass_rate: number | null;
+  fix_latency_median_hours: number | null;
+  cascade_rate: number | null;
+  merge_strategy: string | null;
+  commit_metrics_reliable: boolean | null;
+  // Newest first; entries can be null.
+  recent_stabilization: Array<number | null> | null;
+  // Untrusted JSON from the payload; read through `prDegradedSteps`.
+  pr_enrichment_degraded?: unknown;
+}
+
+const SUMMARY_COLUMNS =
+  "repository_id, runs_count, last_run_at, stabilization_ratio, prev_stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable, recent_stabilization";
 
 /**
  * Canonical percentage-point significance thresholds, mirrored from
@@ -204,6 +233,17 @@ export async function getRepoAITimeSeries(
     .filter((p) => p.ai_pct !== null && p.ai_pct > 0);
 }
 
+/**
+ * Whether a PostgREST error says the view has no `payload` column: PostgreSQL's
+ * undefined_column (42703), or a PostgREST-side error naming the column.
+ */
+function isMissingPayloadColumn(error: PostgrestError): boolean {
+  return (
+    error.code === "42703" ||
+    /payload|pr_enrichment_degraded/i.test(error.message ?? "")
+  );
+}
+
 /** Get summary for all repos in an org (latest + previous for delta).
  *
  * Uses 2 bulk queries instead of 3N+1 per-repo queries:
@@ -216,11 +256,17 @@ export async function getRepoAITimeSeries(
  * window, repos whose latest run fell outside the newest-1000 slice came back
  * with zero rows and rendered "0 runs" despite having metrics. The view
  * returns ~one row per repo, so the result set stays well under any cap.
+ *
+ * `options.includePrDegraded` also selects `payload->pr_enrichment_degraded`.
+ * It is off by default because reading any key of `payload` makes the view
+ * aggregate the payload of every run, which only the compare table needs.
+ * Without it every row has `pr_degraded_steps: []`.
  */
 export async function getOrgReposSummary(
   supabase: SupabaseClient,
   organizationId: string,
   windowDays: number = DEFAULT_WINDOW_DAYS,
+  options: { includePrDegraded?: boolean } = {},
 ): Promise<RepoSummary[]> {
   // Query 1: all repos
   const { data: repos, error: reposError } = await supabase
@@ -233,19 +279,45 @@ export async function getOrgReposSummary(
   if (!repos || repos.length === 0) return [];
 
   // Query 2: pre-aggregated summary, one row per repo (see doc comment).
-  const { data: summaries, error: summariesError } = await supabase
-    .from("repo_metric_summaries")
-    .select(
-      "repository_id, runs_count, last_run_at, stabilization_ratio, prev_stabilization_ratio, revert_rate, churn_events, commits_total, ai_detection_coverage_pct, pr_merged_count, pr_single_pass_rate, fix_latency_median_hours, cascade_rate, merge_strategy, commit_metrics_reliable, recent_stabilization",
-    )
-    .eq("organization_id", organizationId)
-    .eq("window_days", windowDays);
+  const readSummaries = async (columns: string) => {
+    const result = await supabase
+      .from("repo_metric_summaries")
+      .select(columns)
+      .eq("organization_id", organizationId)
+      .eq("window_days", windowDays);
+    // The column list is built at runtime, so supabase-js can't infer the row.
+    return result as unknown as {
+      data: SummaryRow[] | null;
+      error: PostgrestError | null;
+    };
+  };
+
+  let summaries: SummaryRow[] | null;
+  let summariesError: PostgrestError | null;
+  if (options.includePrDegraded) {
+    // Selecting one key out of `payload` marks degraded PR reads without
+    // shipping whole payloads. The view only has `payload` since migration
+    // 023; when the column is missing (older database) retry without it so the
+    // table stays populated, just unmarked. Any other error (a timeout, say)
+    // is not retried: it goes the normal error path below.
+    ({ data: summaries, error: summariesError } = await readSummaries(
+      `${SUMMARY_COLUMNS}, pr_enrichment_degraded:payload->pr_enrichment_degraded`,
+    ));
+    if (summariesError && isMissingPayloadColumn(summariesError)) {
+      logQueryError(
+        "getOrgReposSummary (repo_metric_summaries with payload)",
+        summariesError,
+      );
+      ({ data: summaries, error: summariesError } =
+        await readSummaries(SUMMARY_COLUMNS));
+    }
+  } else {
+    ({ data: summaries, error: summariesError } =
+      await readSummaries(SUMMARY_COLUMNS));
+  }
   logQueryError("getOrgReposSummary (repo_metric_summaries)", summariesError);
 
-  const summaryByRepo = new Map<
-    string,
-    NonNullable<typeof summaries>[number]
-  >();
+  const summaryByRepo = new Map<string, SummaryRow>();
   for (const row of summaries ?? []) summaryByRepo.set(row.repository_id, row);
 
   return repos.map((repo) => {
@@ -263,7 +335,7 @@ export async function getOrgReposSummary(
     const sparkline = (s?.recent_stabilization ?? [])
       .slice(0, SPARKLINE_POINTS)
       .reverse()
-      .filter((v: number | null): v is number => v !== null);
+      .filter((v): v is number => v !== null);
 
     return {
       id: repo.id,
@@ -282,6 +354,9 @@ export async function getOrgReposSummary(
       cascade_rate: s?.cascade_rate ?? null,
       merge_strategy: s?.merge_strategy ?? null,
       commit_metrics_reliable: s?.commit_metrics_reliable ?? null,
+      pr_degraded_steps: options.includePrDegraded
+        ? prDegradedSteps(s?.pr_enrichment_degraded)
+        : [],
       stabilization_delta: delta,
       health: classifyHealth(stabilization),
       sparkline,

@@ -13,6 +13,7 @@ import { MetricCard } from "@/components/charts/MetricCard";
 import { Badge } from "@/components/ui/badge";
 import { WindowSelector } from "@/components/WindowSelector";
 import { authOptions } from "@/lib/auth";
+import { formatPrSteps, prDegradedSteps } from "@/lib/pr-enrichment";
 import { extractAdoptionSummary } from "@/lib/queries/adoption-timeline";
 import { computeRepoDORA } from "@/lib/queries/dora";
 import { computeInvestmentHotspots } from "@/lib/queries/invest-here";
@@ -35,11 +36,9 @@ function extractInsights(payload: Record<string, unknown> | null) {
 
   return {
     intentDistribution: payload.commit_intent_distribution as
-      | Record<string, number>
-      | undefined,
+      Record<string, number> | undefined,
     originDistribution: payload.commit_origin_distribution as
-      | Record<string, number>
-      | undefined,
+      Record<string, number> | undefined,
     stabilizationByOrigin: payload.stabilization_by_origin as
       | Record<string, { stabilization_ratio: number; files_touched: number }>
       | undefined,
@@ -83,34 +82,26 @@ function extractInsights(payload: Record<string, unknown> | null) {
       | undefined,
     flowEfficiencyMedian: payload.flow_efficiency_median as number | undefined,
     flowEfficiencyByIntent: payload.flow_efficiency_by_intent as
-      | Partial<Record<string, number>>
-      | undefined,
+      Partial<Record<string, number>> | undefined,
     timeInPhaseMedianHours: payload.time_in_phase_median_hours as
-      | Partial<Record<string, number>>
-      | undefined,
+      Partial<Record<string, number>> | undefined,
     medianTimeToFirstReviewHours: payload.median_time_to_first_review_hours as
-      | number
-      | undefined,
+      number | undefined,
     humanReviewCoveragePct: payload.human_review_coverage_pct as
-      | number
-      | undefined,
+      number | undefined,
     humanApprovalCoveragePct: payload.human_approval_coverage_pct as
-      | number
-      | undefined,
+      number | undefined,
     humanReviewCoverageByIntent: payload.human_review_coverage_by_intent as
-      | Partial<Record<string, number>>
-      | undefined,
+      Partial<Record<string, number>> | undefined,
     humanReviewCoverageByOriginOfPr:
       payload.human_review_coverage_by_origin_of_pr as
-        | Partial<Record<string, number>>
-        | undefined,
+        Partial<Record<string, number>> | undefined,
     mergeStrategy: payload.merge_strategy as string | undefined,
     mergeStrategyDominantShare: payload.merge_strategy_dominant_share as
-      | number
-      | undefined,
+      number | undefined,
     commitMetricsReliable: payload.commit_metrics_reliable as
-      | boolean
-      | undefined,
+      boolean | undefined,
+    prDegradedSteps: prDegradedSteps(payload.pr_enrichment_degraded),
   };
 }
 
@@ -174,6 +165,7 @@ export default async function RepoDetailPage({
   ]);
 
   const insights = extractInsights(payload);
+  const prDegraded = insights.prDegradedSteps ?? [];
   const hotspots = computeInvestmentHotspots(payload as ReportMetrics | null);
   const adoptionSummary = extractAdoptionSummary(
     payload as ReportMetrics | null,
@@ -262,6 +254,24 @@ export default async function RepoDetailPage({
                   {insights.mergeStrategy}
                 </Badge>
               ))}
+            {/* In the header, not in the flow or merge panels: those can
+                disappear when the read degrades, which would hide the cause.
+                The failed steps are text next to the badge, for touch and
+                keyboard users too; no title repeating them, which screen
+                readers may read as a description on top of the text. */}
+            {prDegraded.length > 0 && (
+              <span className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                >
+                  {t("repos.detail.prData.incomplete")}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {formatPrSteps(prDegraded, t)}
+                </span>
+              </span>
+            )}
           </div>
           {repo.remote_url && (
             <p className="text-sm text-muted-foreground">{repo.remote_url}</p>

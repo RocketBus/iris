@@ -674,15 +674,27 @@ export function computePRHealth(
     const acc = p.acceptance_by_origin;
     if (acc?.HUMAN && acc.HUMAN.commits_in_prs > 0) {
       const w = acc.HUMAN.commits_in_prs;
-      humanSPRSum += acc.HUMAN.single_pass_rate * w;
-      humanRoundsSum += acc.HUMAN.median_review_rounds * w;
-      humanWeight += w;
+      // The engine omits the review metrics when the reviews read degraded;
+      // skip the group instead of letting `undefined * w` poison the sums.
+      if (
+        typeof acc.HUMAN.single_pass_rate === "number" &&
+        typeof acc.HUMAN.median_review_rounds === "number"
+      ) {
+        humanSPRSum += acc.HUMAN.single_pass_rate * w;
+        humanRoundsSum += acc.HUMAN.median_review_rounds * w;
+        humanWeight += w;
+      }
     }
     if (acc?.AI_ASSISTED && acc.AI_ASSISTED.commits_in_prs > 0) {
       const w = acc.AI_ASSISTED.commits_in_prs;
-      aiSPRSum += acc.AI_ASSISTED.single_pass_rate * w;
-      aiRoundsSum += acc.AI_ASSISTED.median_review_rounds * w;
-      aiWeight += w;
+      if (
+        typeof acc.AI_ASSISTED.single_pass_rate === "number" &&
+        typeof acc.AI_ASSISTED.median_review_rounds === "number"
+      ) {
+        aiSPRSum += acc.AI_ASSISTED.single_pass_rate * w;
+        aiRoundsSum += acc.AI_ASSISTED.median_review_rounds * w;
+        aiWeight += w;
+      }
     }
   }
 
