@@ -634,6 +634,15 @@ proxy.
   falling back to author name) with at least one non-merge commit in
   the bucket
 
+**Failed PR list.** When `gh pr list` failed for any PR state (`basic` for
+merged, closed or open PRs, or `fetch`; §15), the whole `flow_load` series
+is omitted, `author_concurrency` included. Every state is in flight at some
+point, so a missing list would undercount `wip_total` and `wip_by_intent` in
+every bucket it overlaps. `author_concurrency` comes from commits and would
+still be right, but keeping it alone would mean emitting buckets with the
+WIP fields missing, a shape the platform does not read; the series goes
+whole instead.
+
 Overlap rule for a bucket `[t_start, t_end)`:
 
 ```
