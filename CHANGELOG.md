@@ -8,6 +8,79 @@ All notable changes to Iris are documented here. The format is based on [Keep a 
 
 ---
 
+## v1.11.0 — PR read degradation signal and platform security hardening (2026-10-08)
+
+### Added
+
+- **PR read degradation is now reported instead of hidden** (#236; #280,
+  #281, #285). When a step of the GitHub PR read fails (`basic` list,
+  GraphQL `enrichment`, `reviews` pass, or the whole `fetch`), the engine
+  used to fall back to partial data silently — two runs of the same code on
+  the same repo could disagree with nothing in the output to explain why.
+  `metrics.json` now carries `pr_enrichment_degraded` (absent on a clean
+  run, so clean output is byte-identical), the Markdown report opens with a
+  caveat naming the failed steps, the console distinguishes a failed read
+  from "no GitHub remote", and `org-report.md` / `org-metrics.json` name the
+  degraded repos. The GraphQL enrichment pass retries once on transient
+  errors.
+- **Platform flags runs with incomplete PR data** (#282, #283, #292).
+  Compare and dashboard mark repos whose latest run reported
+  `pr_enrichment_degraded`, with localized step labels; the dashboard note
+  lists up to five repos.
+
+### Changed
+
+- **Degraded reads omit metrics rather than fabricate them** (#281, #284,
+  #289, #290, #291). Gated per PR state:
+  - `enrichment` failed on merged PRs → `merge_strategy` is `unknown`
+    (the fallback heuristic could only ever answer `squash`), and
+    acceptance, staleness and the origin funnel are omitted.
+  - `reviews` failed → review rounds, single-pass rate, human review
+    coverage, the Flow Efficiency block and open-PR staleness are omitted
+    instead of reading 0% coverage / 100% single-pass.
+  - a failed list omits everything that state feeds.
+  See `docs/METRICS.md` §15, §25 and §28.
+- GraphQL variables are passed with `gh api -f`, so a numeric repo name or a
+  value starting with `@` is no longer coerced or read as a file path (#289).
+
+### Fixed
+
+- **Attribution Gap could exceed 100%** on narrow windows (#279). An
+  all-human repo omits `commit_origin_distribution` but can still trip the
+  attribution-gap heuristic, so its flagged commits entered the numerator
+  without its human commits entering the denominator ("174 of 142"). The
+  gap now has its own denominator, leaving the org Human/AI commit share
+  unchanged.
+
+### Security
+
+- **Revoked `anon`/`authenticated` grants and enabled RLS on every Iris
+  table** (#275). Supabase's default grants let an unauthenticated PostgREST
+  request read or write metrics, API tokens, integrations, sessions, refresh
+  tokens and 2FA codes. No app code used the anon client; every access goes
+  through the service role.
+- **Revoked the same grants on the four auth-scaffold tables** (#278).
+  An `invitations` policy with `USING (true)` exposed every pending
+  invitation, including the join `token`, to anyone.
+- Revoked `EXECUTE` on `rls_auto_enable` from `PUBLIC`/`anon`/`authenticated`
+  (#276), clearing the last Supabase linter finding.
+- `postcss` override raised to `^8.5.28` (#277) — the old override pinned the
+  vulnerable range for a `sourceMappingURL` path traversal. `source-map-js`
+  1.2.2 (#294) and `sharp` 0.35.5 (#295) close two high-severity Dependabot
+  alerts.
+
+### Dependencies
+
+- Production: `@next/mdx` 16.3.8, `lucide-react` 1.50, `react-hook-form`
+  7.89, `resend` 6.32 (#286). Dev: `@types/node`, `@types/nodemailer`,
+  `@typescript-eslint/*` 8.71, `eslint-config-next` 16.3.8 (#287).
+
+### Upgrade notes
+
+- Apply migrations `026`–`028` to the Supabase project if not yet applied.
+
+---
+
 ## v1.10.0 — GitHub Projects connect UI and security hardening (2026-09-30)
 
 ### Added
