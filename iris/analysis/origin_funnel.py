@@ -8,8 +8,10 @@ durability) into a per-origin delivery funnel:
 Each stage has a conversion rate. Comparing funnels across origins reveals
 where AI-assisted code drops off relative to human code.
 
-Limitation: PR→Merge stage is not measured (Iris only fetches merged PRs).
-Future work could add closed/rejected PR data to fill this gap.
+Limitation: PR→Merge stage is not measured. Iris reads merged, closed and open
+PRs, but the "In PR" stage reads acceptance, which counts only commits in
+merged PRs, and no stage follows PRs that never merge. The closed PRs already
+read could fill this gap.
 """
 
 # AGGREGATOR_OPT_OUT: consumes a finalized ReportMetrics (post-aggregation composition).
@@ -56,8 +58,20 @@ def calculate_origin_funnel(metrics: ReportMetrics) -> FunnelResult | None:
         metrics: ReportMetrics with origin, acceptance, and durability data.
 
     Returns:
-        FunnelResult with per-origin funnels, or None if no origin data.
+        FunnelResult with per-origin funnels, or None if no origin data, or
+        if the PR read was degraded and acceptance is absent: the "In PR"
+        stage reads acceptance, and every later conversion chains from it.
     """
+    # `pr_enrichment_degraded` is the union over PR states, so it alone cannot
+    # say whether the PRs acceptance reads were lost; acceptance itself can.
+    # The aggregator omits it when the merged PRs lost their enrichment, and a
+    # failed list or read leaves no PRs to match commits to: either way "In
+    # PR" would fall back to "every commit is in a PR". That default is kept
+    # only for PRs absent by design (no gh, no GitHub remote), where nothing
+    # is marked degraded.
+    if metrics.pr_enrichment_degraded and not metrics.acceptance_by_origin:
+        return None
+
     origin_dist = metrics.commit_origin_distribution
     if not origin_dist:
         return None

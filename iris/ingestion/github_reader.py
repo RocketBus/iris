@@ -124,7 +124,8 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> tuple[list[dict], set[str
     3. Reviews via `gh pr list --json number,reviews` in one shot, also
        capped at `_BATCH_SIZE`.
 
-    Both secondary passes are best-effort — if either fails the PRs come
+    Both secondary passes are best-effort, with one retry on a transient
+    failure (`_run_gh_with_one_retry`) — if either still fails the PRs come
     back with the respective field empty, but the rest of the metadata
     is still usable.
 
@@ -158,7 +159,9 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> tuple[list[dict], set[str
         if merge_commit:
             pr["mergeCommit"] = merge_commit
 
-    reviews_prs = _gh_pr_list(nwo, "number,reviews", min(limit, _BATCH_SIZE), gh_state)
+    reviews_prs = _gh_pr_list(
+        nwo, "number,reviews", min(limit, _BATCH_SIZE), gh_state, retry=True,
+    )
     if reviews_prs is None:
         degraded.add(DEGRADED_REVIEWS)
     elif reviews_prs:
@@ -204,14 +207,50 @@ _GH_STATE_TO_GRAPHQL = {
 }
 
 
-# One retry for the enrichment query, after this pause. GitHub answers that
-# query with intermittent 504s (see `_BATCH_SIZE`); a single retry makes a
-# degraded run rarer without hiding the ones that still fail.
-_ENRICHMENT_RETRY_DELAY_S = 2.0
+# One retry for the enrichment query and the reviews pass, after this pause.
+# GitHub answers both with intermittent 504s (see `_BATCH_SIZE`); a single
+# retry makes a degraded run rarer without hiding the ones that still fail.
+_RETRY_DELAY_S = 2.0
+
+# gh writes why it failed to stderr. A 5xx, a timeout (GitHub's GraphQL "may
+# be the result of a timeout" error included) or a dropped connection can pass
+# on a second try; anything else — a 4xx or other GraphQL error — fails the
+# same way again, so retrying it would only add the pause to every run. Whole
+# words only, so "thereof" is not an EOF.
+_TRANSIENT_GH_ERROR = re.compile(
+    r"\bHTTP 5\d\d\b|\btime(?:d)? ?out\b|\bdeadline exceeded\b"
+    r"|\bconnection (?:reset|refused)\b|\bEOF\b",
+    re.IGNORECASE,
+)
 
 
-def _run_gh_with_one_retry(args: list[str]) -> subprocess.CompletedProcess | None:
-    """Run a gh command; on failure wait once and retry. None if both fail."""
+def _is_transient_gh_error(stderr: str, nwo: str) -> bool:
+    """Whether gh's stderr reads as an error a second try could clear.
+
+    The repo's ``owner/name``, name and owner are blanked out first: gh echoes
+    them in its errors, and a repo named ``timeout-svc`` would otherwise make
+    any error about it look like a timeout.
+    """
+    owner, _, name = nwo.partition("/")
+    for part in (nwo, name, owner):
+        if part:
+            # Only where it stands alone, so a repo named "out" leaves
+            # "timeout" whole.
+            stderr = re.sub(
+                rf"(?<![\w.-]){re.escape(part)}(?![\w.-])", " ", stderr,
+                flags=re.IGNORECASE,
+            )
+    return bool(_TRANSIENT_GH_ERROR.search(stderr))
+
+
+def _run_gh_with_one_retry(
+    args: list[str], nwo: str,
+) -> subprocess.CompletedProcess | None:
+    """Run a gh command for ``nwo``; if it fails transiently, wait once and retry.
+
+    None when the command fails twice, or fails once with an error that a
+    retry would not fix.
+    """
     for attempt in (1, 2):
         try:
             return subprocess.run(
@@ -220,9 +259,10 @@ def _run_gh_with_one_retry(args: list[str]) -> subprocess.CompletedProcess | Non
             )
         except FileNotFoundError:
             return None
-        except subprocess.CalledProcessError:
-            if attempt == 1:
-                time.sleep(_ENRICHMENT_RETRY_DELAY_S)
+        except subprocess.CalledProcessError as error:
+            if attempt == 2 or not _is_transient_gh_error(error.stderr or "", nwo):
+                return None
+            time.sleep(_RETRY_DELAY_S)
     return None
 
 
@@ -249,9 +289,12 @@ def _fetch_pr_enrichment_graphql(
     of.
 
     Returns ``(by_pr, complete)``. ``complete`` is False when the pass stopped
-    on an error — a page that failed even after one retry, unparseable
-    output, a response without data — so ``by_pr`` holds only what earlier
-    pages collected. Reaching ``max_prs`` or the last page is a normal end.
+    on an error — a page whose gh call failed (at once on an error a retry
+    would not fix, after the one retry on a transient one), unparseable
+    output, a response without data, more pages with no cursor to reach
+    them — so ``by_pr`` holds only what earlier pages collected, and the
+    pass counts as failed even when those pages came back. Reaching
+    ``max_prs`` or the last page is a normal end.
     """
     try:
         owner, name = nwo.split("/", 1)
@@ -266,17 +309,21 @@ def _fetch_pr_enrichment_graphql(
     end_cursor: str | None = None
 
     while len(by_pr) < max_prs:
+        # Every variable is a string, so each goes as a raw field (`-f`):
+        # `-F` lets gh coerce the value, sending a repo named 2048 as a
+        # number (or `true`/`null` as a boolean/null) that `String!` rejects,
+        # and reading a file for a value starting with "@".
         args = [
             "gh", "api", "graphql",
             "-f", "query=" + _COMMITS_GRAPHQL_QUERY,
-            "-F", f"owner={owner}",
-            "-F", f"name={name}",
+            "-f", f"owner={owner}",
+            "-f", f"name={name}",
             "-f", f"states[]={graphql_state}",
         ]
         if end_cursor:
-            args.extend(["-F", f"cursor={end_cursor}"])
+            args.extend(["-f", f"cursor={end_cursor}"])
 
-        result = _run_gh_with_one_retry(args)
+        result = _run_gh_with_one_retry(args, nwo)
         if result is None:
             return by_pr, False
 
@@ -285,21 +332,31 @@ def _fetch_pr_enrichment_graphql(
         except json.JSONDecodeError:
             return by_pr, False
 
-        page = (
-            data.get("data", {})
-            .get("repository", {})
-            .get("pullRequests")
-            if data.get("data") else None
-        )
-        if not page:
+        # Any non-dict on the way down (null repository, null data) is a
+        # missing page, not a reason to lose the whole PR read.
+        payload = data.get("data") if isinstance(data, dict) else None
+        repository = payload.get("repository") if isinstance(payload, dict) else None
+        page = repository.get("pullRequests") if isinstance(repository, dict) else None
+        if not page or not isinstance(page, dict):
             return by_pr, False
 
-        for node in page.get("nodes", []):
+        # Without a list of nodes the page's PRs are missing, as above. A null
+        # PR node or commit entry inside the list is skipped instead.
+        nodes = page.get("nodes")
+        if not isinstance(nodes, list):
+            return by_pr, False
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
             number = node.get("number")
             if number is None:
                 continue
             commits = []
-            for entry in node.get("commits", {}).get("nodes", []):
+            commits_conn = node.get("commits")
+            entries = commits_conn.get("nodes") if isinstance(commits_conn, dict) else None
+            for entry in entries or []:
+                if not isinstance(entry, dict):
+                    continue
                 commit = entry.get("commit") or {}
                 oid = commit.get("oid", "")
                 if not oid:
@@ -328,26 +385,33 @@ def _fetch_pr_enrichment_graphql(
     return by_pr, True
 
 
-def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] | None:
-    """Run gh pr list and return parsed JSON, or None on failure."""
-    try:
-        result = subprocess.run(
-            [
-                "gh", "pr", "list",
-                "--repo", nwo,
-                "--state", gh_state,
-                "--json", fields,
-                "--limit", str(limit),
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            env=git_env(),
-        )
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        return None
+def _gh_pr_list(
+    nwo: str, fields: str, limit: int, gh_state: str, *, retry: bool = False,
+) -> list[dict] | None:
+    """Run gh pr list and return parsed JSON, or None on failure.
 
-    if not result.stdout.strip():
+    With ``retry``, a transient failure gets one more try
+    (`_run_gh_with_one_retry`).
+    """
+    args = [
+        "gh", "pr", "list",
+        "--repo", nwo,
+        "--state", gh_state,
+        "--json", fields,
+        "--limit", str(limit),
+    ]
+    if retry:
+        result = _run_gh_with_one_retry(args, nwo)
+    else:
+        try:
+            result = subprocess.run(
+                args, capture_output=True, text=True, check=True,
+                env=git_env(),
+            )
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            result = None
+
+    if result is None or not result.stdout.strip():
         return None
 
     try:
@@ -427,6 +491,11 @@ def _read_pull_requests_uncached(repo_path: str, days: int) -> PullRequestFetch:
     return PullRequestFetch(
         prs=_parse_pull_requests(merged_raw + closed_raw + open_raw, since),
         degraded=tuple(sorted(merged_degraded | closed_degraded | open_degraded)),
+        degraded_by_state={
+            "merged": tuple(sorted(merged_degraded)),
+            "closed": tuple(sorted(closed_degraded)),
+            "open": tuple(sorted(open_degraded)),
+        },
     )
 
 

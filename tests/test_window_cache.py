@@ -111,7 +111,10 @@ def test_reset_clears_and_disables():
 
 def test_a_narrower_window_keeps_the_wide_fetch_degradation():
     def load():
-        return PullRequestFetch(prs=[_pr(80), _pr(3)], degraded=("enrichment",))
+        return PullRequestFetch(
+            prs=[_pr(80), _pr(3)], degraded=("enrichment",),
+            degraded_by_state={"merged": ("enrichment",), "closed": (), "open": ()},
+        )
 
     window_cache.enable()
     window_cache.pull_requests("r", 90, load, _keep)
@@ -120,6 +123,7 @@ def test_a_narrower_window_keeps_the_wide_fetch_degradation():
     narrow = window_cache.pull_requests("r", 7, load, _keep)
     assert len(narrow.prs) == 1
     assert narrow.degraded == ("enrichment",)
+    assert narrow.degraded_by_state == {"merged": ("enrichment",), "closed": (), "open": ()}
 
 
 # --- the overlap predicate (single source of truth for the filter) ---------

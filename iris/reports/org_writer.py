@@ -117,6 +117,16 @@ def write_org_report(
         )
         lines.extend([f"> {excluded}", ""])
 
+    # A repo whose PR read degraded shows 0 PRs (or partial PR data) that reads
+    # as "no PRs"; name it so the PR counts below are not taken at face value.
+    pr_degraded_repos = [r for r in org_result.repos if r.metrics.pr_enrichment_degraded]
+    if pr_degraded_repos:
+        degraded_note = s["org_pr_read_degraded"].format(
+            count=len(pr_degraded_repos),
+            repos=", ".join(sorted(r.repo_name for r in pr_degraded_repos)),
+        )
+        lines.extend([f"> {degraded_note}", ""])
+
     # AI Impact Across Organization (conditional — only when AI commits exist)
     ai_repos = [
         r for r in code_repos
@@ -323,6 +333,8 @@ def write_org_metrics(
         }
         if r.metrics.repo_kind is not None:
             entry["repo_kind"] = r.metrics.repo_kind
+        if r.metrics.pr_enrichment_degraded:
+            entry["pr_enrichment_degraded"] = r.metrics.pr_enrichment_degraded
         if r.trend and r.trend.has_sufficient_data:
             entry["attention_signal"] = _attention_label(r, lang=lang)
         repo_entries.append(entry)
