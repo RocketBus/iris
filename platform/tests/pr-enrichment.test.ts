@@ -38,6 +38,43 @@ describe("PR data badge strings", () => {
     expect(prData.incomplete).toBeTruthy();
     expect(prData.incompleteTooltip).toContain("{steps}");
   });
+
+  // Enrichment failing for open or closed PRs leaves the merge strategy
+  // classified; only merged PRs feed it.
+  it("ties the unclassified merge strategy to merged PRs", () => {
+    expect(
+      translations["en-US"].repos.detail.prData.incompleteTooltip,
+    ).toContain("when enrichment fails for merged PRs");
+    expect(
+      translations["pt-BR"].repos.detail.prData.incompleteTooltip,
+    ).toContain("quando o enriquecimento dos PRs mergeados falha");
+  });
+
+  // A failed open list, or a failed pass for open PRs, omits open-PR fields
+  // too: the tooltip names them, as the engine's report caveat does.
+  it("names open-PR metrics among what may be missing", () => {
+    expect(
+      translations["en-US"].repos.detail.prData.incompleteTooltip,
+    ).toContain("flow, review, in-PR and open-PR metrics may be missing");
+    expect(
+      translations["pt-BR"].repos.detail.prData.incompleteTooltip,
+    ).toContain("de commits em PR e de PRs abertos podem faltar");
+  });
+
+  // A failed merged list omits the PR lifecycle fields, as the engine's
+  // report caveat says.
+  it("names PR lifecycle metrics among what may be missing", () => {
+    expect(
+      translations["en-US"].repos.detail.prData.incompleteTooltip,
+    ).toContain(
+      "PR lifecycle (counts, time to merge, cycle time), flow, review, in-PR and open-PR metrics",
+    );
+    expect(
+      translations["pt-BR"].repos.detail.prData.incompleteTooltip,
+    ).toContain(
+      "métricas de ciclo de vida de PR (contagens, tempo até o merge, cycle time), de flow",
+    );
+  });
 });
 
 describe("prDegradedSteps duplicates", () => {
@@ -67,10 +104,10 @@ describe("formatPrSteps", () => {
   it("lists localized step labels, comma separated", () => {
     const steps = ["basic", "enrichment", "reviews", "fetch"] as const;
     expect(formatPrSteps(steps, translator("en-US"))).toBe(
-      "PR list, commit enrichment, reviews, PR read",
+      "PR list, commit enrichment, reviews, entire read",
     );
     expect(formatPrSteps(["basic", "fetch"], translator("pt-BR"))).toBe(
-      "listagem de PRs, leitura de PRs",
+      "listagem de PRs, leitura inteira",
     );
   });
 
