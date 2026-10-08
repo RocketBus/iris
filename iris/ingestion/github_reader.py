@@ -297,8 +297,12 @@ def _fetch_pr_enrichment_graphql(
         if not page or not isinstance(page, dict):
             return by_pr, False
 
-        # A null list, PR node or commit entry is skipped the same way.
-        for node in page.get("nodes") or []:
+        # Without a list of nodes the page's PRs are missing, as above. A null
+        # PR node or commit entry inside the list is skipped instead.
+        nodes = page.get("nodes")
+        if not isinstance(nodes, list):
+            return by_pr, False
+        for node in nodes:
             if not isinstance(node, dict):
                 continue
             number = node.get("number")

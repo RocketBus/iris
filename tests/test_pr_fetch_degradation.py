@@ -703,15 +703,30 @@ def test_enrichment_node_with_null_commits_has_no_commits(monkeypatch):
     assert complete is True
 
 
-def test_enrichment_page_with_null_nodes_has_no_prs(monkeypatch):
+@pytest.mark.parametrize("nodes", [None, {}, "nodes"])
+def test_enrichment_page_without_a_nodes_list_is_incomplete(monkeypatch, nodes):
+    # Like a null `pullRequests`: the page's PRs are missing, not absent.
     page = _graphql_page([])
-    page["data"]["repository"]["pullRequests"]["nodes"] = None
+    page["data"]["repository"]["pullRequests"]["nodes"] = nodes
     _fake_gh(monkeypatch, graphql=[page])
 
     by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
 
     assert by_pr == {}
-    assert complete is True
+    assert complete is False
+
+
+def test_enrichment_later_page_without_a_nodes_list_keeps_what_it_has(monkeypatch):
+    later = _graphql_page([])
+    later["data"]["repository"]["pullRequests"]["nodes"] = None
+    _fake_gh(monkeypatch, graphql=[
+        _graphql_page([1, 2], has_next=True, cursor="page2"), later,
+    ])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
+
+    assert sorted(by_pr) == [1, 2]
+    assert complete is False
 
 
 def test_enrichment_skips_a_null_node(monkeypatch):
