@@ -7,7 +7,7 @@ import { Search } from "lucide-react";
 import { Sparkline } from "@/components/charts/Sparkline";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useTranslation } from "@/hooks/useTranslation";
-import { anyPrDataIncomplete } from "@/lib/pr-enrichment";
+import { formatPrSteps } from "@/lib/pr-enrichment";
 import { cn } from "@/lib/utils";
 import type { RepoSummary } from "@/types/temporal";
 import { healthIndicator } from "@/types/temporal";
@@ -218,14 +218,47 @@ function MergeStrategyCell({
   );
 }
 
+/**
+ * The failed PR-read steps of a repo whose latest run read PR data only
+ * partially, on a line of their own under the repo name in both layouts: an
+ * amber dot (the legend under the list says what it means, so nothing hinges
+ * on colour) and the steps as text, for touch and keyboard users who get no
+ * hover. Amber 600 on light and 500 on dark keep the dot above 3:1 against
+ * the card (WCAG 1.4.11).
+ *
+ * The dot and the visible steps are aria-hidden, with the full sentence as
+ * their hover title; screen readers get that sentence once, as sr-only text.
+ */
+function PrDataSteps({
+  repo,
+  label,
+  steps,
+}: {
+  repo: RepoSummary;
+  label: string;
+  steps: string;
+}) {
+  if (repo.pr_degraded_steps.length === 0) return null;
+  return (
+    <span className="mt-1 flex min-w-0 text-xs text-muted-foreground">
+      <span
+        aria-hidden="true"
+        title={label}
+        className="flex min-w-0 items-center gap-1.5"
+      >
+        <span className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-600 dark:bg-amber-500" />
+        <span>{steps}</span>
+      </span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 export function CompareView({ repos }: CompareViewProps) {
   const { t } = useTranslation();
-  // Amber dot next to a repo whose latest run read PR data only partially.
-  // The text is also in the DOM (sr-only), and a legend under the table says
-  // what the dot means, so it doesn't hinge on colour or on a hover tooltip.
   const prDataTooltip = (repo: RepoSummary) =>
     t("repos.detail.prData.incompleteTooltip", {
-      steps: repo.pr_degraded_steps.join(", "),
+      steps: formatPrSteps(repo.pr_degraded_steps, t),
     });
   const [sort, setSort] = useState<SortState>({
     key: "stabilization_ratio",
@@ -419,15 +452,11 @@ export function CompareView({ repos }: CompareViewProps) {
                     </td>
                     <td className="py-2 pr-3">
                       <span className="font-mono text-sm">{repo.name}</span>
-                      {repo.pr_degraded_steps.length > 0 && (
-                        <span className="ml-2 inline-flex items-center align-middle">
-                          <span
-                            aria-hidden="true"
-                            className="h-2 w-2 rounded-full bg-amber-500"
-                          />
-                          <span className="sr-only">{prDataTooltip(repo)}</span>
-                        </span>
-                      )}
+                      <PrDataSteps
+                        repo={repo}
+                        label={prDataTooltip(repo)}
+                        steps={formatPrSteps(repo.pr_degraded_steps, t)}
+                      />
                     </td>
                     <MetricCell
                       value={repo.stabilization_ratio}
@@ -481,15 +510,6 @@ export function CompareView({ repos }: CompareViewProps) {
               })}
             </tbody>
           </table>
-          {anyPrDataIncomplete(sorted) && (
-            <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-              <span
-                aria-hidden="true"
-                className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-500"
-              />
-              {t("repos.detail.prData.incomplete")}
-            </p>
-          )}
         </div>
 
         {/* Mobile: sort control + card stack */}
@@ -539,13 +559,20 @@ export function CompareView({ repos }: CompareViewProps) {
                   className="flex flex-col gap-3 rounded-lg border border-border/60 p-3"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        #{i + 1}
-                      </span>
-                      <span className="truncate font-mono text-sm">
-                        {repo.name}
-                      </span>
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-baseline gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          #{i + 1}
+                        </span>
+                        <span className="truncate font-mono text-sm">
+                          {repo.name}
+                        </span>
+                      </div>
+                      <PrDataSteps
+                        repo={repo}
+                        label={prDataTooltip(repo)}
+                        steps={formatPrSteps(repo.pr_degraded_steps, t)}
+                      />
                     </div>
                     <span
                       className={cn(
@@ -627,6 +654,16 @@ export function CompareView({ repos }: CompareViewProps) {
             })}
           </ul>
         </div>
+
+        {sorted.some((repo) => repo.pr_degraded_steps.length > 0) && (
+          <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-600 dark:bg-amber-500"
+            />
+            {t("repos.detail.prData.incomplete")}
+          </p>
+        )}
       </CardContent>
     </Card>
   );
