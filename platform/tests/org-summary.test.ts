@@ -207,6 +207,10 @@ describe("computeAIvsHuman — attribution gap", () => {
     expect(out!.attributionGap!.flaggedCommits).toBe(174);
     expect(out!.attributionGap!.flaggedPct).toBeCloseTo((174 / 240) * 100, 5);
     expect(out!.attributionGap!.flaggedPct).toBeLessThanOrEqual(100);
+    // The gap fallback must not leak into commitShare: only r3 has a
+    // commit_origin_distribution, so the share stays r3's 50/5/0.
+    expect(out!.commitShare!.human).toBeCloseTo(50 / 55, 5);
+    expect(out!.commitShare!.ai).toBeCloseTo(5 / 55, 5);
   });
 });
 
