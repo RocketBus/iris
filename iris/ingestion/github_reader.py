@@ -18,12 +18,23 @@ import json
 import re
 import shutil
 import subprocess
+import time
 
 from iris.shell import git_env
 from datetime import datetime, timedelta, timezone
 
 from iris.ingestion import window_cache
-from iris.models.pull_request import CommitRef, PRReview, PRState, PullRequest
+from iris.models.pull_request import (
+    DEGRADED_BASIC,
+    DEGRADED_ENRICHMENT,
+    DEGRADED_FETCH,
+    DEGRADED_REVIEWS,
+    CommitRef,
+    PRReview,
+    PRState,
+    PullRequest,
+    PullRequestFetch,
+)
 
 
 def detect_github_remote(repo_path: str) -> str | None:
@@ -95,7 +106,7 @@ _PR_FIELDS_FULL = (
 _BATCH_SIZE = 500
 
 
-def _fetch_prs(nwo: str, limit: int, gh_state: str) -> list[dict]:
+def _fetch_prs(nwo: str, limit: int, gh_state: str) -> tuple[list[dict], set[str]]:
     """Fetch PRs in a given gh state.
 
     For limits at or below `_BATCH_SIZE`, attempts a one-shot fetch with
@@ -116,19 +127,26 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> list[dict]:
     Both secondary passes are best-effort — if either fails the PRs come
     back with the respective field empty, but the rest of the metadata
     is still usable.
+
+    Returns ``(prs, degraded)``. ``degraded`` names the passes that failed —
+    `DEGRADED_BASIC`, `DEGRADED_ENRICHMENT`, `DEGRADED_REVIEWS` — and is empty
+    when the one-shot fetch or all three passes succeeded.
     """
     if limit <= _BATCH_SIZE:
         result = _gh_pr_list(nwo, _PR_FIELDS_FULL, limit, gh_state)
         if result is not None:
-            return result
+            return result, set()
 
     prs = _gh_pr_list(nwo, _PR_FIELDS_BASIC, limit, gh_state)
     if prs is None:
-        return []
+        return [], {DEGRADED_BASIC}
 
-    enrichment_by_pr = _fetch_pr_enrichment_graphql(
+    degraded: set[str] = set()
+    enrichment_by_pr, enrichment_complete = _fetch_pr_enrichment_graphql(
         nwo, gh_state, min(limit, _BATCH_SIZE),
     )
+    if not enrichment_complete:
+        degraded.add(DEGRADED_ENRICHMENT)
     for pr in prs:
         enrich = enrichment_by_pr.get(pr["number"], {})
         pr["commits"] = enrich.get("commits", [])
@@ -141,12 +159,14 @@ def _fetch_prs(nwo: str, limit: int, gh_state: str) -> list[dict]:
             pr["mergeCommit"] = merge_commit
 
     reviews_prs = _gh_pr_list(nwo, "number,reviews", min(limit, _BATCH_SIZE), gh_state)
-    if reviews_prs:
+    if reviews_prs is None:
+        degraded.add(DEGRADED_REVIEWS)
+    elif reviews_prs:
         reviews_by_number = {pr["number"]: pr.get("reviews", []) for pr in reviews_prs}
         for pr in prs:
             pr["reviews"] = reviews_by_number.get(pr["number"], [])
 
-    return prs
+    return prs, degraded
 
 
 # Max PRs per GraphQL page. GitHub's REST/GraphQL API rejects `first:`
@@ -184,11 +204,33 @@ _GH_STATE_TO_GRAPHQL = {
 }
 
 
+# One retry for the enrichment query, after this pause. GitHub answers that
+# query with intermittent 504s (see `_BATCH_SIZE`); a single retry makes a
+# degraded run rarer without hiding the ones that still fail.
+_ENRICHMENT_RETRY_DELAY_S = 2.0
+
+
+def _run_gh_with_one_retry(args: list[str]) -> subprocess.CompletedProcess | None:
+    """Run a gh command; on failure wait once and retry. None if both fail."""
+    for attempt in (1, 2):
+        try:
+            return subprocess.run(
+                args, capture_output=True, text=True, check=True,
+                env=git_env(),
+            )
+        except FileNotFoundError:
+            return None
+        except subprocess.CalledProcessError:
+            if attempt == 1:
+                time.sleep(_ENRICHMENT_RETRY_DELAY_S)
+    return None
+
+
 def _fetch_pr_enrichment_graphql(
     nwo: str,
     gh_state: str,
     max_prs: int,
-) -> dict[int, dict]:
+) -> tuple[dict[int, dict], bool]:
     """Map PR number → enrichment dict via paginated GraphQL.
 
     Why this exists: `gh pr list --json commits` is unusable on busy
@@ -206,16 +248,19 @@ def _fetch_pr_enrichment_graphql(
     older entries — documented limitation that the caller should be aware
     of.
 
-    Best-effort: returns whatever it has collected so far on any error.
+    Returns ``(by_pr, complete)``. ``complete`` is False when the pass stopped
+    on an error — a page that failed even after one retry, unparseable
+    output, a response without data — so ``by_pr`` holds only what earlier
+    pages collected. Reaching ``max_prs`` or the last page is a normal end.
     """
     try:
         owner, name = nwo.split("/", 1)
     except ValueError:
-        return {}
+        return {}, False
 
     graphql_state = _GH_STATE_TO_GRAPHQL.get(gh_state)
     if graphql_state is None:
-        return {}
+        return {}, False
 
     by_pr: dict[int, dict] = {}
     end_cursor: str | None = None
@@ -231,18 +276,14 @@ def _fetch_pr_enrichment_graphql(
         if end_cursor:
             args.extend(["-F", f"cursor={end_cursor}"])
 
-        try:
-            result = subprocess.run(
-                args, capture_output=True, text=True, check=True,
-                env=git_env(),
-            )
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return by_pr
+        result = _run_gh_with_one_retry(args)
+        if result is None:
+            return by_pr, False
 
         try:
             data = json.loads(result.stdout)
         except json.JSONDecodeError:
-            return by_pr
+            return by_pr, False
 
         page = (
             data.get("data", {})
@@ -251,7 +292,7 @@ def _fetch_pr_enrichment_graphql(
             if data.get("data") else None
         )
         if not page:
-            return by_pr
+            return by_pr, False
 
         for node in page.get("nodes", []):
             number = node.get("number")
@@ -274,16 +315,17 @@ def _fetch_pr_enrichment_graphql(
                 "mergeCommit": node.get("mergeCommit"),
             }
             if len(by_pr) >= max_prs:
-                return by_pr
+                return by_pr, True
 
         info = page.get("pageInfo", {}) or {}
         if not info.get("hasNextPage"):
-            return by_pr
+            return by_pr, True
         end_cursor = info.get("endCursor")
         if not end_cursor:
-            return by_pr
+            # More pages exist but there is no cursor to reach them.
+            return by_pr, False
 
-    return by_pr
+    return by_pr, True
 
 
 def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] | None:
@@ -314,7 +356,7 @@ def _gh_pr_list(nwo: str, fields: str, limit: int, gh_state: str) -> list[dict] 
         return None
 
 
-def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
+def read_pull_requests(repo_path: str, days: int) -> PullRequestFetch:
     """Read pull requests from GitHub via gh CLI.
 
     Fetches PRs in all three lifecycle states (merged, closed-without-merge,
@@ -332,8 +374,9 @@ def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
         days: Number of days to look back from now.
 
     Returns:
-        List of PullRequest objects with state populated. Returns an empty
-        list if gh is unavailable or the repo has no GitHub remote.
+        A `PullRequestFetch`: the PRs, with state populated, and the read
+        steps that degraded on the way. The PR list is empty and nothing is
+        degraded when gh is unavailable or the repo has no GitHub remote.
     """
     return window_cache.pull_requests(
         repo_path,
@@ -345,13 +388,26 @@ def read_pull_requests(repo_path: str, days: int) -> list[PullRequest]:
     )
 
 
-def _read_pull_requests_uncached(repo_path: str, days: int) -> list[PullRequest]:
+def read_pull_requests_with_fallback(repo_path: str, days: int) -> PullRequestFetch:
+    """Read PRs, turning any unexpected error into an empty, flagged fetch.
+
+    This is the graceful fallback both analysis entry points used to inline as
+    ``except Exception: prs = []``. The run still goes on without PRs, but the
+    fetch now comes back marked `DEGRADED_FETCH`, so the report says so.
+    """
+    try:
+        return read_pull_requests(repo_path, days)
+    except Exception:
+        return PullRequestFetch(prs=[], degraded=(DEGRADED_FETCH,))
+
+
+def _read_pull_requests_uncached(repo_path: str, days: int) -> PullRequestFetch:
     if not is_gh_available():
-        return []
+        return PullRequestFetch(prs=[])
 
     nwo = detect_github_remote(repo_path)
     if not nwo:
-        return []
+        return PullRequestFetch(prs=[])
 
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -364,11 +420,14 @@ def _read_pull_requests_uncached(repo_path: str, days: int) -> list[PullRequest]
     #   open   — still open
     #   closed — closed without merging (NOT including merged)
     #   merged — merged
-    merged_raw = _fetch_prs(nwo, fetch_limit, "merged")
-    closed_raw = _fetch_prs(nwo, fetch_limit, "closed")
-    open_raw = _fetch_prs(nwo, fetch_limit, "open")
+    merged_raw, merged_degraded = _fetch_prs(nwo, fetch_limit, "merged")
+    closed_raw, closed_degraded = _fetch_prs(nwo, fetch_limit, "closed")
+    open_raw, open_degraded = _fetch_prs(nwo, fetch_limit, "open")
 
-    return _parse_pull_requests(merged_raw + closed_raw + open_raw, since)
+    return PullRequestFetch(
+        prs=_parse_pull_requests(merged_raw + closed_raw + open_raw, since),
+        degraded=tuple(sorted(merged_degraded | closed_degraded | open_degraded)),
+    )
 
 
 def read_single_pr(repo_path: str, pr_number: int) -> PullRequest | None:

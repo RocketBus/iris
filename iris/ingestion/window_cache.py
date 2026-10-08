@@ -25,9 +25,11 @@ datetimes, so an in-memory slice is exact.
 from datetime import datetime, timedelta, timezone
 from typing import Callable
 
+from iris.models.pull_request import PullRequestFetch
+
 _enabled = False
 # repo_path -> (width_days, prs) — `prs` were fetched for a `width_days` window.
-_prs: dict[str, tuple[int, list]] = {}
+_prs: dict[str, tuple[int, PullRequestFetch]] = {}
 
 
 def enable() -> None:
@@ -46,9 +48,9 @@ def reset() -> None:
 def pull_requests(
     repo_path: str,
     days: int,
-    load: Callable[[], list],
+    load: Callable[[], PullRequestFetch],
     keep: Callable[[object, datetime], bool],
-) -> list:
+) -> PullRequestFetch:
     """Return PRs for `days`, slicing a cached wider fetch when possible.
 
     Args:
@@ -64,7 +66,13 @@ def pull_requests(
     cached = _prs.get(repo_path)
     if cached is not None and days <= cached[0]:
         since = datetime.now(timezone.utc) - timedelta(days=days)
-        return [pr for pr in cached[1] if keep(pr, since)]
+        fetch = cached[1]
+        # A narrower window inherits the wide fetch's degradation: the PRs it is
+        # sliced from are the ones that came back incomplete.
+        return PullRequestFetch(
+            prs=[pr for pr in fetch.prs if keep(pr, since)],
+            degraded=fetch.degraded,
+        )
 
     fresh = load()
     _prs[repo_path] = (days, fresh)
