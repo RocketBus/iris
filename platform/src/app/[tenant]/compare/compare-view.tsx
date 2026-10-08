@@ -220,21 +220,48 @@ function MergeStrategyCell({
 
 /**
  * Amber dot next to a repo whose latest run read PR data only partially. The
- * dot is decorative (hover title for sighted users); the step list is also in
- * the DOM as screen-reader text, and a legend under the list says what the dot
- * means, so nothing hinges on colour or on a tooltip. Amber 600 on light and
- * 500 on dark keep the dot, the only per-row cue, above 3:1 against the card
- * (WCAG 1.4.11).
+ * dot is decorative (hover title for sighted users), and a legend under the
+ * list says what it means, so nothing hinges on colour or on a tooltip. Amber
+ * 600 on light and 500 on dark keep the dot, the only per-row cue, above 3:1
+ * against the card (WCAG 1.4.11).
+ *
+ * In the table the failed steps are screen-reader text. The mobile card shows
+ * them as text instead (`visible`), since touch and keyboard users get no
+ * hover; screen readers then read that text once, after a short sr-only
+ * prefix, rather than the full label on top of it.
  */
-function PrDataMarker({ repo, label }: { repo: RepoSummary; label: string }) {
+function PrDataMarker({
+  repo,
+  label,
+  visible,
+}: {
+  repo: RepoSummary;
+  label: string;
+  visible?: { prefix: string; steps: string };
+}) {
   if (repo.pr_degraded_steps.length === 0) return null;
+  const dot = (
+    <span
+      aria-hidden="true"
+      title={label}
+      className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-600 dark:bg-amber-500"
+    />
+  );
+  if (visible) {
+    // No margin: the card row already spaces its items with `gap-2`.
+    return (
+      <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+        {dot}
+        <span>
+          <span className="sr-only">{visible.prefix} </span>
+          {visible.steps}
+        </span>
+      </span>
+    );
+  }
   return (
     <span className="ml-2 inline-flex flex-shrink-0 items-center align-middle">
-      <span
-        aria-hidden="true"
-        title={label}
-        className="h-2 w-2 rounded-full bg-amber-600 dark:bg-amber-500"
-      />
+      {dot}
       <span className="sr-only">{label}</span>
     </span>
   );
@@ -548,7 +575,14 @@ export function CompareView({ repos }: CompareViewProps) {
                       <span className="truncate font-mono text-sm">
                         {repo.name}
                       </span>
-                      <PrDataMarker repo={repo} label={prDataTooltip(repo)} />
+                      <PrDataMarker
+                        repo={repo}
+                        label={prDataTooltip(repo)}
+                        visible={{
+                          prefix: `${t("repos.detail.prData.incomplete")}:`,
+                          steps: formatPrSteps(repo.pr_degraded_steps, t),
+                        }}
+                      />
                     </div>
                     <span
                       className={cn(

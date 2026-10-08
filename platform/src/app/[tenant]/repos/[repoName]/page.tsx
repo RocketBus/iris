@@ -255,17 +255,24 @@ export default async function RepoDetailPage({
                 </Badge>
               ))}
             {/* In the header, not in the flow or merge panels: those can
-                disappear when the read degrades, which would hide the cause. */}
+                disappear when the read degrades, which would hide the cause.
+                The failed steps are text next to the badge, not only in its
+                title: touch and keyboard users get no hover. */}
             {prDegraded.length > 0 && (
-              <Badge
-                variant="outline"
-                className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                title={t("repos.detail.prData.incompleteTooltip", {
-                  steps: formatPrSteps(prDegraded, t),
-                })}
-              >
-                {t("repos.detail.prData.incomplete")}
-              </Badge>
+              <span className="flex flex-wrap items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                  title={t("repos.detail.prData.incompleteTooltip", {
+                    steps: formatPrSteps(prDegraded, t),
+                  })}
+                >
+                  {t("repos.detail.prData.incomplete")}
+                </Badge>
+                <span className="text-xs text-muted-foreground">
+                  {formatPrSteps(prDegraded, t)}
+                </span>
+              </span>
             )}
           </div>
           {repo.remote_url && (
