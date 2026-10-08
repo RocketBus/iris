@@ -104,10 +104,10 @@ describe("formatPrSteps", () => {
   it("lists localized step labels, comma separated", () => {
     const steps = ["basic", "enrichment", "reviews", "fetch"] as const;
     expect(formatPrSteps(steps, translator("en-US"))).toBe(
-      "PR list, commit enrichment, reviews, PR read",
+      "PR list, commit enrichment, reviews, entire read",
     );
     expect(formatPrSteps(["basic", "fetch"], translator("pt-BR"))).toBe(
-      "listagem de PRs, leitura de PRs",
+      "listagem de PRs, leitura inteira",
     );
   });
 
