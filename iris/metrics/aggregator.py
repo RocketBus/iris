@@ -82,7 +82,8 @@ def aggregate(
     Args:
         commits: Commits from git_reader (sorted by date ascending).
         churn_days: Churn/stabilization window in days.
-        prs: Optional list of merged PRs from github_reader.
+        prs: Optional PRs from github_reader, in all three states (merged,
+            closed and open); each analysis keeps the states it reads.
         external_data: Optional pre-fetched DORA events (deployments +
             incidents) from a connected provider — currently Datadog. When
             provided, populates the ``dora_*`` fields on ReportMetrics;

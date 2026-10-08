@@ -8,8 +8,10 @@ durability) into a per-origin delivery funnel:
 Each stage has a conversion rate. Comparing funnels across origins reveals
 where AI-assisted code drops off relative to human code.
 
-Limitation: PR→Merge stage is not measured (Iris only fetches merged PRs).
-Future work could add closed/rejected PR data to fill this gap.
+Limitation: PR→Merge stage is not measured. Iris reads merged, closed and open
+PRs, but the "In PR" stage reads acceptance, which counts only commits in
+merged PRs, and no stage follows PRs that never merge. The closed PRs already
+read could fill this gap.
 """
 
 # AGGREGATOR_OPT_OUT: consumes a finalized ReportMetrics (post-aggregation composition).

@@ -265,7 +265,9 @@ The whole funnel is omitted when `pr_enrichment_degraded` (§15) is present and
 later conversion chains from that stage. That covers a failed `basic` or
 `enrichment` for merged PRs, which omits acceptance (§9), and `fetch`, which
 leaves no PRs to match commits to. A failure confined to closed or open PRs
-keeps acceptance, and the funnel with it.
+does not remove acceptance or the funnel: they stay whenever a clean run
+would have them — acceptance still needs an origin with at least 5 commits
+(§9), and the funnel a `commit_origin_distribution`.
 Only when PRs are absent by design (no `gh`, no GitHub remote; nothing
 degraded) does `In PR` fall back to counting every commit as in a PR.
 
@@ -274,8 +276,10 @@ last stage only when durability data is available). Each stage carries
 `count` and `conversion_from_previous`. `overall_conversion` is the
 product of conversions.
 
-**Limitation:** `PR → Merge` is not measured — Iris only fetches merged
-PRs.
+**Limitation:** `PR → Merge` is not measured. Iris reads merged, closed and
+open PRs, but `In PR` comes from acceptance (§9), which counts only commits in
+merged PRs: a commit in a PR still open or closed without merging reads as not
+in a PR, and no stage follows the PRs that never merge.
 
 ---
 
@@ -405,11 +409,13 @@ without repeats. Unlike the fields above it does not require PR data: a read
 that lost every PR still reports why. Absent when every step succeeded, and
 when PRs are absent by design — no `gh`, no GitHub remote — because Iris works
 without PRs. When present, this run's PR-derived fields may be missing or
-skewed — flow and `commits_in_prs` go missing — and `merge_strategy` is
-`unknown` if `enrichment` failed for merged PRs (§28). With `reviews` failed
-every PR carries no reviews, so the fields derived from them are omitted
-rather than reported as the 0% coverage and 100% single-pass an empty review
-list would give:
+skewed. With `enrichment` failed for merged PRs, Flow Efficiency (§25) is
+computed only over the merged PRs whose commit refs came back, so it is
+skewed rather than missing (unless none came back); `commits_in_prs` goes
+missing with acceptance (§9); and `merge_strategy` is `unknown` (§28). With
+`reviews` failed every PR carries no reviews, so the fields derived from them
+are omitted rather than reported as the 0% coverage and 100% single-pass an
+empty review list would give:
 `pr_review_rounds_median`, `pr_single_pass_rate`,
 `median_time_to_first_review_hours`, `human_review_coverage_pct`,
 `human_approval_coverage_pct`, `human_review_coverage_by_intent`,
