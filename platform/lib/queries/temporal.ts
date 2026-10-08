@@ -279,16 +279,18 @@ export async function getOrgReposSummary(
   if (!repos || repos.length === 0) return [];
 
   // Query 2: pre-aggregated summary, one row per repo (see doc comment).
-  // The column list is built at runtime, so supabase-js can't infer the row.
-  const readSummaries = async (columns: string) =>
-    (await supabase
+  const readSummaries = async (columns: string) => {
+    const result = await supabase
       .from("repo_metric_summaries")
       .select(columns)
       .eq("organization_id", organizationId)
-      .eq("window_days", windowDays)) as unknown as {
+      .eq("window_days", windowDays);
+    // The column list is built at runtime, so supabase-js can't infer the row.
+    return result as unknown as {
       data: SummaryRow[] | null;
       error: PostgrestError | null;
     };
+  };
 
   let summaries: SummaryRow[] | null;
   let summariesError: PostgrestError | null;
