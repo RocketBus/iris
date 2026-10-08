@@ -49,6 +49,19 @@ describe("PR data badge strings", () => {
       translations["pt-BR"].repos.detail.prData.incompleteTooltip,
     ).toContain("quando o enriquecimento dos PRs mergeados falha");
   });
+
+  // A failed open list, or a failed pass for open PRs, omits open-PR fields
+  // too: the tooltip names them, as the engine's report caveat does.
+  it("names open-PR metrics among what may be missing", () => {
+    expect(
+      translations["en-US"].repos.detail.prData.incompleteTooltip,
+    ).toContain("flow, review, in-PR and open-PR metrics may be missing");
+    expect(
+      translations["pt-BR"].repos.detail.prData.incompleteTooltip,
+    ).toContain(
+      "métricas de flow, de review, de commits em PR e de PRs abertos podem faltar",
+    );
+  });
 });
 
 describe("prDegradedSteps duplicates", () => {
