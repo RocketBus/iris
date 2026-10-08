@@ -37,6 +37,11 @@ Signals, in order of confidence
 3. Anything ambiguous (partial presence, no commit_refs, no signal) →
    ``unknown`` for that PR; excluded from the dominant computation.
 
+When the PR read's enrichment step degraded, the repo is ``unknown`` without
+classifying: parent counts and commit refs are missing, so merge PRs fall
+through to ``unknown`` while squash-stamped ones still classify, and the
+result could only ever be ``squash``.
+
 Aggregation
 -----------
 The dominant strategy over the *classified* merged PRs.
@@ -98,6 +103,7 @@ def detect_merge_strategy(
     commits: list[Commit],
     *,
     min_classified: int = MIN_CLASSIFIED_PRS,
+    enrichment_degraded: bool = False,
 ) -> MergeStrategyResult:
     """Classify a repo's dominant merge strategy from its merged PRs.
 
@@ -108,6 +114,9 @@ def detect_merge_strategy(
             commit_refs landed verbatim and to read squash subject stamps.
         min_classified: minimum classifiable merged PRs before a dominant
             strategy is trusted; below it the repo is ``unknown``.
+        enrichment_degraded: the PR read's enrichment step failed this run,
+            so parent counts and commit refs are missing or partial. The
+            classification is skipped and the repo is ``unknown``.
 
     Returns:
         ``MergeStrategyResult`` — always non-None (``unknown`` when there
@@ -124,6 +133,16 @@ def detect_merge_strategy(
             classified_pr_count=0,
             distribution={},
             reason="no merged PRs in window",
+        )
+
+    if enrichment_degraded:
+        return MergeStrategyResult(
+            merge_strategy="unknown",
+            dominant_share=None,
+            commit_metrics_reliable=True,
+            classified_pr_count=0,
+            distribution={},
+            reason="PR enrichment degraded: parent counts and commit refs incomplete",
         )
 
     main_hashes = {c.hash for c in commits}

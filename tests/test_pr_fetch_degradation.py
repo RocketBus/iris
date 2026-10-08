@@ -257,3 +257,203 @@ def test_degraded_steps_from_every_state_are_merged_and_sorted(monkeypatch):
     fetch = github_reader.read_pull_requests("/any/repo", days=30)
 
     assert fetch.degraded == ("enrichment", "reviews")
+
+
+# --- the signal in the metrics ---------------------------------------------
+
+import argparse
+import glob
+from datetime import datetime, timedelta, timezone
+
+from iris.metrics.aggregator import aggregate
+from iris.models.commit import Commit
+from iris.models.pull_request import PullRequest
+
+_NOW = datetime(2026, 9, 1, tzinfo=timezone.utc)
+
+
+def _stamped_commits() -> list[Commit]:
+    # Squash-stamped subjects: under degraded enrichment they are all the
+    # fallback heuristic can see.
+    return [
+        Commit(hash=f"c{n}", author="dev", date=_NOW + timedelta(hours=n),
+               message=f"change {n} (#{n})")
+        for n in range(1, 7)
+    ]
+
+
+def _merged_prs() -> list[PullRequest]:
+    return [
+        PullRequest(number=n, title=f"PR {n}", author="dev", created_at=_NOW,
+                    additions=1, deletions=0, changed_files=1,
+                    merged_at=_NOW + timedelta(hours=n),
+                    closed_at=_NOW + timedelta(hours=n), state="merged")
+        for n in range(1, 7)
+    ]
+
+
+def test_degraded_fetch_reaches_the_metrics_payload():
+    metrics = aggregate(
+        _stamped_commits(), churn_days=14, prs=_merged_prs(),
+        pr_fetch_degraded=("enrichment", "reviews"),
+    )
+    payload = metrics.to_dict()
+
+    assert payload["pr_enrichment_degraded"] == ["enrichment", "reviews"]
+    assert payload["merge_strategy"] == "unknown"
+    assert "merge_strategy_dominant_share" not in payload
+
+
+def test_clean_fetch_leaves_the_payload_unchanged():
+    metrics = aggregate(_stamped_commits(), churn_days=14, prs=_merged_prs())
+    payload = metrics.to_dict()
+
+    # No key at all, so a clean run's metrics.json is what it was before.
+    assert "pr_enrichment_degraded" not in payload
+    assert payload["merge_strategy"] == "squash"
+
+
+# --- both entry points carry it into metrics.json ---------------------------
+
+
+def _build_repo(path: Path) -> None:
+    """A small git repo, hermetic against the machine's global git config."""
+    def git(*args):
+        subprocess.run(["git", *args], cwd=path, check=True, capture_output=True)
+
+    git("init", "-q", "-b", "main", ".")
+    git("config", "user.email", "test@example.com")
+    git("config", "user.name", "Test")
+    git("config", "commit.gpgsign", "false")
+    git("config", "core.hooksPath", str(path / "no-hooks"))
+    for n in range(1, 4):
+        (path / "a.py").write_text(f"x = {n}\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-q", "-m", f"feat: change {n}")
+
+
+def _degraded_read(_repo_path, days):
+    return PullRequestFetch(prs=[], degraded=("enrichment",))
+
+
+def _metrics_json(out_dir: Path) -> dict:
+    [path] = glob.glob(str(out_dir / "**" / "*-metrics.json"), recursive=True)
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def test_single_repo_cli_writes_the_degradation_to_metrics_json(tmp_path, monkeypatch):
+    from iris import cli
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(cli, "read_pull_requests_with_fallback", _degraded_read)
+
+    args = argparse.Namespace(
+        repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+        verbose=False, trend=False, out=str(tmp_path / "out"), no_push=True,
+    )
+    cli._run_single_repo(args)
+
+    assert _metrics_json(tmp_path / "out")["pr_enrichment_degraded"] == ["enrichment"]
+
+
+def test_org_runner_writes_the_degradation_to_metrics_json(tmp_path, monkeypatch):
+    from iris import org_runner
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(org_runner, "read_pull_requests_with_fallback", _degraded_read)
+
+    org_runner.analyze_single_repo(
+        str(repo), days=30, churn_days=14, out_dir=str(tmp_path / "out"),
+    )
+
+    assert _metrics_json(tmp_path / "out")["pr_enrichment_degraded"] == ["enrichment"]
+
+
+# --- the adoption split inherits it -----------------------------------------
+
+
+def _adoption_after_first_commit(monkeypatch):
+    """Make adoption detection split the history after its first commit."""
+    from iris.analysis import adoption_detector
+    from iris.models.adoption import AdoptionEvent
+
+    def detect(commits):
+        ordered = sorted(commits, key=lambda c: c.date)
+        start = ordered[1].date
+        event = AdoptionEvent(
+            first_ai_commit_date=start, adoption_ramp_start=start,
+            adoption_ramp_end=ordered[-1].date, adoption_confidence="clear",
+            total_ai_commits=2,
+        )
+        return event, ordered[:1], ordered[1:]
+
+    monkeypatch.setattr(adoption_detector, "detect_adoption", detect)
+
+
+def _assert_adoption_split_is_degraded(out_dir: Path) -> None:
+    timeline = _metrics_json(out_dir)["adoption_timeline"]
+    assert timeline["pre_adoption"]["pr_enrichment_degraded"] == ["enrichment"]
+    assert timeline["post_adoption"]["pr_enrichment_degraded"] == ["enrichment"]
+
+
+def test_single_repo_cli_adoption_split_inherits_the_degradation(tmp_path, monkeypatch):
+    from iris import cli
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(cli, "read_pull_requests_with_fallback", _degraded_read)
+    _adoption_after_first_commit(monkeypatch)
+
+    args = argparse.Namespace(
+        repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+        verbose=False, trend=False, out=str(tmp_path / "out"), no_push=True,
+    )
+    cli._run_single_repo(args)
+
+    _assert_adoption_split_is_degraded(tmp_path / "out")
+
+
+def test_org_runner_adoption_split_inherits_the_degradation(tmp_path, monkeypatch):
+    from iris import org_runner
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(org_runner, "read_pull_requests_with_fallback", _degraded_read)
+    _adoption_after_first_commit(monkeypatch)
+
+    org_runner.analyze_single_repo(
+        str(repo), days=30, churn_days=14, out_dir=str(tmp_path / "out"),
+    )
+
+    _assert_adoption_split_is_degraded(tmp_path / "out")
+
+
+def test_single_repo_cli_says_the_pr_read_failed_instead_of_skipped(
+    tmp_path, monkeypatch, capsys
+):
+    from iris import cli
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    monkeypatch.setattr(
+        cli,
+        "read_pull_requests_with_fallback",
+        lambda *a, **k: PullRequestFetch(prs=[], degraded=("basic",)),
+    )
+
+    args = argparse.Namespace(
+        repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+        verbose=False, trend=False, out=str(tmp_path / "out"), no_push=True,
+    )
+    cli._run_single_repo(args)
+
+    out = capsys.readouterr().out
+    assert "failed (basic)" in out
+    assert "skipped (no GitHub remote or gh CLI)" not in out

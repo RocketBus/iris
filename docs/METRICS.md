@@ -362,6 +362,7 @@ All fields require GitHub PR data.
 | `pr_median_size_lines` | int ≥ 0 | same | same |
 | `pr_review_rounds_median` | float ≥ 0 | same | same |
 | `pr_single_pass_rate` | float `0.0–1.0` | same | same |
+| `pr_enrichment_degraded` | list of `basic\|enrichment\|reviews\|fetch` | `ingestion/github_reader.py` | every read step succeeded, or PRs are absent by design |
 
 `pr_review_rounds_median` — median count of `CHANGES_REQUESTED` reviews
 per PR. `pr_single_pass_rate` — fraction of PRs with zero
@@ -374,6 +375,20 @@ per PR. `pr_single_pass_rate` — fraction of PRs with zero
 percentile snapshots survive ingestion drops). The platform aggregates
 these counts across repos to render the org-level Cycle Time view
 without persisting individual PR durations.
+
+`pr_enrichment_degraded` — the steps of the GitHub PR read that failed this
+run and fell back to partial data: `basic` (`gh pr list` for one state failed,
+so that state's PRs are missing), `enrichment` (the GraphQL pass for commit
+refs and merge-commit parents failed, after one retry), `reviews` (the reviews
+pass failed), `fetch` (the whole read raised). Sorted, without repeats. Unlike
+the fields above it does not require PR data: a read that lost every PR still
+reports why. Absent when every step succeeded, and when PRs are absent by
+design — no `gh`, no GitHub remote — because Iris works without PRs. When
+present, this run's PR-derived fields may be missing or skewed — flow and
+`commits_in_prs` go missing, and with `reviews` failed review coverage reads
+0% and the single-pass rate 100% — and `merge_strategy` is `unknown` if
+`enrichment` failed (§28). It is the first field to read when two runs on the
+same commit disagree.
 
 ---
 
@@ -906,6 +921,14 @@ Finding emitted by `narrative.py` (`iris/i18n.py:finding_merge_strategy_*`):
 Platform: indexed columns `merge_strategy` + `commit_metrics_reliable` on
 `metrics` (migration `019`) feed the compare table; the full payload
 carries `merge_strategy_dominant_share` for the repo-detail badge.
+
+**Degraded enrichment.** When the PR read's `enrichment` step failed
+(`pr_enrichment_degraded` contains `enrichment`, from any PR state, §15), the repo is `unknown`
+without classifying: `merge_strategy_dominant_share` is absent and
+`commit_metrics_reliable` is `true`. Without parent counts and commit refs, a
+merge PR falls through to `unknown` while a squash-stamped one still
+classifies, so the fallback could only ever answer `squash` — a mixed repo
+would read as 100% squash, with its per-commit metrics flagged unreliable.
 
 ---
 

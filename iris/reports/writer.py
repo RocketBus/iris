@@ -172,6 +172,14 @@ def write_report_md(
             f"",
         ])
 
+    # At the top, not in the PR section: a failed read can remove that section.
+    if metrics.pr_enrichment_degraded:
+        steps = ", ".join(metrics.pr_enrichment_degraded)
+        lines.extend([
+            f"> ⚠️ {s['pr_enrichment_degraded_caveat'].format(steps=steps)}",
+            f"",
+        ])
+
     lines.extend([
         f"---",
         f"",
