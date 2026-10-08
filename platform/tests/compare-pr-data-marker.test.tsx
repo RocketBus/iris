@@ -65,32 +65,34 @@ async function render(): Promise<string> {
 const count = (text: string, part: string) => text.split(part).length - 1;
 
 describe("CompareView PR-data marker", () => {
-  // Touch and keyboard users get no hover title: the card shows the steps.
-  it("shows the failed steps as text on the mobile card", async () => {
+  // Touch and keyboard users get no hover title, and sighted keyboard users
+  // on the desktop table neither: both layouts show the steps as text.
+  it("shows the failed steps as text in the table and on the card", async () => {
     const html = await render();
 
-    expect(html).toContain(
-      '<span class="sr-only">PR data incomplete: </span>PR list, reviews',
-    );
+    expect(count(html, "<span>PR list, reviews</span>")).toBe(2);
   });
 
-  // The table row keeps the full sentence as screen-reader text; the card
-  // does not repeat it on top of its visible steps.
-  it("announces the full sentence once, in the table", async () => {
+  // Each layout reads the full sentence once: the visible steps (and the
+  // dot) are aria-hidden, and only the sr-only sentence is announced. The
+  // table and the card are never shown at once, so a reader meets one.
+  it("announces the full sentence once per layout", async () => {
     const html = await render();
 
-    expect(count(html, "PR read failed at: PR list, reviews")).toBe(
-      // sr-only in the table, plus the dot's title in the table and the card.
-      3,
-    );
-    expect(count(html, '<span class="sr-only">This run')).toBe(1);
+    expect(count(html, '<span aria-hidden="true" title="This run')).toBe(2);
+    expect(count(html, '<span class="sr-only">This run')).toBe(2);
+    expect(html).not.toContain("PR data incomplete: ");
   });
 
-  it("spaces the card marker with the row gap, not a margin", async () => {
+  // On the card the name truncates: the steps get a line of their own so a
+  // long list cannot squeeze it.
+  it("keeps the steps off the card's name row", async () => {
     const html = await render();
+    const rowStart = html.indexOf('items-baseline gap-2">');
+    const nameRow = html.slice(rowStart, html.indexOf("</div>", rowStart));
 
-    // One degraded repo: only the table marker carries ml-2.
-    expect(count(html, "ml-2 inline-flex")).toBe(1);
+    expect(nameRow).toContain("widgets");
+    expect(nameRow).not.toContain("PR list");
   });
 
   // Amber 500 is ~2.1:1 on the light card, below WCAG 1.4.11's 3:1.

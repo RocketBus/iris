@@ -219,49 +219,36 @@ function MergeStrategyCell({
 }
 
 /**
- * Amber dot next to a repo whose latest run read PR data only partially. The
- * dot is decorative (hover title for sighted users), and a legend under the
- * list says what it means, so nothing hinges on colour or on a tooltip. Amber
- * 600 on light and 500 on dark keep the dot, the only per-row cue, above 3:1
- * against the card (WCAG 1.4.11).
+ * The failed PR-read steps of a repo whose latest run read PR data only
+ * partially, on a line of their own under the repo name in both layouts: an
+ * amber dot (the legend under the list says what it means, so nothing hinges
+ * on colour) and the steps as text, for touch and keyboard users who get no
+ * hover. Amber 600 on light and 500 on dark keep the dot above 3:1 against
+ * the card (WCAG 1.4.11).
  *
- * In the table the failed steps are screen-reader text. The mobile card shows
- * them as text instead (`visible`), since touch and keyboard users get no
- * hover; screen readers then read that text once, after a short sr-only
- * prefix, rather than the full label on top of it.
+ * The dot and the visible steps are aria-hidden, with the full sentence as
+ * their hover title; screen readers get that sentence once, as sr-only text.
  */
-function PrDataMarker({
+function PrDataSteps({
   repo,
   label,
-  visible,
+  steps,
 }: {
   repo: RepoSummary;
   label: string;
-  visible?: { prefix: string; steps: string };
+  steps: string;
 }) {
   if (repo.pr_degraded_steps.length === 0) return null;
-  const dot = (
-    <span
-      aria-hidden="true"
-      title={label}
-      className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-600 dark:bg-amber-500"
-    />
-  );
-  if (visible) {
-    // No margin: the card row already spaces its items with `gap-2`.
-    return (
-      <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
-        {dot}
-        <span>
-          <span className="sr-only">{visible.prefix} </span>
-          {visible.steps}
-        </span>
-      </span>
-    );
-  }
   return (
-    <span className="ml-2 inline-flex flex-shrink-0 items-center align-middle">
-      {dot}
+    <span className="mt-1 flex min-w-0 text-xs text-muted-foreground">
+      <span
+        aria-hidden="true"
+        title={label}
+        className="flex min-w-0 items-center gap-1.5"
+      >
+        <span className="h-2 w-2 flex-shrink-0 rounded-full bg-amber-600 dark:bg-amber-500" />
+        <span>{steps}</span>
+      </span>
       <span className="sr-only">{label}</span>
     </span>
   );
@@ -465,7 +452,11 @@ export function CompareView({ repos }: CompareViewProps) {
                     </td>
                     <td className="py-2 pr-3">
                       <span className="font-mono text-sm">{repo.name}</span>
-                      <PrDataMarker repo={repo} label={prDataTooltip(repo)} />
+                      <PrDataSteps
+                        repo={repo}
+                        label={prDataTooltip(repo)}
+                        steps={formatPrSteps(repo.pr_degraded_steps, t)}
+                      />
                     </td>
                     <MetricCell
                       value={repo.stabilization_ratio}
@@ -568,20 +559,19 @@ export function CompareView({ repos }: CompareViewProps) {
                   className="flex flex-col gap-3 rounded-lg border border-border/60 p-3"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        #{i + 1}
-                      </span>
-                      <span className="truncate font-mono text-sm">
-                        {repo.name}
-                      </span>
-                      <PrDataMarker
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-baseline gap-2">
+                        <span className="text-xs text-muted-foreground">
+                          #{i + 1}
+                        </span>
+                        <span className="truncate font-mono text-sm">
+                          {repo.name}
+                        </span>
+                      </div>
+                      <PrDataSteps
                         repo={repo}
                         label={prDataTooltip(repo)}
-                        visible={{
-                          prefix: `${t("repos.detail.prData.incomplete")}:`,
-                          steps: formatPrSteps(repo.pr_degraded_steps, t),
-                        }}
+                        steps={formatPrSteps(repo.pr_degraded_steps, t)}
                       />
                     </div>
                     <span
