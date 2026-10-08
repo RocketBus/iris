@@ -58,8 +58,21 @@ describe("PR data badge strings", () => {
     ).toContain("flow, review, in-PR and open-PR metrics may be missing");
     expect(
       translations["pt-BR"].repos.detail.prData.incompleteTooltip,
+    ).toContain("de commits em PR e de PRs abertos podem faltar");
+  });
+
+  // A failed merged list omits the PR lifecycle fields, as the engine's
+  // report caveat says.
+  it("names PR lifecycle metrics among what may be missing", () => {
+    expect(
+      translations["en-US"].repos.detail.prData.incompleteTooltip,
     ).toContain(
-      "métricas de flow, de review, de commits em PR e de PRs abertos podem faltar",
+      "PR lifecycle (counts, time to merge, cycle time), flow, review, in-PR and open-PR metrics",
+    );
+    expect(
+      translations["pt-BR"].repos.detail.prData.incompleteTooltip,
+    ).toContain(
+      "métricas de ciclo de vida de PR (contagens, tempo até o merge, cycle time), de flow",
     );
   });
 });

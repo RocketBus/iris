@@ -630,7 +630,7 @@ export const translations = {
             fetch: "PR read",
           },
           incompleteTooltip:
-            "This run's PR read failed at: {steps}. Merge strategy isn't classified when enrichment fails for merged PRs, and flow, review, in-PR and open-PR metrics may be missing or skewed.",
+            "This run's PR read failed at: {steps}. Merge strategy isn't classified when enrichment fails for merged PRs, and PR lifecycle (counts, time to merge, cycle time), flow, review, in-PR and open-PR metrics may be missing or skewed.",
         },
         dora: {
           title: "DORA",
@@ -2204,7 +2204,7 @@ export const translations = {
             fetch: "leitura de PRs",
           },
           incompleteTooltip:
-            "A leitura de PRs desta execução falhou em: {steps}. A estratégia de merge não é classificada quando o enriquecimento dos PRs mergeados falha, e métricas de flow, de review, de commits em PR e de PRs abertos podem faltar ou sair distorcidas.",
+            "A leitura de PRs desta execução falhou em: {steps}. A estratégia de merge não é classificada quando o enriquecimento dos PRs mergeados falha, e métricas de ciclo de vida de PR (contagens, tempo até o merge, cycle time), de flow, de review, de commits em PR e de PRs abertos podem faltar ou sair distorcidas.",
         },
         dora: {
           title: "DORA",
