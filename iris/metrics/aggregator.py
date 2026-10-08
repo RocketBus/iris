@@ -42,7 +42,13 @@ from iris.metrics.stabilization import calculate_stabilization
 from iris.models.commit import Commit
 from iris.models.external import ExternalDORAData
 from iris.models.metrics import ReportMetrics
-from iris.models.pull_request import DEGRADED_ENRICHMENT, DEGRADED_REVIEWS, PullRequest
+from iris.models.pull_request import (
+    DEGRADED_BASIC,
+    DEGRADED_ENRICHMENT,
+    DEGRADED_FETCH,
+    DEGRADED_REVIEWS,
+    PullRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,13 +75,15 @@ def aggregate(
     prs: list[PullRequest] | None = None,
     external_data: ExternalDORAData | None = None,
     pr_fetch_degraded: tuple[str, ...] = (),
+    pr_fetch_degraded_by_state: dict[str, tuple[str, ...]] | None = None,
 ) -> ReportMetrics:
     """Run all analyses on commits and return the combined ReportMetrics.
 
     Args:
         commits: Commits from git_reader (sorted by date ascending).
         churn_days: Churn/stabilization window in days.
-        prs: Optional list of merged PRs from github_reader.
+        prs: Optional PRs from github_reader, in all three states (merged,
+            closed and open); each analysis keeps the states it reads.
         external_data: Optional pre-fetched DORA events (deployments +
             incidents) from a connected provider — currently Datadog. When
             provided, populates the ``dora_*`` fields on ReportMetrics;
@@ -87,18 +95,52 @@ def aggregate(
             merge strategy is not classified; when it includes ``reviews``
             every review-derived field is omitted rather than reported as
             the 0% / 100% an empty review list would give.
+        pr_fetch_degraded_by_state: The same steps per PR state
+            (`PullRequestFetch.degraded_by_state`). Each omission then
+            follows the state that feeds the field: merged PRs for review,
+            flow, acceptance and merge strategy, open PRs for staleness;
+            closed PRs feed only Flow Load, which every state feeds. A
+            state whose list (``basic``) failed is missing for everything
+            it feeds: merged for the PR lifecycle, review, flow, coverage,
+            acceptance, merge strategy and the timeline's ``prs_merged``;
+            open for every open-PR field; any state for Flow Load. Without
+            it (None or empty) every state takes ``pr_fetch_degraded``,
+            where ``fetch`` (the whole read raised) means every list failed.
 
     Returns:
         ReportMetrics with all fields populated. PR fields are None
         when prs is None or empty.
     """
-    # With the reviews pass failed every PR has no reviews: review-derived
-    # fields would read as fabricated facts, so they are left out.
-    reviews_degraded = DEGRADED_REVIEWS in pr_fetch_degraded
-    # Acceptance and open-PR staleness read the commit pushes (commit_refs)
-    # that come from the enrichment pass; without them acceptance would read
-    # 0 commits in PRs and staleness would be inflated.
-    enrichment_degraded = DEGRADED_ENRICHMENT in pr_fetch_degraded
+    if pr_fetch_degraded_by_state:
+        merged_degraded = pr_fetch_degraded_by_state.get("merged", ())
+        open_degraded = pr_fetch_degraded_by_state.get("open", ())
+        every_state_degraded = list(pr_fetch_degraded_by_state.values())
+    else:
+        merged_degraded = open_degraded = pr_fetch_degraded
+        every_state_degraded = [pr_fetch_degraded]
+    # A state whose list failed (`basic`) has no PRs here while the others
+    # do; with `fetch` (the whole read raised, so only the union carries it)
+    # no state has any. Whatever a missing state feeds would read as a real
+    # zero — 0% acceptance, 0 PRs merged a week, a WIP short of its PRs — so
+    # it is left out, as with no PRs at all.
+    list_failed = {DEGRADED_BASIC, DEGRADED_FETCH}
+    merged_missing = not list_failed.isdisjoint(merged_degraded)
+    open_missing = not list_failed.isdisjoint(open_degraded)
+    any_list_missing = any(
+        not list_failed.isdisjoint(steps) for steps in every_state_degraded
+    )
+    # With the reviews pass failed every merged PR has no reviews:
+    # review-derived fields would read as fabricated facts, so they are left out.
+    reviews_degraded = DEGRADED_REVIEWS in merged_degraded
+    # Acceptance and merge strategy read the commit pushes (commit_refs) that
+    # come from the enrichment pass; without them acceptance would read
+    # 0 commits in PRs.
+    enrichment_degraded = DEGRADED_ENRICHMENT in merged_degraded
+    # Open-PR staleness is measured from the last review or commit push;
+    # without either it would read older than it is.
+    staleness_degraded = (
+        DEGRADED_REVIEWS in open_degraded or DEGRADED_ENRICHMENT in open_degraded
+    )
 
     churn_result = calculate_churn(commits, churn_days)
     stab_result = calculate_stabilization(commits, churn_days)
@@ -271,9 +313,12 @@ def aggregate(
                 for c in churn_detail.couplings
             ]
 
-    # Activity timeline
+    # Activity timeline. Without the merged list, `prs_merged` per week is
+    # unknown (None), not 0.
     timeline_kwargs: dict = {}
-    timeline_result = calculate_activity_timeline(commits, churn_days, prs=prs)
+    timeline_result = calculate_activity_timeline(
+        commits, churn_days, prs=None if merged_missing else prs,
+    )
     if timeline_result:
         timeline_kwargs["activity_timeline"] = [
             {
@@ -302,7 +347,7 @@ def aggregate(
 
     # Acceptance rate (requires PR data with commit hashes)
     acceptance_kwargs: dict = {}
-    if prs and not enrichment_degraded:
+    if prs and not merged_missing and not enrichment_degraded:
         acceptance_result = calculate_acceptance_rate(commits, prs)
         if acceptance_result:
             if acceptance_result.by_origin:
@@ -318,7 +363,7 @@ def aggregate(
     # Its phases anchor on the first review: with the reviews read failed,
     # every PR would count as never reviewed, so the block is left out.
     flow_efficiency_kwargs: dict = {}
-    if prs and not reviews_degraded:
+    if prs and not merged_missing and not reviews_degraded:
         flow_efficiency_result = analyze_flow_efficiency(
             prs,
             commit_origin_map=origin_map,
@@ -348,7 +393,7 @@ def aggregate(
 
     # Human Review Coverage — fraction of merged PRs a human actually reviewed
     human_review_coverage_kwargs: dict = {}
-    if prs and not reviews_degraded:
+    if prs and not merged_missing and not reviews_degraded:
         coverage_result = analyze_human_review_coverage(
             prs,
             commit_origin_map=origin_map,
@@ -371,7 +416,7 @@ def aggregate(
 
     # Open PR Aging — snapshot of stuck inventory (non-draft, non-bot)
     open_pr_aging_kwargs: dict = {}
-    if prs:
+    if prs and not open_missing:
         aging_result = analyze_open_pr_aging(
             prs,
             now=now_utc(),
@@ -389,9 +434,7 @@ def aggregate(
                 open_pr_aging_kwargs["median_open_pr_age_by_intent"] = (
                     aging_result.median_open_pr_age_by_intent
                 )
-            # Staleness is measured from the last review or commit; without
-            # the reviews or the commit pushes it would read older than it is.
-            if not reviews_degraded and not enrichment_degraded:
+            if not staleness_degraded:
                 open_pr_aging_kwargs["stale_open_pr_pct"] = (
                     aging_result.stale_open_pr_pct
                 )
@@ -401,11 +444,7 @@ def aggregate(
                 open_pr_aging_kwargs["abandonment_risk_pct"] = (
                     aging_result.abandonment_risk_pct
                 )
-            if (
-                not reviews_degraded
-                and not enrichment_degraded
-                and aging_result.stale_open_pr_pct_by_origin
-            ):
+            if not staleness_degraded and aging_result.stale_open_pr_pct_by_origin:
                 open_pr_aging_kwargs["stale_open_pr_pct_by_origin"] = (
                     aging_result.stale_open_pr_pct_by_origin
                 )
@@ -415,7 +454,7 @@ def aggregate(
     # PR ground truth (merge_commit_parent_count) and commit_refs with the
     # local main history. Strictly per-repository — no author axis.
     merge_strategy_kwargs: dict = {}
-    if prs:
+    if prs and not merged_missing:
         merge_strategy_result = detect_merge_strategy(
             prs,
             commits,
@@ -436,9 +475,11 @@ def aggregate(
                 merge_strategy_result.distribution,
             )
 
-    # Flow Load — WIP per ISO week (PRs in flight + author concurrency)
+    # Flow Load — WIP per ISO week (PRs in flight + author concurrency).
+    # Every PR state is in flight at some point, so a missing list in any of
+    # them would undercount the WIP.
     flow_load_kwargs: dict = {}
-    flow_load_result = analyze_flow_load(prs or [], commits)
+    flow_load_result = None if any_list_missing else analyze_flow_load(prs or [], commits)
     if flow_load_result:
         flow_load_kwargs["flow_load"] = [
             {
@@ -454,7 +495,7 @@ def aggregate(
 
     # PR lifecycle (optional — only over merged PRs)
     pr_kwargs: dict = {}
-    if prs:
+    if prs and not merged_missing:
         pr_result = analyze_pr_lifecycle(prs)
         if pr_result is not None:
             pr_kwargs = {

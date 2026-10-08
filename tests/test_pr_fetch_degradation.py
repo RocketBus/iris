@@ -71,6 +71,8 @@ import json
 import subprocess
 from types import SimpleNamespace
 
+import pytest
+
 
 def _ok(payload) -> SimpleNamespace:
     return SimpleNamespace(returncode=0, stdout=json.dumps(payload), stderr="")
@@ -99,10 +101,12 @@ def _fake_gh(monkeypatch, *, full=None, basic=None, graphql=(), reviews=None):
     """Route each gh call to a scripted answer.
 
     `full`, `basic` and `reviews` are a payload, or an exception to raise.
+    `reviews` can also be a tuple of answers for successive reviews calls.
     `graphql` is the sequence of answers for successive GraphQL calls. Returns
     the list of pauses the retry slept, so a test can assert on them.
     """
     graphql_answers = list(graphql)
+    reviews_answers = list(reviews) if isinstance(reviews, tuple) else None
     sleeps: list[float] = []
 
     def answer(spec, cmd):
@@ -117,6 +121,8 @@ def _fake_gh(monkeypatch, *, full=None, basic=None, graphql=(), reviews=None):
             return answer(graphql_answers.pop(0), cmd)
         fields = cmd[cmd.index("--json") + 1]
         if fields == "number,reviews":
+            if reviews_answers is not None:
+                return answer(reviews_answers.pop(0), cmd)
             return answer(reviews, cmd)
         if "commits" in fields:
             return answer(full, cmd)
@@ -129,6 +135,14 @@ def _fake_gh(monkeypatch, *, full=None, basic=None, graphql=(), reviews=None):
 
 def _failure() -> subprocess.CalledProcessError:
     return subprocess.CalledProcessError(1, ["gh"], stderr="HTTP 504")
+
+
+# Errors that fail the same way on a second try: retrying them only waits.
+_DETERMINISTIC_STDERR = (
+    "HTTP 401: Bad credentials (https://api.github.com/graphql)",
+    "gh: Not Found (HTTP 404)",
+    "GraphQL: Could not resolve to a Repository with the name 'acme/widgets'. (repository)",
+)
 
 
 def test_enrichment_completes_on_a_single_page(monkeypatch):
@@ -148,7 +162,7 @@ def test_enrichment_retries_once_and_recovers(monkeypatch):
 
     assert sorted(by_pr) == [1]
     assert complete is True
-    assert sleeps == [github_reader._ENRICHMENT_RETRY_DELAY_S]
+    assert sleeps == [github_reader._RETRY_DELAY_S]
 
 
 def test_enrichment_that_fails_twice_is_incomplete(monkeypatch):
@@ -158,7 +172,135 @@ def test_enrichment_that_fails_twice_is_incomplete(monkeypatch):
 
     assert by_pr == {}
     assert complete is False
-    assert sleeps == [github_reader._ENRICHMENT_RETRY_DELAY_S]
+    assert sleeps == [github_reader._RETRY_DELAY_S]
+
+
+@pytest.mark.parametrize("stderr", _DETERMINISTIC_STDERR)
+def test_enrichment_does_not_retry_a_deterministic_error(monkeypatch, stderr):
+    # One scripted answer: a second call would find the script empty and raise.
+    sleeps = _fake_gh(monkeypatch, graphql=[
+        subprocess.CalledProcessError(1, ["gh"], stderr=stderr),
+    ])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql("acme/widgets", "merged", 500)
+
+    assert by_pr == {}
+    assert complete is False
+    assert sleeps == []
+
+
+# A repo whose name looks like a transient error must not make a
+# deterministic error look transient, and must not hide a real one.
+_TIMEOUT_REPO = "acme/timeout-svc"
+
+
+@pytest.mark.parametrize("stderr", [
+    "GraphQL: Could not resolve to a Repository with the name 'acme/timeout-svc'. (repository)",
+    "HTTP 404: Not Found (https://api.github.com/repos/acme/timeout-svc/pulls)",
+    "no pull requests match your search in timeout-svc",
+    "GraphQL: Field 'oid' is not defined on any part thereof (query)",
+])
+def test_enrichment_does_not_read_the_repo_name_as_a_transient_error(monkeypatch, stderr):
+    sleeps = _fake_gh(monkeypatch, graphql=[
+        subprocess.CalledProcessError(1, ["gh"], stderr=stderr),
+    ])
+
+    _by_pr, complete = github_reader._fetch_pr_enrichment_graphql(_TIMEOUT_REPO, "merged", 500)
+
+    assert complete is False
+    assert sleeps == []
+
+
+@pytest.mark.parametrize("nwo, stderr", [
+    (_TIMEOUT_REPO, "HTTP 504: Gateway Timeout (https://api.github.com/graphql)"),
+    (_TIMEOUT_REPO, "Post \"https://api.github.com/graphql\": unexpected EOF"),
+    ("acme/out", "dial tcp: i/o timeout"),
+    ("acme/out", "read: connection reset by peer"),
+    ("acme/widgets", "GraphQL: Something went wrong while executing your query. "
+                     "This may be the result of a timeout, or it could be a GitHub bug."),
+])
+def test_enrichment_still_retries_a_transient_error(monkeypatch, nwo, stderr):
+    sleeps = _fake_gh(monkeypatch, graphql=[
+        subprocess.CalledProcessError(1, ["gh"], stderr=stderr), _graphql_page([1]),
+    ])
+
+    by_pr, complete = github_reader._fetch_pr_enrichment_graphql(nwo, "merged", 500)
+
+    assert sorted(by_pr) == [1]
+    assert complete is True
+    assert sleeps == [github_reader._RETRY_DELAY_S]
+
+
+def test_reviews_pass_does_not_read_the_repo_name_as_a_transient_error(monkeypatch):
+    sleeps = _fake_gh(
+        monkeypatch,
+        basic=[{"number": 1}],
+        graphql=[_graphql_page([1])],
+        reviews=(subprocess.CalledProcessError(
+            1, ["gh"], stderr="GraphQL: Could not resolve to a Repository with "
+                              "the name 'acme/timeout-svc'. (repository)"),),
+    )
+
+    _prs, degraded = github_reader._fetch_prs(_TIMEOUT_REPO, 1000, "merged")
+
+    assert degraded == {"reviews"}
+    assert sleeps == []
+
+
+def test_reviews_pass_retries_a_transient_failure_and_recovers(monkeypatch):
+    review = {"author": {"login": "reviewer"}, "state": "APPROVED",
+              "submittedAt": "2026-09-01T00:00:00Z"}
+    sleeps = _fake_gh(
+        monkeypatch,
+        basic=[{"number": 1}],
+        graphql=[_graphql_page([1])],
+        reviews=(_failure(), [{"number": 1, "reviews": [review]}]),
+    )
+
+    prs, degraded = github_reader._fetch_prs("acme/widgets", 1000, "merged")
+
+    assert prs[0]["reviews"] == [review]
+    assert degraded == set()
+    assert sleeps == [github_reader._RETRY_DELAY_S]
+
+
+def test_reviews_pass_that_fails_twice_is_reported(monkeypatch):
+    sleeps = _fake_gh(
+        monkeypatch,
+        basic=[{"number": 1}],
+        graphql=[_graphql_page([1])],
+        reviews=(_failure(), _failure()),
+    )
+
+    _prs, degraded = github_reader._fetch_prs("acme/widgets", 1000, "merged")
+
+    assert degraded == {"reviews"}
+    assert sleeps == [github_reader._RETRY_DELAY_S]
+
+
+@pytest.mark.parametrize("stderr", _DETERMINISTIC_STDERR)
+def test_reviews_pass_does_not_retry_a_deterministic_error(monkeypatch, stderr):
+    sleeps = _fake_gh(
+        monkeypatch,
+        basic=[{"number": 1}],
+        graphql=[_graphql_page([1])],
+        reviews=(subprocess.CalledProcessError(1, ["gh"], stderr=stderr),),
+    )
+
+    _prs, degraded = github_reader._fetch_prs("acme/widgets", 1000, "merged")
+
+    assert degraded == {"reviews"}
+    assert sleeps == []
+
+
+def test_basic_list_is_not_retried(monkeypatch):
+    sleeps = _fake_gh(monkeypatch, basic=_failure())
+
+    prs, degraded = github_reader._fetch_prs("acme/widgets", 1000, "merged")
+
+    assert prs == []
+    assert degraded == {"basic"}
+    assert sleeps == []
 
 
 def test_enrichment_failing_on_a_later_page_keeps_what_it_has_but_is_incomplete(monkeypatch):
@@ -259,6 +401,13 @@ def test_degraded_steps_from_every_state_are_merged_and_sorted(monkeypatch):
     fetch = github_reader.read_pull_requests("/any/repo", days=30)
 
     assert fetch.degraded == ("enrichment", "reviews")
+    # Each state keeps its own steps, so a metric can be gated on the state
+    # that feeds it.
+    assert fetch.degraded_by_state == {
+        "merged": ("enrichment", "reviews"),
+        "closed": (),
+        "open": ("enrichment",),
+    }
 
 
 # --- the signal in the metrics ---------------------------------------------
@@ -958,3 +1107,248 @@ def test_cli_metrics_json_keeps_the_funnel_on_a_clean_run(tmp_path, monkeypatch)
         tmp_path, monkeypatch, PullRequestFetch(prs=[], degraded=()))
 
     assert "origin_funnel" in payload
+
+
+# --- the gate follows the PR state that feeds each metric -------------------
+#
+# A step can fail for one PR state only. Review, flow, acceptance and merge
+# strategy read merged PRs; staleness reads open PRs; closed PRs feed only the
+# basic list. A failure in one state leaves the metrics of the others alone,
+# while `pr_enrichment_degraded` still lists the union.
+
+
+def _per_state(**steps) -> dict[str, tuple[str, ...]]:
+    return {"merged": (), "closed": (), "open": (), **steps}
+
+
+def _payload(degraded, by_state=None) -> dict:
+    return aggregate(
+        _stamped_commits(), churn_days=14, prs=_reviewed_prs() + _open_prs(),
+        pr_fetch_degraded=degraded, pr_fetch_degraded_by_state=by_state,
+    ).to_dict()
+
+
+def test_reviews_degraded_only_for_open_prs_omits_only_staleness():
+    clean = _payload(())
+    payload = _payload(("reviews",), _per_state(open=("reviews",)))
+
+    assert payload.pop("pr_enrichment_degraded") == ["reviews"]
+    assert payload["pr_single_pass_rate"] == clean["pr_single_pass_rate"]
+    assert payload["flow_efficiency_median"] == clean["flow_efficiency_median"]
+    for key in _STALENESS_KEYS:
+        assert key not in payload, key
+        clean.pop(key, None)
+    assert payload == clean
+
+
+def test_enrichment_degraded_only_for_closed_prs_omits_nothing():
+    clean = _payload(())
+    payload = _payload(("enrichment",), _per_state(closed=("enrichment",)))
+
+    assert payload.pop("pr_enrichment_degraded") == ["enrichment"]
+    assert payload["merge_strategy"] != "unknown"
+    assert payload["flow_efficiency_median"] == clean["flow_efficiency_median"]
+    assert payload["acceptance_by_origin"] == clean["acceptance_by_origin"]
+    assert payload == clean
+
+
+def test_enrichment_degraded_only_for_merged_prs_keeps_staleness():
+    payload = _payload(("enrichment",), _per_state(merged=("enrichment",)))
+
+    assert payload["merge_strategy"] == "unknown"
+    assert "acceptance_by_origin" not in payload
+    for key in _STALENESS_KEYS:
+        if key != "stale_open_pr_pct_by_origin":
+            assert key in payload, key
+
+
+def test_origin_funnel_follows_the_merged_enrichment():
+    def funnel(by_state):
+        return calculate_origin_funnel(aggregate(
+            _commits_with_ai(), churn_days=14, prs=_reviewed_prs(),
+            pr_fetch_degraded=("enrichment",), pr_fetch_degraded_by_state=by_state,
+        ))
+
+    assert funnel(_per_state(open=("enrichment",))) is not None
+    assert funnel(_per_state(merged=("enrichment",))) is None
+
+
+@pytest.mark.parametrize("entry", ["cli", "org_runner"])
+def test_every_aggregate_call_gets_the_per_state_degradation(tmp_path, monkeypatch, entry):
+    from iris import cli, org_runner
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _build_repo(repo)
+    fetch = PullRequestFetch(
+        prs=_reviewed_prs(), degraded=("reviews",),
+        degraded_by_state=_per_state(open=("reviews",)),
+    )
+    module = cli if entry == "cli" else org_runner
+    monkeypatch.setattr(module, "read_pull_requests_with_fallback", lambda *a, **k: fetch)
+    _adoption_after_first_commit(monkeypatch)
+    calls: list[dict] = []
+    real_aggregate = module.aggregate
+
+    def spy(*args, **kwargs):
+        calls.append(kwargs)
+        return real_aggregate(*args, **kwargs)
+
+    monkeypatch.setattr(module, "aggregate", spy)
+
+    if entry == "cli":
+        cli._run_single_repo(argparse.Namespace(
+            repo_path=str(repo), days=30, churn_days=14, lang="en", recent_days=30,
+            verbose=False, trend=True, out=str(tmp_path / "out"), no_push=True,
+        ))
+    else:
+        org_runner.analyze_single_repo(
+            str(repo), days=30, churn_days=14, out_dir=str(tmp_path / "out"),
+            trend_enabled=True,
+        )
+
+    # Main run, trend window, pre- and post-adoption.
+    assert len(calls) == 4
+    for kwargs in calls:
+        assert kwargs["pr_fetch_degraded"] == ("reviews",)
+        assert kwargs["pr_fetch_degraded_by_state"] == fetch.degraded_by_state
+    payload = _metrics_json(tmp_path / "out")
+    assert payload["pr_enrichment_degraded"] == ["reviews"]
+    assert "pr_single_pass_rate" in payload
+
+
+# --- a failed list omits what its state feeds -------------------------------
+#
+# When `gh pr list` fails for a state, that state's PRs are missing while the
+# others are read: the PR list is not empty, so every metric the missing state
+# feeds would read as a real zero (0% acceptance, 0 PRs merged a week, a WIP
+# short of the PRs in flight). Those are left out instead.
+
+# Fed by merged PRs: lifecycle, review, flow, coverage, acceptance, strategy.
+_MERGED_FED_KEYS = (
+    "pr_merged_count",
+    "pr_median_time_to_merge_hours",
+    "pr_mean_time_to_merge_hours",
+    "pr_p90_time_to_merge_hours",
+    "pr_pct_merged_within_24h",
+    "pr_cycle_time_buckets",
+    "pr_median_size_files",
+    "pr_median_size_lines",
+    *_REVIEW_KEYS,
+    *_FLOW_KEYS,
+    "acceptance_by_origin",
+    "acceptance_by_tool",
+    "merge_strategy",
+    "merge_strategy_dominant_share",
+    "commit_metrics_reliable",
+)
+_OPEN_FED_KEYS = (*_AGE_KEYS, "median_open_pr_age_by_intent", *_STALENESS_KEYS)
+
+
+def _closed_prs() -> list[PullRequest]:
+    return [
+        PullRequest(number=200 + n, title=f"closed {n}", author="dev",
+                    created_at=_NOW, additions=1, deletions=0, changed_files=1,
+                    closed_at=_NOW + timedelta(hours=n), state="closed",
+                    commit_refs=[CommitRef(hash=f"c{n}", committed_at=_NOW)])
+        for n in range(1, 4)
+    ]
+
+
+def _two_week_commits() -> list[Commit]:
+    # The activity timeline needs at least two ISO weeks of commits.
+    later = Commit(hash="c9", author="dev", date=_NOW + timedelta(days=8),
+                   message="change 9 (#9)")
+    return _stamped_commits() + [later]
+
+
+def _list_payload(prs, degraded, by_state) -> dict:
+    return aggregate(
+        _two_week_commits(), churn_days=14, prs=prs,
+        pr_fetch_degraded=degraded, pr_fetch_degraded_by_state=by_state,
+    ).to_dict()
+
+
+def test_missing_merged_list_omits_what_merged_prs_feed():
+    payload = _list_payload(
+        _closed_prs() + _open_prs(), ("basic",), _per_state(merged=("basic",)))
+
+    for key in _MERGED_FED_KEYS:
+        assert key not in payload, key
+    assert "flow_load" not in payload
+    assert payload["activity_timeline"]
+    for week in payload["activity_timeline"]:
+        assert week["prs_merged"] is None
+        assert week["pr_median_ttm_hours"] is None
+    # The open list was read: its fields stay.
+    for key in _AGE_KEYS:
+        assert key in payload, key
+
+
+def test_missing_open_list_omits_every_open_pr_field():
+    clean = _list_payload(_reviewed_prs() + _closed_prs(), (), None)
+    payload = _list_payload(
+        _reviewed_prs() + _closed_prs(), ("basic",), _per_state(open=("basic",)))
+
+    for key in _OPEN_FED_KEYS:
+        assert key not in payload, key
+    assert "flow_load" not in payload
+    # The merged list was read: its fields stay as on a clean run.
+    assert payload["pr_merged_count"] == 6
+    assert payload["acceptance_by_origin"] == clean["acceptance_by_origin"]
+    assert payload["activity_timeline"] == clean["activity_timeline"]
+
+
+def test_missing_closed_list_omits_only_flow_load():
+    prs = _reviewed_prs() + _closed_prs() + _open_prs()
+    clean = _list_payload(prs, (), None)
+    payload = _list_payload(prs, ("basic",), _per_state(closed=("basic",)))
+
+    assert clean["flow_load"]
+    assert payload.pop("pr_enrichment_degraded") == ["basic"]
+    clean.pop("flow_load")
+    assert payload == clean
+
+
+@pytest.mark.parametrize("by_state", [None, {}])
+def test_missing_list_without_the_per_state_dict_omits_every_state(by_state):
+    payload = _list_payload(
+        _reviewed_prs() + _closed_prs() + _open_prs(), ("basic",), by_state)
+
+    for key in (*_MERGED_FED_KEYS, *_OPEN_FED_KEYS, "flow_load"):
+        assert key not in payload, key
+    for week in payload["activity_timeline"]:
+        assert week["prs_merged"] is None
+
+
+@pytest.mark.parametrize("degraded, by_state", [
+    (("fetch",), {}),
+    (("basic",), _per_state(merged=("basic",), closed=("basic",), open=("basic",))),
+])
+def test_read_that_lost_every_list_leaves_no_pr_zeros(degraded, by_state):
+    payload = _list_payload([], degraded, by_state)
+
+    assert "flow_load" not in payload
+    for week in payload["activity_timeline"]:
+        assert week["prs_merged"] is None
+
+
+@pytest.mark.parametrize("prs", [None, []])
+def test_prs_absent_by_design_keep_flow_load(prs):
+    # No gh or no GitHub remote: nothing failed, so nothing is left out.
+    payload = _list_payload(prs, (), None)
+
+    assert "flow_load" in payload
+
+
+# --- without the per-state dict, the union applies ---------------------------
+
+
+@pytest.mark.parametrize("by_state", [None, {}])
+def test_reviews_without_the_per_state_dict_omit_merged_and_open_metrics(by_state):
+    payload = _payload(("reviews",), by_state)
+
+    for key in (*_REVIEW_KEYS, *_FLOW_KEYS, *_STALENESS_KEYS):
+        assert key not in payload, key
+    for key in _AGE_KEYS:
+        assert key in payload, key

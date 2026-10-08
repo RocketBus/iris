@@ -236,15 +236,17 @@ its PR (if any) and aggregated by origin and AI tool.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `acceptance_by_origin` | `Record<origin, AcceptanceMetrics>` | `analysis/acceptance_rate.py` | no PR data, or < 5 commits per origin, or `enrichment` degraded |
-| `acceptance_by_tool` | `Record<tool, AcceptanceMetrics>` | same | < 5 commits per tool, or `enrichment` degraded |
+| `acceptance_by_origin` | `Record<origin, AcceptanceMetrics>` | `analysis/acceptance_rate.py` | no PR data, or < 5 commits per origin, or `basic` or `enrichment` failed for merged PRs |
+| `acceptance_by_tool` | `Record<tool, AcceptanceMetrics>` | same | < 5 commits per tool, or `basic` or `enrichment` failed for merged PRs |
 
 `AcceptanceMetrics`: `total_commits`, `commits_in_prs`,
 `pr_rate` (commits in PRs / total), `single_pass_rate` (PRs merged with
-zero `CHANGES_REQUESTED` / PRs), `median_review_rounds`. The last two are omitted when `reviews` is in
-`pr_enrichment_degraded` (§15). Both maps are omitted entirely when `enrichment`
-is in `pr_enrichment_degraded`: commits are matched to PRs through the commit
+zero `CHANGES_REQUESTED` / PRs), `median_review_rounds`. The last two are omitted when `reviews` failed
+for merged PRs (§15). Both maps are omitted entirely when `enrichment` failed
+for merged PRs: commits are matched to PRs through the commit
 refs that pass reads, so without them every group would read 0 commits in PRs.
+The same goes when the merged list itself failed (`basic`): with no merged PRs
+to match, every group would read 0 too.
 
 ---
 
@@ -256,23 +258,28 @@ dataclass is always `None`; the field only exists in the emitted JSON.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `origin_funnel` | `Record<origin, { stages[], overall_conversion }>` | `analysis/origin_funnel.py` (via `reports/writer.py`) | no `commit_origin_distribution`, or `pr_enrichment_degraded` present and `acceptance_by_origin` absent |
+| `origin_funnel` | `Record<origin, { stages[], overall_conversion }>` | `analysis/origin_funnel.py` (via `reports/writer.py`) | no `commit_origin_distribution`, or `pr_enrichment_degraded` present and `acceptance_by_origin` absent (`basic` or `enrichment` failed for merged PRs, or `fetch`) |
 
 The whole funnel is omitted when `pr_enrichment_degraded` (§15) is present and
 `acceptance_by_origin` is absent: its `In PR` stage reads acceptance, and every
-later conversion chains from that stage. That covers a failed `enrichment`,
-which omits acceptance (§9), and a read that lost the PRs — `basic` failed for
-every state, or `fetch` — which leaves no PRs to match commits to. Only when
-PRs are absent by design (no `gh`, no GitHub remote; nothing degraded) does
-`In PR` fall back to counting every commit as in a PR.
+later conversion chains from that stage. That covers a failed `basic` or
+`enrichment` for merged PRs, which omits acceptance (§9), and `fetch`, which
+leaves no PRs to match commits to. A failure confined to closed or open PRs
+does not remove acceptance or the funnel: they stay whenever a clean run
+would have them — acceptance still needs an origin with at least 5 commits
+(§9), and the funnel a `commit_origin_distribution`.
+Only when PRs are absent by design (no `gh`, no GitHub remote; nothing
+degraded) does `In PR` fall back to counting every commit as in a PR.
 
 Stages: `Committed` → `In PR` → `Stabilized` → `Lines Surviving` (the
 last stage only when durability data is available). Each stage carries
 `count` and `conversion_from_previous`. `overall_conversion` is the
 product of conversions.
 
-**Limitation:** `PR → Merge` is not measured — Iris only fetches merged
-PRs.
+**Limitation:** `PR → Merge` is not measured. Iris reads merged, closed and
+open PRs, but `In PR` comes from acceptance (§9), which counts only commits in
+merged PRs: a commit in a PR still open or closed without merging reads as not
+in a PR, and no stage follows the PRs that never merge.
 
 ---
 
@@ -344,7 +351,9 @@ weeks.
 `ActivityWeek`: `week_start`/`week_end` (ISO date), `commits`,
 `lines_changed`, `intent` (distribution), `origin` (distribution),
 `stabilization_ratio` (or `None` for weeks < 3 commits), `churn_events`,
-`prs_merged`, `pr_median_ttm_hours`.
+`prs_merged`, `pr_median_ttm_hours` (both `None` with no PR data, or when the
+merged list failed — `basic` for merged PRs, or `fetch` — rather than 0 PRs
+merged; §15).
 
 `ActivityPattern`: `pattern` (one of `burst_then_fix`, `quiet_period`,
 `ai_ramp`, `intent_shift`), `week` (`MM/DD`), `description`.
@@ -363,7 +372,7 @@ All fields require GitHub PR data.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `pr_merged_count` | int ≥ 0 | `analysis/pr_lifecycle.py` | no PR data |
+| `pr_merged_count` | int ≥ 0 | `analysis/pr_lifecycle.py` | no PR data, or `basic` failed for merged PRs |
 | `pr_median_time_to_merge_hours` | float ≥ 0 | same | same |
 | `pr_mean_time_to_merge_hours` | float ≥ 0 | same | same |
 | `pr_p90_time_to_merge_hours` | float ≥ 0 | same | same |
@@ -371,8 +380,8 @@ All fields require GitHub PR data.
 | `pr_cycle_time_buckets` | `{same_day, one_day, two_to_three_days, four_to_seven_days, seven_plus_days}` ints | same | same |
 | `pr_median_size_files` | int ≥ 0 | same | same |
 | `pr_median_size_lines` | int ≥ 0 | same | same |
-| `pr_review_rounds_median` | float ≥ 0 | same | same, or `reviews` degraded |
-| `pr_single_pass_rate` | float `0.0–1.0` | same | same, or `reviews` degraded |
+| `pr_review_rounds_median` | float ≥ 0 | same | same, or `reviews` failed for merged PRs |
+| `pr_single_pass_rate` | float `0.0–1.0` | same | same, or `reviews` failed for merged PRs |
 | `pr_enrichment_degraded` | list of `basic\|enrichment\|reviews\|fetch` | `ingestion/github_reader.py` | every read step succeeded, or PRs are absent by design |
 
 `pr_review_rounds_median` — median count of `CHANGES_REQUESTED` reviews
@@ -390,16 +399,23 @@ without persisting individual PR durations.
 `pr_enrichment_degraded` — the steps of the GitHub PR read that failed this
 run and fell back to partial data: `basic` (`gh pr list` for one state failed,
 so that state's PRs are missing), `enrichment` (the GraphQL pass for commit
-refs and merge-commit parents failed, after one retry), `reviews` (the reviews
-pass failed), `fetch` (the whole read raised). Sorted, without repeats. Unlike
-the fields above it does not require PR data: a read that lost every PR still
-reports why. Absent when every step succeeded, and when PRs are absent by
-design — no `gh`, no GitHub remote — because Iris works without PRs. When
-present, this run's PR-derived fields may be missing or skewed — flow and
-`commits_in_prs` go missing — and `merge_strategy` is `unknown` if
-`enrichment` failed (§28). With `reviews` failed every PR carries no reviews,
-so the fields derived from them are omitted rather than reported as the 0%
-coverage and 100% single-pass an empty review list would give:
+refs and merge-commit parents failed; a pass that stops on any page counts as
+failed, even when earlier pages came back), `reviews` (the reviews pass
+failed), `fetch` (the whole read raised). The enrichment and reviews passes
+get one retry when gh reports a transient error (HTTP 5xx, a timeout —
+GitHub's GraphQL "may be the result of a timeout" error included — or a
+dropped connection); a 4xx or other GraphQL error is not retried. Sorted,
+without repeats. Unlike the fields above it does not require PR data: a read
+that lost every PR still reports why. Absent when every step succeeded, and
+when PRs are absent by design — no `gh`, no GitHub remote — because Iris works
+without PRs. When present, this run's PR-derived fields may be missing or
+skewed. With `enrichment` failed for merged PRs, Flow Efficiency (§25) is
+computed only over the merged PRs whose commit refs came back, so it is
+skewed rather than missing (unless none came back); `commits_in_prs` goes
+missing with acceptance (§9); and `merge_strategy` is `unknown` (§28). With
+`reviews` failed every PR carries no reviews, so the fields derived from them
+are omitted rather than reported as the 0% coverage and 100% single-pass an
+empty review list would give:
 `pr_review_rounds_median`, `pr_single_pass_rate`,
 `median_time_to_first_review_hours`, `human_review_coverage_pct`,
 `human_approval_coverage_pct`, `human_review_coverage_by_intent`,
@@ -414,8 +430,30 @@ fields are omitted then too, and `acceptance_by_origin` and `acceptance_by_tool`
 (§9) are omitted whole, since they match commits to PRs through those same
 refs. Open PR count and ages (`open_pr_count`, `median_open_pr_age_days`,
 `p90_open_pr_age_days`, `median_open_pr_age_by_intent`) are kept, since age
-depends only on the creation time. It is the first field to read when two runs on the
-same commit disagree.
+depends only on the creation time — unless the open list itself failed (see
+below). It is the first field to read when two runs on the same commit
+disagree.
+
+The read fetches merged, closed and open PRs separately, and a step can fail
+for one state only, so each omission above follows the state that feeds the
+field. The review fields, Flow Efficiency, acceptance (§9) and merge strategy
+(§28) read merged PRs: only a failure for merged PRs omits them. Staleness
+reads open PRs: only a failure for open PRs omits it. Closed PRs feed only
+Flow Load (§24), and only through their list, so a failed enrichment or
+reviews pass there omits nothing. `pr_enrichment_degraded` still lists the
+union over the three states.
+
+When a state's list failed (`basic`), its PRs are missing while the other
+states' are read, so whatever it feeds would read as a real zero; those
+fields are omitted instead, as on a run with no PR data. A failed merged list
+omits the PR lifecycle fields above, the review fields, Flow Efficiency (§25),
+Human Review Coverage (§26), acceptance (§9) and merge strategy (§28), and
+leaves the activity timeline's `prs_merged` and `pr_median_ttm_hours` `None`
+(§14). A failed open list omits every Open PR Aging field (§27), count and
+ages included. Flow Load (§24) counts PRs of every state in flight, so a
+failed list in any state omits it. `fetch` counts as every list failed. When
+the per-state breakdown is unavailable, a step in the union applies to every
+state.
 
 ---
 
@@ -587,7 +625,7 @@ proxy.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `flow_load` | `FlowLoadWeek[]` | `analysis/flow_load.py` | < 2 weeks of signal |
+| `flow_load` | `FlowLoadWeek[]` | `analysis/flow_load.py` | < 2 weeks of signal, or `basic` failed for any PR state, or `fetch` (§15) |
 
 `FlowLoadWeek`:
 
@@ -601,6 +639,15 @@ proxy.
 - `author_concurrency` — distinct commit authors (deduped by email,
   falling back to author name) with at least one non-merge commit in
   the bucket
+
+**Failed PR list.** When `gh pr list` failed for any PR state (`basic` for
+merged, closed or open PRs, or `fetch`; §15), the whole `flow_load` series
+is omitted, `author_concurrency` included. Every state is in flight at some
+point, so a missing list would undercount `wip_total` and `wip_by_intent` in
+every bucket it overlaps. `author_concurrency` comes from commits and would
+still be right, but keeping it alone would mean emitting buckets with the
+WIP fields missing, a shape the platform does not read; the series goes
+whole instead.
 
 Overlap rule for a bucket `[t_start, t_end)`:
 
@@ -653,11 +700,11 @@ say nothing about whether work is flowing or queued in a different shape.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `flow_efficiency_median` | float `0.0–1.0` | `analysis/flow_efficiency.py` | no merged PR survives the filters, or `reviews` degraded |
-| `median_time_to_first_review_hours` | float ≥ 0 | same | no merged PR had a review, or `reviews` degraded |
+| `flow_efficiency_median` | float `0.0–1.0` | `analysis/flow_efficiency.py` | no merged PR survives the filters, or `basic` or `reviews` failed for merged PRs |
+| `median_time_to_first_review_hours` | float ≥ 0 | same | no merged PR had a review, or `basic` or `reviews` failed for merged PRs |
 | `time_in_phase_median_hours` | `Record<phase, hours>` | same | same as `flow_efficiency_median` |
-| `flow_efficiency_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment, or `reviews` degraded |
-| `flow_efficiency_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment, or `reviews` degraded |
+| `flow_efficiency_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment, or `basic` or `reviews` failed for merged PRs |
+| `flow_efficiency_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment, or `basic` or `reviews` failed for merged PRs |
 
 Phase model (5 timestamps → 4 phases per merged PR):
 
@@ -755,10 +802,10 @@ event at all.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `human_review_coverage_pct` | float `0.0–1.0` | `analysis/human_review_coverage.py` | no merged PR in the window, or `reviews` degraded |
+| `human_review_coverage_pct` | float `0.0–1.0` | `analysis/human_review_coverage.py` | no merged PR in the window, or `basic` or `reviews` failed for merged PRs |
 | `human_approval_coverage_pct` | float `0.0–1.0` | same | same |
-| `human_review_coverage_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment, or `reviews` degraded |
-| `human_review_coverage_by_origin_of_pr` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment, or `reviews` degraded |
+| `human_review_coverage_by_intent` | `Record<intent, ratio>` | same | < `min_sample` (default 10) PRs in the segment, or `basic` or `reviews` failed for merged PRs |
+| `human_review_coverage_by_origin_of_pr` | `Record<origin, ratio>` | same | no `commit_origin_map` provided, or < `min_sample` PRs in the segment, or `basic` or `reviews` failed for merged PRs |
 
 Definition (per merged PR, intermediate only):
 
@@ -827,14 +874,14 @@ Aging = "do trabalho que ainda não saiu, está represado?".
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `open_pr_count` | int | `analysis/open_pr_aging.py` | no eligible open PR (all drafts/bots) |
+| `open_pr_count` | int | `analysis/open_pr_aging.py` | no eligible open PR (all drafts/bots), or `basic` failed for open PRs |
 | `median_open_pr_age_days` | float ≥ 0 | same | same |
 | `p90_open_pr_age_days` | float ≥ 0 | same | same |
-| `stale_open_pr_pct` | float `0.0–1.0` | same | same, or `reviews` or `enrichment` degraded |
-| `very_stale_open_pr_pct` | float `0.0–1.0` | same | same, or `reviews` or `enrichment` degraded |
-| `abandonment_risk_pct` | float `0.0–1.0` | same | same, or `reviews` or `enrichment` degraded |
-| `median_open_pr_age_by_intent` | `Record<intent, days>` | same | < `min_sample` (default 5) PRs in segment |
-| `stale_open_pr_pct_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map`, or < `min_sample` PRs in segment, or `reviews` or `enrichment` degraded |
+| `stale_open_pr_pct` | float `0.0–1.0` | same | same, or `reviews` or `enrichment` failed for open PRs |
+| `very_stale_open_pr_pct` | float `0.0–1.0` | same | same, or `reviews` or `enrichment` failed for open PRs |
+| `abandonment_risk_pct` | float `0.0–1.0` | same | same, or `reviews` or `enrichment` failed for open PRs |
+| `median_open_pr_age_by_intent` | `Record<intent, days>` | same | < `min_sample` (default 5) PRs in segment, or `basic` failed for open PRs |
+| `stale_open_pr_pct_by_origin` | `Record<origin, ratio>` | same | no `commit_origin_map`, or < `min_sample` PRs in segment, or `basic`, `reviews` or `enrichment` failed for open PRs |
 
 Per-PR signals (intermediate, **never persisted**):
 
@@ -905,9 +952,9 @@ under-report AI adoption in squash repos.
 
 | Field | Unit | Source | Nullable when |
 |---|---|---|---|
-| `merge_strategy` | `merge\|squash\|rebase\|mixed\|unknown` | `analysis/merge_strategy_detector.py` | no PR data (`prs` empty/None) |
-| `merge_strategy_dominant_share` | float `0.0–1.0` | same | strategy is `unknown` |
-| `commit_metrics_reliable` | bool | same | no PR data |
+| `merge_strategy` | `merge\|squash\|rebase\|mixed\|unknown` | `analysis/merge_strategy_detector.py` | no PR data (`prs` empty/None), or `basic` failed for merged PRs |
+| `merge_strategy_dominant_share` | float `0.0–1.0` | same | strategy is `unknown` or absent |
+| `commit_metrics_reliable` | bool | same | no PR data, or `basic` failed for merged PRs |
 
 Per-PR classification (over **merged** PRs only), in confidence order:
 
@@ -950,12 +997,14 @@ Platform: indexed columns `merge_strategy` + `commit_metrics_reliable` on
 carries `merge_strategy_dominant_share` for the repo-detail badge.
 
 **Degraded enrichment.** When the PR read's `enrichment` step failed
-(`pr_enrichment_degraded` contains `enrichment`, from any PR state, §15), the repo is `unknown`
+for merged PRs (`pr_enrichment_degraded` then contains `enrichment`, §15), the repo is `unknown`
 without classifying: `merge_strategy_dominant_share` is absent and
 `commit_metrics_reliable` is `true`. Without parent counts and commit refs, a
 merge PR falls through to `unknown` while a squash-stamped one still
 classifies, so the fallback could only ever answer `squash` — a mixed repo
 would read as 100% squash, with its per-commit metrics flagged unreliable.
+When the merged list itself failed (`basic` for merged PRs, §15), there is
+nothing to classify and the three fields are absent, as with no PR data.
 
 ---
 

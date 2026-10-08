@@ -529,6 +529,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
             prs=prs or None,
             external_data=external_data,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
     print(s["cli_classified"].format(count=len(commits)))
     _tick("aggregate analysis done")
@@ -559,6 +560,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         recent_metrics = aggregate(
             recent_commits, churn_days=args.churn_days, prs=recent_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
         trend = compute_trend_delta(
             baseline=metrics,
@@ -692,10 +694,12 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         pre_metrics = aggregate(
             pre_commits, churn_days=args.churn_days, prs=pre_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
         post_metrics = aggregate(
             post_commits, churn_days=args.churn_days, prs=post_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
 
         # Compute day spans from commit date ranges

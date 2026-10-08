@@ -72,6 +72,7 @@ def pull_requests(
         return PullRequestFetch(
             prs=[pr for pr in fetch.prs if keep(pr, since)],
             degraded=fetch.degraded,
+            degraded_by_state=fetch.degraded_by_state,
         )
 
     fresh = load()
