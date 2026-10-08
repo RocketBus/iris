@@ -212,18 +212,41 @@ _GH_STATE_TO_GRAPHQL = {
 # retry makes a degraded run rarer without hiding the ones that still fail.
 _RETRY_DELAY_S = 2.0
 
-# gh writes why it failed to stderr. A 5xx or a slow or dropped connection can
-# pass on a second try; anything else — a 4xx, a GraphQL error — fails the same
-# way again, so retrying it would only add the pause to every run.
+# gh writes why it failed to stderr. A 5xx, a timeout (GitHub's GraphQL "may
+# be the result of a timeout" error included) or a dropped connection can pass
+# on a second try; anything else — a 4xx or other GraphQL error — fails the
+# same way again, so retrying it would only add the pause to every run. Whole
+# words only, so "thereof" is not an EOF.
 _TRANSIENT_GH_ERROR = re.compile(
-    r"HTTP 5\d\d|timeout|timed out|deadline exceeded|connection reset"
-    r"|connection refused|EOF",
+    r"\bHTTP 5\d\d\b|\btime(?:d)? ?out\b|\bdeadline exceeded\b"
+    r"|\bconnection (?:reset|refused)\b|\bEOF\b",
     re.IGNORECASE,
 )
 
 
-def _run_gh_with_one_retry(args: list[str]) -> subprocess.CompletedProcess | None:
-    """Run a gh command; if it fails transiently, wait once and retry.
+def _is_transient_gh_error(stderr: str, nwo: str) -> bool:
+    """Whether gh's stderr reads as an error a second try could clear.
+
+    The repo's ``owner/name``, name and owner are blanked out first: gh echoes
+    them in its errors, and a repo named ``timeout-svc`` would otherwise make
+    any error about it look like a timeout.
+    """
+    owner, _, name = nwo.partition("/")
+    for part in (nwo, name, owner):
+        if part:
+            # Only where it stands alone, so a repo named "out" leaves
+            # "timeout" whole.
+            stderr = re.sub(
+                rf"(?<![\w.-]){re.escape(part)}(?![\w.-])", " ", stderr,
+                flags=re.IGNORECASE,
+            )
+    return bool(_TRANSIENT_GH_ERROR.search(stderr))
+
+
+def _run_gh_with_one_retry(
+    args: list[str], nwo: str,
+) -> subprocess.CompletedProcess | None:
+    """Run a gh command for ``nwo``; if it fails transiently, wait once and retry.
 
     None when the command fails twice, or fails once with an error that a
     retry would not fix.
@@ -237,7 +260,7 @@ def _run_gh_with_one_retry(args: list[str]) -> subprocess.CompletedProcess | Non
         except FileNotFoundError:
             return None
         except subprocess.CalledProcessError as error:
-            if attempt == 2 or not _TRANSIENT_GH_ERROR.search(error.stderr or ""):
+            if attempt == 2 or not _is_transient_gh_error(error.stderr or "", nwo):
                 return None
             time.sleep(_RETRY_DELAY_S)
     return None
@@ -266,9 +289,12 @@ def _fetch_pr_enrichment_graphql(
     of.
 
     Returns ``(by_pr, complete)``. ``complete`` is False when the pass stopped
-    on an error — a page that failed even after one retry, unparseable
-    output, a response without data — so ``by_pr`` holds only what earlier
-    pages collected. Reaching ``max_prs`` or the last page is a normal end.
+    on an error — a page whose gh call failed (at once on an error a retry
+    would not fix, after the one retry on a transient one), unparseable
+    output, a response without data, more pages with no cursor to reach
+    them — so ``by_pr`` holds only what earlier pages collected, and the
+    pass counts as failed even when those pages came back. Reaching
+    ``max_prs`` or the last page is a normal end.
     """
     try:
         owner, name = nwo.split("/", 1)
@@ -297,7 +323,7 @@ def _fetch_pr_enrichment_graphql(
         if end_cursor:
             args.extend(["-f", f"cursor={end_cursor}"])
 
-        result = _run_gh_with_one_retry(args)
+        result = _run_gh_with_one_retry(args, nwo)
         if result is None:
             return by_pr, False
 
@@ -375,7 +401,7 @@ def _gh_pr_list(
         "--limit", str(limit),
     ]
     if retry:
-        result = _run_gh_with_one_retry(args)
+        result = _run_gh_with_one_retry(args, nwo)
     else:
         try:
             result = subprocess.run(
