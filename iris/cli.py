@@ -16,6 +16,7 @@ from iris.ingestion.git_reader import read_commits
 from iris.ingestion.github_reader import read_pull_requests_with_fallback
 from iris.metrics.aggregator import aggregate
 from iris.models.context import AnalysisContext
+from iris.models.pull_request import DEGRADED_BASIC, DEGRADED_FETCH
 from iris.reports.narrative import generate_narrative
 from iris.reports.writer import write_output
 
@@ -498,10 +499,15 @@ def _run_single_repo(args: argparse.Namespace) -> None:
     with span("ingestion.pull_requests", {"repo": repo_name}):
         pr_fetch = read_pull_requests_with_fallback(repo, days=args.days)
     prs = pr_fetch.prs
-    if prs:
+    steps = ", ".join(pr_fetch.degraded)
+    if prs and pr_fetch.degraded:
+        print(s["cli_prs_found_degraded"].format(count=len(prs), steps=steps))
+    elif prs:
         print(s["cli_prs_found"].format(count=len(prs)))
+    elif DEGRADED_BASIC in pr_fetch.degraded or DEGRADED_FETCH in pr_fetch.degraded:
+        print(s["cli_prs_failed"].format(steps=steps))
     elif pr_fetch.degraded:
-        print(s["cli_prs_failed"].format(steps=", ".join(pr_fetch.degraded)))
+        print(s["cli_prs_none_degraded"].format(steps=steps))
     else:
         print(s["cli_prs_skipped"])
     _tick("pull requests fetched")
@@ -523,6 +529,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
             prs=prs or None,
             external_data=external_data,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
     print(s["cli_classified"].format(count=len(commits)))
     _tick("aggregate analysis done")
@@ -553,6 +560,7 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         recent_metrics = aggregate(
             recent_commits, churn_days=args.churn_days, prs=recent_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
         trend = compute_trend_delta(
             baseline=metrics,
@@ -686,10 +694,12 @@ def _run_single_repo(args: argparse.Namespace) -> None:
         pre_metrics = aggregate(
             pre_commits, churn_days=args.churn_days, prs=pre_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
         post_metrics = aggregate(
             post_commits, churn_days=args.churn_days, prs=post_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
 
         # Compute day spans from commit date ranges

@@ -35,10 +35,11 @@ EN = {
     ),
     "pr_enrichment_degraded_caveat": (
         "PR data is incomplete for this run — failed steps: {steps}. Merge "
-        "strategy is reported as unknown when enrichment failed, and flow, "
-        "review and in-PR metrics may be missing or skewed. A transient "
-        "GitHub error usually clears on the next run; if every run fails, "
-        "check that gh is authenticated (gh auth status)."
+        "strategy is reported as unknown when enrichment failed for merged "
+        "PRs, and PR lifecycle (counts, time to merge, cycle time), flow, "
+        "review, in-PR and open-PR metrics may be missing or skewed. A "
+        "transient GitHub error usually clears on the next run; if every run "
+        "fails, check that gh is authenticated (gh auth status)."
     ),
     "system_disclaimer": (
         "Engineering outcomes emerge from system dynamics, domain complexity, "
@@ -338,9 +339,11 @@ EN = {
 
     # CLI
     "cli_reading_prs": "Fetching pull requests...",
-    "cli_prs_found": "{count} merged PRs found.",
+    "cli_prs_found": "{count} PRs found.",
     "cli_prs_skipped": "skipped (no GitHub remote or gh CLI).",
     "cli_prs_failed": "failed ({steps}) — continuing without PR data.",
+    "cli_prs_found_degraded": "{count} PRs found — PR read incomplete ({steps}).",
+    "cli_prs_none_degraded": "no PRs in the window — PR read incomplete ({steps}).",
     "cli_classifying": "Classifying commits...",
     "cli_classified": "{count} commits classified.",
     "cli_non_code_repo": (
@@ -926,10 +929,12 @@ PT_BR = {
     "pr_enrichment_degraded_caveat": (
         "Os dados de PR estão incompletos nesta execução — passos com falha: "
         "{steps}. A estratégia de merge sai como desconhecida quando o "
-        "enriquecimento falha, e métricas de flow, de review e de commits em "
-        "PR podem faltar ou sair distorcidas. Um erro transitório do GitHub "
-        "costuma sumir na próxima execução; se toda execução falhar, "
-        "verifique se o gh está autenticado (gh auth status)."
+        "enriquecimento dos PRs mergeados falha, e métricas de ciclo de vida "
+        "de PR (contagens, tempo até o merge, cycle time), de flow, de "
+        "review, de commits em PR e de PRs abertos podem faltar ou sair "
+        "distorcidas. Um erro transitório do GitHub costuma sumir na próxima "
+        "execução; se toda execução falhar, verifique se o gh está "
+        "autenticado (gh auth status)."
     ),
     "system_disclaimer": (
         "Resultados de engenharia emergem de dinâmicas sistêmicas, complexidade do domínio "
@@ -1231,9 +1236,11 @@ PT_BR = {
 
     # CLI
     "cli_reading_prs": "Buscando pull requests...",
-    "cli_prs_found": "{count} PRs merged encontrados.",
+    "cli_prs_found": "{count} PRs encontrados.",
     "cli_prs_skipped": "pulado (sem remote GitHub ou gh CLI).",
     "cli_prs_failed": "falhou ({steps}) — seguindo sem dados de PR.",
+    "cli_prs_found_degraded": "{count} PRs encontrados — leitura de PR incompleta ({steps}).",
+    "cli_prs_none_degraded": "nenhum PR na janela — leitura de PR incompleta ({steps}).",
     "cli_classifying": "Classificando commits...",
     "cli_classified": "{count} commits classificados.",
     "cli_non_code_repo": (

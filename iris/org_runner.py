@@ -90,6 +90,7 @@ def analyze_single_repo(
         churn_days=churn_days,
         prs=prs or None,
         pr_fetch_degraded=pr_fetch.degraded,
+        pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
     )
 
     # Step 4a: Repository kind (keeps docs/board repos out of org comparisons)
@@ -109,6 +110,7 @@ def analyze_single_repo(
         recent_metrics = aggregate(
             recent_commits, churn_days=churn_days, prs=recent_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
         trend = compute_trend_delta(
             baseline=metrics,
@@ -147,10 +149,12 @@ def analyze_single_repo(
         pre_metrics = aggregate(
             pre_commits, churn_days=churn_days, prs=pre_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
         post_metrics = aggregate(
             post_commits, churn_days=churn_days, prs=post_prs,
             pr_fetch_degraded=pr_fetch.degraded,
+            pr_fetch_degraded_by_state=pr_fetch.degraded_by_state,
         )
 
         pre_days = max(1, (pre_commits[-1].date - pre_commits[0].date).days)
